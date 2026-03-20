@@ -101,6 +101,56 @@ with strangers.
 
 ---
 
+## OpenClaw Runtime — Route Selection
+
+OpenClaw is an AI agent runtime format the hackathon judges may require. It defines agent personality and capabilities via SOUL.md / SKILL.md files.
+
+### Route A: Cloudflare moltworker ❌ Rejected
+
+- Cold start 1-2 minutes — fatal for a pet social app
+- Single-tenant design; multi-tenant PR abandoned
+
+### Route B: Hetzner VPS per pet (fallback only)
+
+- One Hetzner CX11 (~$3.5/mo) per pet, full OpenClaw runtime
+- **Note:** ClawHost has no REST API (dashboard UI only). Fallback uses Hetzner Cloud API directly.
+- Cold start 5-10 min → mitigation: pre-provision all demo pets before demo
+- 20 demo pets = $70/month
+
+### Route C: Self-implemented Compatible Runtime ❌ Rejected
+
+- Custom Node.js service following SOUL.md / SKILL.md format spec
+- **Rejected:** Product requires per-pet process isolation; shared process does not satisfy this
+
+### Route D: Docker per Pet on Hetzner VPS ✅ Selected
+
+- 1x Hetzner CX21 ($6/mo) running Docker daemon; each pet = one `openclaw:latest` container
+- Up to 20 demo pets on a single host; ~$15/month total
+- Cold start 3-5s; full per-pet container isolation satisfies product requirement
+
+**Container lifecycle (via `dockerode` SDK):**
+```
+POST /pets  → write SOUL.md/SKILL.md to /data/pets/{uuid}/ on host
+            → docker.createContainer({ Image: 'openclaw:latest',
+                HostConfig: { Binds: ['/data/pets/{uuid}:/home/openclaw'],
+                              Memory: 512 * 1024 * 1024 } })
+DELETE /pets/:id → container.stop() + container.remove()
+```
+
+**File storage (bind mount per pet):**
+```
+/data/pets/{pet_uuid}/
+  ├── SOUL.md        ← written by backend at pet creation
+  ├── SKILL.md       ← written by backend at pet creation
+  └── .openclaw/     ← managed by OpenClaw (memory, history, etc.)
+```
+
+DB (`soul_md` column) is source of truth for API/UI; bind mount is OpenClaw's working directory. Host directory persists data across container restarts.
+
+**Fallback:** If Docker image incompatibility or daemon access blocked, activate Route B (Hetzner API directly, pre-provision before demo). See `docs/risks.md` R4.
+
+---
+
 ## API Contract (Backend → Frontend)
 
 ### REST endpoints

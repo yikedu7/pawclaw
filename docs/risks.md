@@ -25,9 +25,12 @@
 ## Resolved
 
 ### R4: Runtime Architecture — RESOLVED ✅
-- **Decision:** Route C — custom multi-tenant OpenClaw-compatible Node.js runtime
-- **Reason:** Fastest to build, no cold start, full control, natural multi-tenancy
-- **Alternative on standby:** Route B (ClawHost + Hetzner) if judges require native OpenClaw binary
+- **Decision:** Route D — Docker per pet on Hetzner CX21 VPS ($6/mo total for up to 20 demo pets)
+- **Reason:** Official `openclaw:latest` Docker image exists; full programmatic control via `dockerode` SDK; true per-pet container isolation satisfies product requirement; $15/mo total vs $70/mo for 20 separate VPS
+- **Implementation:** `POST /pets` writes SOUL.md/SKILL.md to `/data/pets/{uuid}/` on host, then calls `docker.createContainer()` with bind mount `-v /data/pets/{uuid}:/home/openclaw`; container lifecycle managed by backend
+- **Route B status:** ClawHost has no REST API (dashboard UI only — `POST /claws` does not exist); fallback uses Hetzner Cloud API directly to provision one CX11 per pet
+- **Route C rejected:** Product requires per-pet isolation; shared process does not satisfy this
+- **Known pitfalls:** Set `--memory=512m` per container; use bind mounts not anonymous volumes; confirm exact OpenClaw data directory path from official Docker docs before implementing
 
 ### R5: Frontend Framework — RESOLVED ✅
 - **Decision:** PixiJS v8 for canvas layer, HTML/CSS for UI layer, WebSocket for real-time
