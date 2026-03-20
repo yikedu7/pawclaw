@@ -1,0 +1,61 @@
+name: PR Review Team
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed
+        run: |
+          git diff --name-only origin/main...HEAD > changed_files.txt
+          cat changed_files.txt
+
+      - name: Get PR diff
+        run: |
+          git diff origin/main...HEAD > pr.diff
+
+      - name: Run PR Review Team
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          direct_prompt: |
+            You are a PR review team for the x-pet project. Review this PR against the engineering principles in CLAUDE.md.
+
+            Run three focused reviews in sequence:
+
+            ## Reviewer 1 — Ownership & Scope
+            - Does this PR only touch files within the issue's declared directory ownership?
+            - Does it bundle unrelated changes?
+            - Is there a corresponding issue number referenced in the commit message?
+
+            ## Reviewer 2 — Architecture & Contracts
+            - Do imports follow the layer order: shared → db → api → runtime → ws?
+            - Does the implementation match the API contracts in docs/api-contracts.md (if relevant)?
+            - Are all external inputs validated with Zod schemas from @x-pet/shared?
+            - No hand-rolled types that duplicate packages/shared/types/?
+
+            ## Reviewer 3 — Engineering Principles
+            - Does this implement exactly what the issue asked — no more, no less?
+            - Any gold-plating (unrequested features, speculative abstractions, premature helpers)?
+            - New blockers discovered? Should they be in docs/risks.md?
+            - No console.log (use structured logger)?
+
+            For each reviewer, output: ✅ PASS or ❌ FAIL with specific line references.
+            End with an overall APPROVE or REQUEST CHANGES verdict and a one-paragraph summary.
+
+            Read CLAUDE.md and docs/architecture.md before starting.
