@@ -10,8 +10,8 @@ x-pet is a multi-tenant AI pet runtime. Each pet is an autonomous agent with its
 
 | Layer | Technology | Notes |
 |-------|-----------|-------|
-| Backend runtime | Node.js 20 + TypeScript | Single process, multi-tenant |
-| HTTP + WebSocket | Fastify + @fastify/websocket | One server for both |
+| Backend runtime | Node.js 22 + TypeScript 5.8 | Single process, multi-tenant |
+| HTTP + WebSocket | Fastify v5 + @fastify/websocket | One server for both |
 | ORM | Drizzle ORM + postgres | Lightweight, TypeScript-native |
 | Validation | Zod | API input + SOUL.md schema |
 | Database | PostgreSQL via Supabase | Row-per-pet model |
