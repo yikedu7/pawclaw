@@ -1,6 +1,19 @@
-export type SocialEventType = 'visit' | 'gift' | 'chat';
+export type SocialEventType = 'visit' | 'gift' | 'chat' | 'speak' | 'rest';
 
-// Pet — one row per pet
+// User account
+export type User = {
+  id: string;
+  email: string;
+};
+
+// Auth response (register / login)
+export type AuthResponse = {
+  id: string;
+  email: string;
+  token: string;
+};
+
+// Pet — one row per pet (DB record)
 export type Pet = {
   id: string;
   owner_id: string;
@@ -15,25 +28,46 @@ export type Pet = {
   last_tick_at: Date;
 };
 
-// Subset of fields needed to create a pet
+// Fields needed to create a pet (API input)
 export type PetCreate = {
-  owner_id: string;
+  soul_prompt: string; // short personality description, e.g. "an anxious terrier who loves books"
   name: string;
-  soul_md: string;
-  skill_md: string;
 };
 
-// Runtime state sent over WebSocket
-export type PetState = Pick<Pet, 'hunger' | 'mood' | 'affection'>;
+// Pet state as returned by the REST API
+export type PetState = {
+  id: string;
+  owner_id: string;
+  name: string;
+  wallet_address: string;
+  hunger: number;
+  mood: number;
+  affection: number;
+};
+
+// SocialEvent payload — type-specific fields, all optional
+export type SocialEventPayload = {
+  // visit: multi-round LLM dialogue
+  turns?: Array<{
+    speaker_pet_id: string;
+    line: string;
+  }>;
+  // gift: on-chain transfer details
+  token?: string;
+  amount?: string;
+  tx_hash?: string;
+  // speak: solo utterance
+  message?: string;
+  // rest: payload is empty
+};
 
 // SocialEvent — one row per pet interaction
 export type SocialEvent = {
   id: string;
-  from_pet_id: string;
-  to_pet_id: string;
   type: SocialEventType;
-  payload: unknown;
-  created_at: Date;
+  pet_ids: string[];        // uuids of all pets involved; first entry is the initiating pet
+  payload: SocialEventPayload;
+  created_at: string;       // ISO 8601
 };
 
 // Transaction — on-chain record
