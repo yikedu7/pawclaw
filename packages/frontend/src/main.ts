@@ -1,0 +1,34 @@
+import { Application } from 'pixi.js';
+import { PetRoom } from './canvas/PetRoom';
+import { MockEvents } from './canvas/MockEvents';
+import { eventBus } from './ws/eventBus';
+
+async function main(): Promise<void> {
+  const mount = document.getElementById('canvas');
+  if (!mount) throw new Error('#canvas element not found');
+
+  const app = new Application();
+  await app.init({
+    resizeTo: mount,
+    background: 0x1a1a2e,
+    antialias: true,
+    resolution: window.devicePixelRatio || 1,
+    autoDensity: true,
+  });
+
+  mount.appendChild(app.canvas);
+
+  const room = new PetRoom(app);
+  app.stage.addChild(room, room.overlays);
+
+  eventBus.on('pet.state', (e) => room.updateStats(e.data));
+  eventBus.on('pet.speak', (e) => room.showDialogue(e.data.message));
+  eventBus.on('social.visit', (e) => {
+    room.showDialogue(`[${e.data.from}] ${e.data.dialogue.join(' / ')}`);
+  });
+  eventBus.on('social.gift', (e) => room.showGift(e.data.from));
+
+  new MockEvents().start();
+}
+
+main();
