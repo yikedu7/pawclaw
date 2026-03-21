@@ -26,6 +26,12 @@
 - **Action needed:** Run `docker pull ghcr.io/openclaw/openclaw:latest` on a fresh host without `docker login`. If it fails, document the PAT setup step.
 - **Fallback:** Use `1panel/openclaw` or `alpine/openclaw` from Docker Hub as a public mirror (both are community-maintained mirrors that sync from GHCR). Verify image integrity before demo.
 
+### R9: docs-issue-sync LLM Write-Access — MEDIUM
+- **Risk:** The `docs-issue-sync` workflow grants Claude Code Action write-access to **all** open issue bodies on every `docs/**` push. If the LLM misidentifies a contradiction, it silently rewrites an issue body with no human review step.
+- **Blast radius:** All open issues could be rewritten in a single workflow run.
+- **Mitigation:** Prompt explicitly constrains scope to concrete contradictions (wrong field names, resolved blockers) and instructs the LLM to do nothing if no issues are stale. Workflow permissions are scoped to `issues: write` only (no `contents: write`).
+- **Monitoring:** Review `docs-issue-sync` run logs after every docs push; revert any incorrect edits via `gh issue edit`.
+
 **R6 — Frontend WsEvent schema alignment (FE2 prerequisite)**
 - **Risk:** The frontend canvas (issue #10) subscribes to `eventBus` using the canonical `WsEvent` type from `@x-pet/shared`. The real WS client (issue FE2) must emit events using the same field names (`from_pet_id`, `to_pet_id`, `turns`, `token`, `amount`).
 - **Impact:** Silent runtime breakage — `e.data.from_pet_id` returns `undefined` if the WS client sends `from` instead.
