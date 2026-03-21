@@ -37,10 +37,12 @@ jobs:
           prompt: |
             You are a PR review team for the x-pet project. Review this PR against the engineering principles in CLAUDE.md.
 
+            The PR number is ${{ github.event.pull_request.number }}.
+
             Before starting:
             1. Read CLAUDE.md and docs/architecture.md
-            2. Run `gh pr view $PR_NUMBER --json number,title,body` to read the PR title and description
-            3. Run `gh issue view <N>` to read the actual issue scope (extract issue number from PR title/body or first commit)
+            2. Run `gh pr view ${{ github.event.pull_request.number }} --repo yikedu7/x-pet --json number,title,body` to read the PR title and description
+            3. Run `gh issue view <N> --repo yikedu7/x-pet` to read the actual issue scope (extract issue number from PR title/body or first commit)
             4. Use `git log origin/main...HEAD --oneline` to see commits, `git diff origin/main...HEAD` to see changes
 
             Run three focused reviews in sequence:
