@@ -20,12 +20,6 @@
 - **Action needed:** Read Onchain OS SDK docs
 - **Fallback:** Generate HD wallet derivation from pet UUID using ethers.js, store encrypted private key in DB
 
-### R7: Docker Remote Access (Railway → Hetzner) — HIGH
-- **Unknown:** How does the Railway-hosted backend connect to the Docker daemon on a Hetzner VPS to manage per-pet containers?
-- **Impact:** Entire Route D architecture depends on this. Options: (a) expose Docker daemon via TLS over the internet (security risk), (b) run an SSH tunnel from Railway to Hetzner (complex, fragile), (c) deploy a lightweight container management HTTP sidecar on Hetzner that Railway calls (extra service to build/maintain).
-- **Action needed:** If Route D is kept, decide on remote Docker access strategy before implementing #22.
-- **Fallback:** Switch to Route C (self-implemented runtime in the same Railway backend process), which eliminates remote Docker entirely.
-
 ### R8: OpenClaw GHCR Image Authentication — MEDIUM
 - **Unknown:** Does `ghcr.io/openclaw/openclaw:latest` require authentication for `docker pull` on a Hetzner host? GitHub Container Registry allows public images to be pulled unauthenticated, but this must be verified for this specific package.
 - **Impact:** If auth is required, the Hetzner host needs a GitHub PAT with `read:packages` scope configured on first boot — adds ops complexity.
@@ -49,7 +43,7 @@
   3. **Proactive mode — CONFIRMED:** Heartbeat (periodic background LLM turns, configurable interval, reads `HEARTBEAT.md`) and full Cron job support are both implemented and working.
   4. **Image — CONFIRMED:** `ghcr.io/openclaw/openclaw:latest` (GHCR, not Docker Hub). Config dir `/home/node/.openclaw`, workspace `/home/node/.openclaw/workspace/`.
 - **Route D is viable.** The tick loop integration pattern (ingress via `/webhook/<id>`, egress via `delivery.mode: webhook`) wires OpenClaw into the x-pet backend cleanly.
-- **Remaining open risks:** R7 (Docker remote access Railway → Hetzner) and R8 (GHCR auth on Hetzner host) — see above.
+- **Remaining open risk:** R8 (GHCR auth on Hetzner host) — see above.
 
 ### R5: Frontend Framework — RESOLVED ✅
 - **Decision:** PixiJS v8 for canvas layer, HTML/CSS for UI layer, WebSocket for real-time
@@ -60,6 +54,12 @@
 - **Decision:** Random matching for MVP
 - **Reason:** Reduces scope, still creates compelling social events
 - **v2:** Personality embedding similarity (cosine distance on SOUL.md embeddings)
+
+### R7: Docker Remote Access (Railway → Hetzner) — RESOLVED ✅
+- **Decision:** SSH tunneling via `dockerode` SSH protocol. Backend connects using an ed25519 private key stored as a Railway env var (`HETZNER_SSH_KEY`). No port 2376 exposure required.
+- **Rejected:** Docker TCP+TLS — Railway has no static egress IP (cannot allowlist port 2376), cert generation is error-prone under time pressure, `TLS handshake failed` errors are opaque.
+- **Implementation:** See `docs/remote-docker-access.md` for full comparison and connection snippet. Issue #38 tracks VPS provisioning and keypair setup.
+- **Remaining concern:** SSH private key leakage gives VPS shell access. Mitigated by storing key only in Railway env vars (not in repo) and using a dedicated deploy keypair.
 
 ---
 
