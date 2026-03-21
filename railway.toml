@@ -9,7 +9,7 @@ source = "packages/backend"
   dockerfilePath = "Dockerfile"
 
   [services.deploy]
-  startCommand = "node dist/index.js"
+  startCommand = "node packages/backend/dist/index.js"
   healthcheckPath = "/health"
   healthcheckTimeout = 300
 
