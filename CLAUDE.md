@@ -56,9 +56,28 @@ packages/
 
 Every task must have a GitHub issue. No issue → no work.
 
+### Starting work on an issue
+
+Always work in an isolated git worktree — never modify files directly in the main repo checkout:
+
+```bash
+# From the main repo directory
+git fetch origin
+git worktree add ../x-pet-issue-<N> -b issue-<N>-short-name origin/main
+cd ../x-pet-issue-<N>
+# do all work here
+```
+
+After PR merges, clean up:
+```bash
+cd /Users/yikedu/Code/x-pet
+git worktree remove ../x-pet-issue-<N>
+```
+
+### Commit and PR rules
+
 ```bash
 gh issue list --repo yikedu7/x-pet   # check open issues
-git checkout -b issue-<N>-short-name  # branch per issue
 # commit with "closes #N" in message
 ```
 
