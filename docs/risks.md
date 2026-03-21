@@ -20,17 +20,31 @@
 - **Action needed:** Read Onchain OS SDK docs
 - **Fallback:** Generate HD wallet derivation from pet UUID using ethers.js, store encrypted private key in DB
 
+### R7: Docker Remote Access (Railway → Hetzner) — HIGH
+- **Unknown:** How does the Railway-hosted backend connect to the Docker daemon on a Hetzner VPS to manage per-pet containers?
+- **Impact:** Entire Route D architecture depends on this. Options: (a) expose Docker daemon via TLS over the internet (security risk), (b) run an SSH tunnel from Railway to Hetzner (complex, fragile), (c) deploy a lightweight container management HTTP sidecar on Hetzner that Railway calls (extra service to build/maintain).
+- **Action needed:** If Route D is kept, decide on remote Docker access strategy before implementing #22.
+- **Fallback:** Switch to Route C (self-implemented runtime in the same Railway backend process), which eliminates remote Docker entirely.
+
+### R8: OpenClaw GHCR Image Authentication — MEDIUM
+- **Unknown:** Does `ghcr.io/openclaw/openclaw:latest` require authentication for `docker pull` on a Hetzner host? GitHub Container Registry allows public images to be pulled unauthenticated, but this must be verified for this specific package.
+- **Impact:** If auth is required, the Hetzner host needs a GitHub PAT with `read:packages` scope configured on first boot — adds ops complexity.
+- **Action needed:** Run `docker pull ghcr.io/openclaw/openclaw:latest` on a fresh host without `docker login`. If it fails, document the PAT setup step.
+- **Fallback:** Use `1panel/openclaw` or `alpine/openclaw` from Docker Hub as a public mirror (both are community-maintained mirrors that sync from GHCR). Verify image integrity before demo.
+
 ---
 
 ## Resolved
 
 ### R4: Runtime Architecture — RESOLVED ✅
-- **Decision:** Route D — Docker per pet on Hetzner CX21 VPS (~$15/mo total for up to 20 demo pets)
-- **Reason:** Official `openclaw:latest` Docker image exists; full programmatic control via `dockerode` SDK; true per-pet container isolation satisfies product requirement; $15/mo total vs $70/mo for 20 separate VPS
-- **Implementation:** `POST /pets` writes SOUL.md/SKILL.md to `/data/pets/{uuid}/` on host, then calls `docker.createContainer()` with bind mount; container lifecycle managed by backend
-- **Route B status:** ClawHost has no REST API (dashboard UI only); fallback uses Hetzner Cloud API directly to provision one CX11 per pet
-- **Route C rejected:** Product requires per-pet isolation; shared Node.js process does not satisfy this
-- **Known pitfalls:** Set `--memory=512m` per container; use bind mounts not anonymous volumes; confirm exact OpenClaw data directory path from official Docker docs before implementing
+- **Previously re-opened as critical blocker** based on incomplete research that concluded OpenClaw had no event output mechanism and no proactive mode.
+- **Corrected research (issue #37, 2026-03-21) confirms both blockers are resolved:**
+  1. **Event output (webhook egress) — CONFIRMED:** OpenClaw cron/heartbeat jobs with `delivery.mode: "webhook"` POST LLM results to an external backend URL. Auth via `cron.webhookToken` (bearer token). Our backend can receive OpenClaw output without polling.
+  2. **Webhook ingress — CONFIRMED:** POST to `http://localhost:18789/webhook/<id>` triggers an LLM turn. The x-pet tick loop can drive OpenClaw turns via HTTP.
+  3. **Proactive mode — CONFIRMED:** Heartbeat (periodic background LLM turns, configurable interval, reads `HEARTBEAT.md`) and full Cron job support are both implemented and working.
+  4. **Image — CONFIRMED:** `ghcr.io/openclaw/openclaw:latest` (GHCR, not Docker Hub). Config dir `/home/node/.openclaw`, workspace `/home/node/.openclaw/workspace/`.
+- **Route D is viable.** The tick loop integration pattern (ingress via `/webhook/<id>`, egress via `delivery.mode: webhook`) wires OpenClaw into the x-pet backend cleanly.
+- **Remaining open risks:** R7 (Docker remote access Railway → Hetzner) and R8 (GHCR auth on Hetzner host) — see above.
 
 ### R5: Frontend Framework — RESOLVED ✅
 - **Decision:** PixiJS v8 for canvas layer, HTML/CSS for UI layer, WebSocket for real-time
