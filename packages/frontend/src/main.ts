@@ -21,6 +21,12 @@ async function main(): Promise<void> {
   const room = new PetRoom(app);
   app.stage.addChild(room, room.overlays);
 
+  // ResizeObserver gives actual CSS px of the mount element — avoids the race
+  // between window.resize and PixiJS's internal resizeTo handler.
+  new ResizeObserver(() => {
+    room.layout(mount.clientWidth, mount.clientHeight);
+  }).observe(mount);
+
   eventBus.on('pet.state', (e) => room.updateStats(e.data));
   eventBus.on('pet.speak', (e) => room.showDialogue(e.data.message));
   eventBus.on('social.visit', (e) => {

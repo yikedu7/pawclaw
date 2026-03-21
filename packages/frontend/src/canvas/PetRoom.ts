@@ -54,7 +54,6 @@ export class PetRoom extends Container {
 
     this.layout(app.screen.width, app.screen.height);
     app.ticker.add(this.onTick, this);
-    window.addEventListener('resize', this.onWindowResize);
   }
 
   private makeBar(color: number): StatBar {
@@ -106,10 +105,6 @@ export class PetRoom extends Container {
     this.statRoot.y = h - STAT_BOTTOM_PAD;
   }
 
-  private readonly onWindowResize = (): void => {
-    this.layout(this.app.screen.width, this.app.screen.height);
-  };
-
   private readonly onTick = (ticker: Ticker): void => {
     const speed = 1 - Math.exp(-5 * (ticker.deltaMS / 1000));
     for (const bar of this.bars) {
@@ -131,7 +126,6 @@ export class PetRoom extends Container {
   showGift(from: string): void { this.gift.spawn(from); }
 
   destroy(options?: Parameters<Container['destroy']>[0]): void {
-    window.removeEventListener('resize', this.onWindowResize);
     super.destroy(options);
   }
 }
