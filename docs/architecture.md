@@ -37,23 +37,44 @@ OpenClaw is an AI agent runtime format the hackathon judges may require. It defi
 - ~$35/month per instance, unscalable
 - 81 open issues; WebSocket stability questionable
 
-### Route B: ClawHost + Hetzner VPS (fallback)
+### Route B: Hetzner VPS per pet (fallback only)
 
-- One VPS per pet, full OpenClaw runtime, high judge credibility
-- Hetzner CX11 ~$3.5/month; 20 demo pets = $70/month
-- REST API: `POST /claws` to create instance, `PATCH /claws/:id/files/SOUL.md` to inject personality
-- Cold start 5-10 min → mitigation: pre-provision all instances before demo, users get instant assignment
-- Simplified approach: use ClawHost's `cloud-init.yaml` + Hetzner API, write ~100-line provisioning script
+- One Hetzner CX11 (~$3.5/mo) per pet, full OpenClaw runtime
+- **Note:** ClawHost has no REST API (dashboard UI only). Fallback uses Hetzner Cloud API directly.
+- Cold start 5-10 min → mitigation: pre-provision all demo pets before demo
+- 20 demo pets = $70/month
 
-### Route C: Self-implemented Compatible Runtime (candidate)
+### Route C: Self-implemented Compatible Runtime ❌ Rejected
 
-- No OpenClaw process; custom Node.js service that follows SOUL.md / SKILL.md format spec
-- Each pet = one DB row (soul_md, wallet, history, skills)
-- X402 auto-charges before each LLM call; OnchainOS Swap implemented as a tool call
-- Advantages: fastest to build, full control, multi-tenancy built-in, zero cold start
-- Judge Q&A: "Original OpenClaw is single-tenant; we built a compatible multi-tenant runtime"
+- Custom Node.js service following SOUL.md / SKILL.md format spec
+- **Rejected:** Product requires per-pet process isolation; shared process does not satisfy this
 
-**⚠️ Route not yet decided. See `docs/risks.md` R4. Decision required before implementing pet creation API or runtime engine.**
+### Route D: Docker per Pet on Hetzner VPS ✅ Selected
+
+- 1x Hetzner CX21 ($6/mo) running Docker daemon; each pet = one `openclaw:latest` container
+- Up to 20 demo pets on a single host; ~$15/month total
+- Cold start 3-5s; full per-pet container isolation satisfies product requirement
+
+**Container lifecycle (via `dockerode` SDK):**
+```
+POST /pets  → write SOUL.md/SKILL.md to /data/pets/{uuid}/ on host
+            → docker.createContainer({ Image: 'openclaw:latest',
+                HostConfig: { Binds: ['/data/pets/{uuid}:/home/openclaw'],
+                              Memory: 512 * 1024 * 1024 } })
+DELETE /pets/:id → container.stop() + container.remove()
+```
+
+**File storage (bind mount per pet):**
+```
+/data/pets/{pet_uuid}/
+  ├── SOUL.md        ← written by backend at pet creation
+  ├── SKILL.md       ← written by backend at pet creation
+  └── .openclaw/     ← managed by OpenClaw (memory, history, etc.)
+```
+
+DB (`soul_md` column) is source of truth for API/UI; bind mount is OpenClaw's working directory. Host directory persists data across container restarts.
+
+**Fallback:** If Docker image incompatibility or daemon access blocked, activate Route B (Hetzner API directly, pre-provision before demo). See `docs/risks.md` R4.
 
 ---
 
