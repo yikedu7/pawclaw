@@ -6,7 +6,7 @@ import { GiftAnimation } from './GiftAnimation';
 const BAR_W = 150;
 const BAR_H = 9;
 const BAR_ROW = 26;
-const STAT_BOTTOM_PAD = 72;
+const STAT_BOTTOM_PAD = 90;
 const PET_W = 64;
 const PET_H = 64;
 
@@ -93,7 +93,7 @@ export class PetRoom extends Container {
   layout(w: number, h: number): void {
     this.bg.clear();
     this.bg.rect(0, 0, w, h).fill(C.bg);
-    this.bg.rect(0, h * 0.62, w, h * 0.38).fill(C.floor);
+    this.bg.rect(0, h * 0.72, w, h * 0.28).fill(C.floor);
 
     this.pet.x = w / 2;
     this.pet.y = h * 0.42;
