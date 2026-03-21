@@ -27,10 +27,13 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           use_sticky_comment: true
+          show_full_output: true
           additional_permissions: |
             Bash(gh issue view:*)
             Bash(gh issue list:*)
             Bash(gh pr view:*)
+            Bash(gh pr comment:*)
+            Bash(gh pr review:*)
           prompt: |
             You are a PR review team for the x-pet project. Review this PR against the engineering principles in CLAUDE.md.
 
