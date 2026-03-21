@@ -20,6 +20,7 @@ RUN pnpm --filter @x-pet/backend build
 # Runner
 FROM node:22-alpine AS runner
 RUN npm install -g pnpm
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app
 COPY pnpm-workspace.yaml package.json ./
 COPY packages/shared/package.json ./packages/shared/
@@ -27,6 +28,9 @@ COPY packages/backend/package.json ./packages/backend/
 RUN pnpm install --frozen-lockfile --filter @x-pet/backend... --prod
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/packages/backend/dist ./packages/backend/dist
+RUN chown -R appuser:appgroup /app
+USER appuser
 
+ENV PORT=3000
 EXPOSE 3000
 CMD ["node", "packages/backend/dist/index.js"]
