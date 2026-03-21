@@ -36,20 +36,15 @@
 
 ## Resolved
 
-### R4: Runtime Architecture — RE-OPENED AS CRITICAL BLOCKER ❌
-- **Previously marked resolved** on assumption that `openclaw:latest` existed on Docker Hub and was a per-pet container runtime.
-- **Research (issue #37, 2026-03-21) reveals both assumptions were wrong:**
-  1. `openclaw:latest` does NOT exist on Docker Hub. The image is `ghcr.io/openclaw/openclaw:latest` (GHCR only).
-  2. OpenClaw is a **personal AI assistant gateway** (single-user, connects to messaging channels). It is NOT a per-pet container runtime. There is no mechanism for an external backend to receive events from it — it routes all output to messaging channels it owns (Telegram/Discord/etc.).
-- **Specific blockers:**
-  - OpenClaw does not emit webhooks or file events that our backend can consume.
-  - Its gateway HTTP port (18789) serves its own Control UI — not an agent event API.
-  - SKILL.md tool calls execute via built-in tools (exec, browser) inside the OpenClaw sandbox, not by calling our HTTP endpoints.
-  - Each container would need its own `ANTHROPIC_API_KEY`, gateway token, and channel tokens — no concept of "social graph" or "pet wallet" built in.
-- **Recommended path:** Activate **Route C** — self-implemented Node.js runtime that reads SOUL.md/SKILL.md (same file format), calls Claude directly via Anthropic SDK, and emits events to our WebSocket bus. This is actually lower risk than Route D now: no Docker daemon on Hetzner required, no container networking complexity, no OpenClaw architecture mismatch.
-- **Route C re-evaluation:** Original rejection reason ("product requires per-pet process isolation") can be satisfied by running one Node.js child process per pet via `child_process.fork()` or by keeping pets in the same process but namespacing all state by `pet_id`. For a hackathon demo, in-process isolation with strict `pet_id` scoping is sufficient.
-- **Correct image reference (if Route D is still pursued):** `ghcr.io/openclaw/openclaw:latest` — bind mounts to `/home/node/.openclaw` (config) and `/home/node/.openclaw/workspace` (SOUL.md + skills). GHCR image requires authentication (`docker login ghcr.io`) on the Hetzner host.
-- **Action needed:** Create issue to formally decide Route C vs Route D (revised), update #22 (container lifecycle manager) accordingly.
+### R4: Runtime Architecture — RESOLVED ✅
+- **Previously re-opened as critical blocker** based on incomplete research that concluded OpenClaw had no event output mechanism and no proactive mode.
+- **Corrected research (issue #37, 2026-03-21) confirms both blockers are resolved:**
+  1. **Event output (webhook egress) — CONFIRMED:** OpenClaw cron/heartbeat jobs with `delivery.mode: "webhook"` POST LLM results to an external backend URL. Auth via `cron.webhookToken` (bearer token). Our backend can receive OpenClaw output without polling.
+  2. **Webhook ingress — CONFIRMED:** POST to `http://localhost:18789/webhook/<id>` triggers an LLM turn. The x-pet tick loop can drive OpenClaw turns via HTTP.
+  3. **Proactive mode — CONFIRMED:** Heartbeat (periodic background LLM turns, configurable interval, reads `HEARTBEAT.md`) and full Cron job support are both implemented and working.
+  4. **Image — CONFIRMED:** `ghcr.io/openclaw/openclaw:latest` (GHCR, not Docker Hub). Config dir `/home/node/.openclaw`, workspace `/home/node/.openclaw/workspace/`.
+- **Route D is viable.** The tick loop integration pattern (ingress via `/webhook/<id>`, egress via `delivery.mode: webhook`) wires OpenClaw into the x-pet backend cleanly.
+- **Remaining open risks:** R7 (Docker remote access Railway → Hetzner) and R8 (GHCR auth on Hetzner host) — see above.
 
 ### R5: Frontend Framework — RESOLVED ✅
 - **Decision:** PixiJS v8 for canvas layer, HTML/CSS for UI layer, WebSocket for real-time

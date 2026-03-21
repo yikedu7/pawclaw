@@ -49,51 +49,48 @@ OpenClaw is an AI agent runtime format the hackathon judges may require. It defi
 - Custom Node.js service following SOUL.md / SKILL.md format spec
 - **Rejected:** Product requires per-pet process isolation; shared process does not satisfy this
 
-### Route D: Docker per Pet on Hetzner VPS — BLOCKED (see R4 update)
+### Route D: Docker per Pet on Hetzner VPS
 
-**Research findings (issue #37, 2026-03-21):**
+**Research findings (issue #37, 2026-03-21, corrected 2026-03-21):**
 
-OpenClaw (`github.com/openclaw/openclaw`, 327k stars) is a **personal AI assistant gateway** — not a per-pet container runtime. Key facts discovered:
+OpenClaw (`github.com/openclaw/openclaw`) is a persistent AI agent gateway runtime. Confirmed facts:
 
-1. **Image registry:** `openclaw:latest` does NOT exist on Docker Hub (`openclaw/openclaw` returns 404). The official image is at **`ghcr.io/openclaw/openclaw:latest`** (GitHub Container Registry). Common tags: `latest`, `main`, `<version>` (e.g. `2026.2.26`). Latest release: `v2026.3.13-1`.
+1. **Image registry:** The official image is **`ghcr.io/openclaw/openclaw:latest`** (GitHub Container Registry, NOT Docker Hub). Common tags: `latest`, `main`, `<version>` (e.g. `2026.2.26`). Latest release: `v2026.3.13-1`.
 
-2. **What OpenClaw actually is:** A persistent personal AI assistant gateway that connects to messaging channels (Telegram, Discord, WhatsApp, etc.) and runs one LLM agent per user. It is NOT designed for multi-tenant per-pet instantiation.
-
-3. **Data directory inside container:**
-   - Config: `/home/node/.openclaw` (bind mount `OPENCLAW_CONFIG_DIR`)
-   - Workspace: `/home/node/.openclaw/workspace` (bind mount `OPENCLAW_WORKSPACE_DIR`)
-   - SOUL.md: `/home/node/.openclaw/workspace/SOUL.md` (identity/personality file)
+2. **Data directory inside container:**
+   - Config dir: `/home/node/.openclaw`
+   - SOUL.md: `/home/node/.openclaw/workspace/SOUL.md`
    - Skills: `/home/node/.openclaw/workspace/skills/<skill-name>/SKILL.md`
    - Container runs as user `node` (uid 1000); host mount must be `chown -R 1000:1000`
 
-4. **Required environment variables (from `.env.example` and `docker-compose.yml`):**
-   - `OPENCLAW_GATEWAY_TOKEN` — auth token for gateway (required for network-exposed instances)
-   - `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` — LLM provider key (at least one)
-   - `HOME=/home/node` (set in compose)
+3. **Required environment variables:**
+   - `OPENCLAW_GATEWAY_TOKEN` — auth token for the HTTP gateway
+   - `ANTHROPIC_API_KEY` — LLM provider key
+   - `HOME=/home/node`
    - Optional channel tokens: `TELEGRAM_BOT_TOKEN`, `DISCORD_BOT_TOKEN`, `SLACK_BOT_TOKEN`
 
-5. **Event output — how OpenClaw communicates back:**
-   - OpenClaw does NOT emit events to an external backend. It owns a self-contained HTTP gateway on **port 18789** with health endpoints `/healthz` and `/readyz`.
-   - It routes agent output to its own messaging channels (Telegram/Discord/etc.) — NOT to our WebSocket server.
-   - There is no webhook or file-based event output to an external process.
-   - Bridge port 18790 is also exposed (internal CLI communication).
+4. **HTTP gateway:** Port 18789. Exposes health endpoints (`/healthz`, `/readyz`) and a Web UI. Bridge port 18790 is also exposed (internal CLI communication).
 
-6. **SKILL.md tool call execution:**
+5. **Proactive mode — CONFIRMED:**
+   OpenClaw has two proactive execution mechanisms:
+   - **Heartbeat** — periodic background LLM turns (configurable interval, default 30 min). Reads `HEARTBEAT.md` as a checklist. Suppresses `HEARTBEAT_OK` responses. Config keys: `agents.defaults.heartbeat.every`, `activeHours`, `isolatedSession`, `lightContext`.
+   - **Cron jobs** — full cron expression support, one-shot, and interval. Two session types: `main` or `isolated`.
+
+6. **Tick loop integration — CONFIRMED working patterns:**
+   - **Tick → OpenClaw (webhook ingress):** POST to `http://localhost:18789/webhook/<id>` triggers an LLM turn. Configured via `webhooks` array in `openclaw.json`.
+   - **OpenClaw → backend (webhook egress):** A cron or heartbeat job with `delivery.mode: "webhook"` POSTs LLM output back to the x-pet backend URL. Auth via `cron.webhookToken` (bearer token).
+
+7. **SKILL.md tool call execution:**
    - SKILL.md is a markdown file with YAML frontmatter (`name`, `description`, `metadata`).
    - Skills are prompt-injection documents — they instruct the LLM how to use built-in tools (exec, browser, file I/O, etc.).
    - Tool calls execute within the OpenClaw sandbox container using built-in tools (`exec`, `browser`, `system.run`, etc.).
-   - Skills do NOT call external HTTP endpoints by default; they run code via the agent's built-in `exec` tool.
-   - To call our backend, a skill would need to use `exec` to run a `curl` or `fetch` command — this is not automatic.
+   - To call our backend, a skill uses `exec` to run a `curl` or `fetch` command.
 
-7. **Architecture mismatch:** The project assumed one OpenClaw container = one pet with our backend receiving events. In reality, OpenClaw is a standalone assistant that does not know about our pet social graph, wallet system, or WebSocket bus. Wiring it into x-pet would require significant custom integration work that likely exceeds hackathon scope.
-
-**Consequence:** Route D as originally designed is not implementable without major rework. See `docs/risks.md` R4 (re-opened as critical blocker) and R7/R8 for updated risk register. Route C (self-implemented compatible runtime using the SOUL.md/SKILL.md file format) is now the recommended path.
-
-**Corrected container reference (if still pursued):**
+**Container reference:**
 ```
 POST /pets  → write files to /data/pets/{uuid}/ on Hetzner host
             → docker.createContainer({
-                Image: 'ghcr.io/openclaw/openclaw:latest',  // NOT openclaw:latest
+                Image: 'ghcr.io/openclaw/openclaw:latest',
                 HostConfig: {
                   Binds: [
                     '/data/pets/{uuid}/config:/home/node/.openclaw',
@@ -113,15 +110,28 @@ DELETE /pets/:id → container.stop() + container.remove()
 **File layout inside container (confirmed):**
 ```
 /home/node/.openclaw/              ← OPENCLAW_CONFIG_DIR bind mount
-  ├── openclaw.json                ← OpenClaw config (model selection, etc.)
+  ├── openclaw.json                ← OpenClaw config (model, heartbeat, webhooks, cron)
   └── workspace/                   ← OPENCLAW_WORKSPACE_DIR bind mount
       ├── SOUL.md                  ← pet identity/personality (written at creation)
+      ├── HEARTBEAT.md             ← heartbeat checklist (proactive tick)
       └── skills/
           └── x-pet/
               └── SKILL.md         ← pet tool definitions (written at creation)
 ```
 
-**Fallback:** Route C — self-implemented Node.js runtime that reads SOUL.md and SKILL.md in the same format, calls Claude directly, and emits events to our WebSocket bus. This avoids OpenClaw's architecture mismatch entirely. See `docs/risks.md`.
+**Tick loop integration pattern:**
+```
+x-pet backend tick fires
+  → POST http://<hetzner-host>:<pet-port>/webhook/<id>
+  → OpenClaw LLM turn executes (reads SOUL.md, runs skills)
+  → OpenClaw POSTs result to x-pet backend via webhook egress
+    (delivery.mode: "webhook", auth: Bearer cron.webhookToken)
+  → x-pet backend processes result → emits WebSocket event
+```
+
+**Remaining concerns (see risks.md R7, R8):**
+- R7: Docker remote access (Railway → Hetzner) — still open
+- R8: GHCR image authentication on Hetzner host — still open
 
 ---
 
