@@ -26,17 +26,19 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          additional_permissions: |
-            Bash(gh issue view:*)
-            Bash(gh issue list:*)
-            Bash(gh pr view:*)
+          use_sticky_comment: true
+          display_report: true
+          claude_args: --allowedTools "Bash,Edit,Read,Write,Glob,Grep,LS"
           prompt: |
             You are a PR review team for the x-pet project. Review this PR against the engineering principles in CLAUDE.md.
 
+            The PR number is ${{ github.event.pull_request.number }}.
+            The job details link is: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
             Before starting:
             1. Read CLAUDE.md and docs/architecture.md
-            2. Run `gh pr view $PR_NUMBER --json number,title,body` to read the PR title and description
-            3. Run `gh issue view <N>` to read the actual issue scope (extract issue number from PR title/body or first commit)
+            2. Run `gh pr view ${{ github.event.pull_request.number }} --repo yikedu7/x-pet --json number,title,body` to read the PR title and description
+            3. Run `gh issue view <N> --repo yikedu7/x-pet` to read the actual issue scope (extract issue number from PR title/body or first commit)
             4. Use `git log origin/main...HEAD --oneline` to see commits, `git diff origin/main...HEAD` to see changes
 
             Run three focused reviews in sequence:
@@ -60,3 +62,6 @@ jobs:
 
             For each reviewer, output: ✅ PASS or ❌ FAIL with specific line references.
             End with an overall APPROVE or REQUEST CHANGES verdict and a one-paragraph summary.
+
+            After completing the review, post it as a PR comment. End the comment with:
+            > [View job details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
