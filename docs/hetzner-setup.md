@@ -49,8 +49,7 @@ SSH into the new server as root and run the provision script. Substitute your pu
 
 ```bash
 # From your local machine
-export DEPLOY_PUBKEY="$(cat hetzner_deploy.pub)"
-ssh root@<hetzner-ip> 'bash -s' < scripts/provision-hetzner.sh
+ssh root@<hetzner-ip> "DEPLOY_PUBKEY='$(cat hetzner_deploy.pub)' bash -s" < scripts/provision-hetzner.sh
 ```
 
 The script is idempotent — safe to run multiple times. It will:
