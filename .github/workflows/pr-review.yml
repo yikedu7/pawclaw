@@ -21,16 +21,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get changed files
-        id: changed
-        run: |
-          git diff --name-only origin/main...HEAD > changed_files.txt
-          cat changed_files.txt
-
-      - name: Get PR diff
-        run: |
-          git diff origin/main...HEAD > pr.diff
-
       - name: Run PR Review Team
         uses: anthropics/claude-code-action@v1
         with:
