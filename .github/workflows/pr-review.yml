@@ -32,6 +32,7 @@ jobs:
             You are a PR review team for the x-pet project. Review this PR against the engineering principles in CLAUDE.md.
 
             The PR number is ${{ github.event.pull_request.number }}.
+            The job details link is: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
             Before starting:
             1. Read CLAUDE.md and docs/architecture.md
@@ -61,8 +62,5 @@ jobs:
             For each reviewer, output: ✅ PASS or ❌ FAIL with specific line references.
             End with an overall APPROVE or REQUEST CHANGES verdict and a one-paragraph summary.
 
-            After completing the review, post it as a PR comment using:
-            gh pr comment ${{ github.event.pull_request.number }} --repo yikedu7/x-pet --body "$(cat <<'REVIEW_EOF'
-            <your full review here>
-            REVIEW_EOF
-            )"
+            After completing the review, post it as a PR comment. End the comment with:
+            > [View job details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
