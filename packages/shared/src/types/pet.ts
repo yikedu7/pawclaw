@@ -25,7 +25,7 @@ export type Pet = {
   mood: number;
   affection: number;
   llm_history: unknown;
-  last_tick_at: Date;
+  last_tick_at: Date | null;
 };
 
 // Fields needed to create a pet (API input)

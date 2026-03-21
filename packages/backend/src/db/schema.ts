@@ -27,7 +27,7 @@ export const pets = pgTable('pets', {
   container_id: text('container_id'),
   container_host: text('container_host'),
   container_port: integer('container_port'),
-  container_status: text('container_status').notNull().default('pending'),
+  container_status: text('container_status').notNull().default('created'),
   gateway_token: text('gateway_token'),
   port_index: integer('port_index'),
 });
@@ -61,4 +61,5 @@ export const port_allocations = pgTable('port_allocations', {
     .references(() => pets.id),
   port: integer('port').notNull().unique(),
   allocated_at: timestamp('allocated_at', { withTimezone: true }).notNull().defaultNow(),
+  released_at: timestamp('released_at', { withTimezone: true }),
 });

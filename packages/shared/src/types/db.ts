@@ -1,9 +1,11 @@
 // DB row types inferred from Drizzle schema.
 // These mirror the shape returned by Drizzle queries.
 
-export type ContainerStatus = 'pending' | 'starting' | 'running' | 'stopping' | 'stopped' | 'deleted';
+import type { SocialEventType } from './pet.js';
 
-export type SocialEventType = 'visit' | 'gift' | 'chat' | 'speak' | 'rest';
+export type { SocialEventType };
+
+export type ContainerStatus = 'created' | 'starting' | 'running' | 'stopping' | 'stopped' | 'deleted';
 
 export type DbPet = {
   id: string;
@@ -52,4 +54,5 @@ export type DbPortAllocation = {
   pet_id: string;
   port: number;
   allocated_at: Date;
+  released_at: Date | null;
 };
