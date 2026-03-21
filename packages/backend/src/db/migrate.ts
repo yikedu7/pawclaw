@@ -12,5 +12,5 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const db = drizzle(pool);
 
 await migrate(db, { migrationsFolder: './drizzle' });
-console.log('Migration complete');
+process.stdout.write('Migration complete\n');
 await pool.end();
