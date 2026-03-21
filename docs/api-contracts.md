@@ -20,6 +20,7 @@ Defines the full contract between backend and frontend for x-pet.
 | GET | `/api/pets/:id/diary` | Get AI-generated diary summary |
 | POST | `/api/pets/:id/feed` | Feed the pet to restore hunger |
 | POST | `/api/pets/:id/chat` | Send a message to the pet, get its reply |
+| POST | `/api/pets/:id/tick` | Force an immediate tick (demo / debug only) |
 
 ### WebSocket
 
@@ -354,6 +355,30 @@ If the LLM fails mid-stream, the server emits a final error event before closing
 event: error
 data: {"code":"INTERNAL_ERROR","error":"LLM stream interrupted"}
 ```
+
+---
+
+### POST /api/pets/:id/tick
+
+Force an immediate tick for this pet, bypassing the scheduled interval. Triggers the full tick loop: LLM decides action → execute → emit WsEvents. Intended for demo acceleration and debugging. Requires auth.
+
+**Path params:** `id` — pet uuid
+
+**Request body** — empty
+
+**Response — 202 Accepted**
+
+```typescript
+{} // tick is enqueued; results arrive via WsEvents
+```
+
+**Error codes**
+
+| Status | code           | Condition                           |
+|--------|----------------|-------------------------------------|
+| 401    | `UNAUTHORIZED` | Missing or invalid token            |
+| 404    | `NOT_FOUND`    | Pet id does not exist               |
+| 409    | `CONFLICT`     | Tick already in progress for this pet |
 
 ---
 
