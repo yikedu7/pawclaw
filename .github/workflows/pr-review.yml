@@ -27,13 +27,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           use_sticky_comment: true
-          show_full_output: true
-          additional_permissions: |
-            Bash(gh issue view:*)
-            Bash(gh issue list:*)
-            Bash(gh pr view:*)
-            Bash(gh pr comment:*)
-            Bash(gh pr review:*)
+          claude_args: --allowedTools "Bash,Edit,Read,Write,Glob,Grep,LS"
           prompt: |
             You are a PR review team for the x-pet project. Review this PR against the engineering principles in CLAUDE.md.
 
@@ -66,3 +60,9 @@ jobs:
 
             For each reviewer, output: ✅ PASS or ❌ FAIL with specific line references.
             End with an overall APPROVE or REQUEST CHANGES verdict and a one-paragraph summary.
+
+            After completing the review, post it as a PR comment using:
+            gh pr comment ${{ github.event.pull_request.number }} --repo yikedu7/x-pet --body "$(cat <<'REVIEW_EOF'
+            <your full review here>
+            REVIEW_EOF
+            )"
