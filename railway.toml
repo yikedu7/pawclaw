@@ -1,0 +1,25 @@
+[build]
+builder = "dockerfile"
+
+[[services]]
+name = "backend"
+source = "packages/backend"
+
+  [services.build]
+  dockerfilePath = "Dockerfile"
+
+  [services.deploy]
+  startCommand = "node dist/index.js"
+  healthcheckPath = "/health"
+  healthcheckTimeout = 300
+
+[[services]]
+name = "frontend"
+source = "packages/frontend"
+
+  [services.build]
+  dockerfilePath = "Dockerfile"
+
+  [services.deploy]
+  healthcheckPath = "/"
+  healthcheckTimeout = 300
