@@ -11,7 +11,7 @@ jobs:
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v5
 
@@ -28,3 +28,10 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      - name: Check migrations are committed
+        run: |
+          pnpm --filter @x-pet/backend db:generate
+          git diff --exit-code -- packages/backend/drizzle/
+        env:
+          DATABASE_URL: postgresql://dummy:dummy@localhost/dummy
