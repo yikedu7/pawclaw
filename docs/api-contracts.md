@@ -303,7 +303,7 @@ Feed the pet to restore its hunger stat. Requires auth.
 
 ### POST /api/pets/:id/chat
 
-Send a message to the pet and get its LLM-generated reply in character. The reply is also emitted as a `pet.speak` WsEvent so other connected clients see it. Requires auth.
+Send a message to the pet and receive its LLM-generated reply streamed token by token. The complete reply is also emitted as a `pet.speak` WsEvent once the stream finishes so other connected clients see it. Requires auth.
 
 **Path params:** `id` — pet uuid
 
@@ -315,22 +315,45 @@ Send a message to the pet and get its LLM-generated reply in character. The repl
 }
 ```
 
-**Response — 200 OK**
+**Response — 200 OK (`Content-Type: text/event-stream`)**
+
+The response is a Server-Sent Events stream. Each event carries one token delta. The stream ends with a `[DONE]` sentinel.
+
+```
+data: {"delta":"Hey"}
+
+data: {"delta":", I"}
+
+data: {"delta":" missed you!"}
+
+data: [DONE]
+```
+
+Each `data` line is a JSON object with a single `delta: string` field, except the final `[DONE]` sentinel which signals end-of-stream.
+
+Client usage:
 
 ```typescript
-{
-  reply: string; // the pet's response, generated in its personality
-}
+const es = new EventSource(`/api/pets/${id}/chat`, { /* POST via fetch + ReadableStream */ });
+// accumulate delta fields to reconstruct the full reply
 ```
 
 **Error codes**
 
-| Status | code               | Condition                        |
-|--------|--------------------|----------------------------------|
-| 400    | `VALIDATION_ERROR` | Empty message                    |
-| 401    | `UNAUTHORIZED`     | Missing or invalid token         |
-| 404    | `NOT_FOUND`        | Pet id does not exist            |
-| 500    | `INTERNAL_ERROR`   | LLM call failed                  |
+Errors before streaming begins return a normal JSON response:
+
+| Status | code               | Condition                |
+|--------|--------------------|--------------------------|
+| 400    | `VALIDATION_ERROR` | Empty message            |
+| 401    | `UNAUTHORIZED`     | Missing or invalid token |
+| 404    | `NOT_FOUND`        | Pet id does not exist    |
+
+If the LLM fails mid-stream, the server emits a final error event before closing:
+
+```
+event: error
+data: {"code":"INTERNAL_ERROR","error":"LLM stream interrupted"}
+```
 
 ---
 
