@@ -5,16 +5,17 @@ Written after reviewing: architecture.md, risks.md, mvp-spec.md, issue #37, issu
 
 ---
 
-## Critical context from PR #40
+## Critical context from issue #37 research
 
-PR #40 (OpenClaw research) changed the ground truth for this document:
+Issue #37 research (2026-03-21, supersedes earlier PR #40 findings) confirmed OpenClaw is viable for Route D:
 
-- `openclaw:latest` on Docker Hub **does not exist** (404). The official image is `ghcr.io/openclaw/openclaw:latest`.
-- OpenClaw is a **personal AI assistant gateway** (single-user, Telegram/Discord routing) — not a per-pet container runtime. It has no event API for an external backend to consume; all output routes through its own messaging channels.
-- OpenClaw's gateway port 18789 exposes a control UI and health checks, not a programmable webhook receiver.
-- SKILL.md tools use built-in exec/browser tools; they do **not** call external HTTP endpoints.
+- **Correct image:** `ghcr.io/openclaw/openclaw:latest` (GHCR, not Docker Hub — `openclaw:latest` on Docker Hub 404s).
+- **Webhook ingress — CONFIRMED:** `POST http://localhost:18789/webhook/<id>` triggers an LLM turn. Configured via `webhooks` array in `openclaw.json`.
+- **Webhook egress — CONFIRMED:** Cron/heartbeat jobs with `delivery.mode: "webhook"` POST LLM output to an external backend URL. Auth via bearer token.
+- **Proactive mode — CONFIRMED:** Heartbeat (periodic background LLM turns, reads `HEARTBEAT.md`) and full cron job support.
+- **Data paths:** Config dir `/home/node/.openclaw`, workspace `/home/node/.openclaw/workspace/`. Container runs as user `node` (uid 1000).
 
-This means Route D (Docker per pet) as originally designed does not work with the actual OpenClaw image. This document designs around that reality and recommends a path forward.
+Route D as designed is viable. This document uses `ghcr.io/openclaw/openclaw:latest` throughout.
 
 ---
 
@@ -31,33 +32,27 @@ This means Route D (Docker per pet) as originally designed does not work with th
 ### Hetzner CX21 approach
 
 - Flat $6/month for one CX21 (2 vCPU, 4 GB RAM, 40 GB SSD) — hosts up to 20 containers.
-- Remote Docker access via TLS (TCP 2376) is fully documented in issue #38: CA cert + client cert/key stored as Railway env vars, `dockerode` connects with TLS config.
+- Remote Docker access via SSH tunneling — `dockerode` SSH protocol, ed25519 key stored as Railway env var. Port 2376 not exposed. See issue #38 and PR #47 for full decision rationale.
 - Single point of failure: if the VPS goes down, all pets stop. For a hackathon demo with 2 pre-seeded pets, this is acceptable.
 - Total cost: ~$6/month vs Railway Hobby $5/month base + resource charges per running container.
 
-### Recommendation: Hetzner CX21 (Route D revised)
+### Recommendation: Hetzner CX21 (Route D)
 
-**Decision: Hetzner CX21 running self-implemented pet runtime containers.**
-
-However, because OpenClaw cannot be used as-is (see PR #40), the container image must change:
-
-- **Discard the `ghcr.io/openclaw/openclaw:latest` image.**
-- Build a lightweight custom image (`x-pet-runtime:latest`) that implements the SOUL.md/SKILL.md contract directly: reads personality files, calls Claude via Anthropic SDK, exposes an HTTP webhook receiver, and POSTs events back to the backend.
-- This is equivalent to Route C (self-implemented runtime) but retains per-pet container isolation from Route D.
+**Decision: Hetzner CX21 running `ghcr.io/openclaw/openclaw:latest` containers.**
 
 Rationale:
-- Hetzner is $6/month flat vs Railway Pro required for private networking between 20 services.
+- Hetzner is $6/month flat vs Railway Pro ($20/month minimum) required for private networking between 20 services.
 - Container isolation per pet is preserved (satisfies the product requirement documented in risks.md R4).
-- The custom image is simpler than OpenClaw: no Telegram/Discord gateway, no built-in browser, no GHCR authentication.
-- Railway backend continues to run on Railway (unchanged). Only the pet runtime containers move to Hetzner.
+- OpenClaw's webhook ingress/egress and heartbeat mechanism wire cleanly into the x-pet tick loop (confirmed, see issue #37).
+- Railway backend continues to run on Railway (unchanged). Only the pet runtime containers run on Hetzner.
 
-**If Hetzner VPS fails at demo time:** activate Route B — pre-provision 2 demo pets as Railway services using the same custom image, with hardcoded ports, before the demo. This is the fallback documented in architecture.md.
+**If Hetzner VPS fails at demo time:** activate Route B — pre-provision 2 demo pets as Railway services using the OpenClaw image with hardcoded ports. This is the fallback documented in architecture.md.
 
 ---
 
 ## Question 2: Port mapping strategy
 
-OpenClaw's gateway port is 18789. The custom runtime image will use the same port internally for consistency.
+OpenClaw's gateway port is 18789 (confirmed from issue #37 research).
 
 ### Allocation scheme: static range with DB tracking
 
@@ -97,9 +92,9 @@ Backend resolves the runtime URL as: `http://{container_host}:{container_port}`
 
 **Shared across all containers.** There is one Anthropic account and one API key for the project. Splitting it per pet provides no security benefit (all containers belong to the same operator) and adds operational overhead. The key is injected as an env var at container creation time, sourced from the Railway backend's own `ANTHROPIC_API_KEY` env var.
 
-### OPENCLAW_GATEWAY_TOKEN (or equivalent: PET_GATEWAY_TOKEN)
+### OPENCLAW_GATEWAY_TOKEN
 
-**Generated uniquely per pet at creation time.** This token secures the per-pet HTTP webhook endpoint so only the backend (which knows the token) can trigger ticks on a given container.
+**Generated uniquely per pet at creation time.** This token secures the per-pet HTTP gateway so only the backend (which knows the token) can trigger ticks on a given container.
 
 Generation: `crypto.randomUUID()` at `POST /api/pets` time, stored in the `pets` table as `gateway_token`. Injected into the container at creation. Never exposed via any frontend API.
 
@@ -108,13 +103,10 @@ Generation: `crypto.randomUUID()` at `POST /api/pets` time, stored in the `pets`
 | Variable | Value | Notes |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | shared from Railway env | LLM calls |
-| `PET_GATEWAY_TOKEN` | `crypto.randomUUID()` per pet | Authenticates tick webhook caller |
-| `PET_ID` | pet UUID | Identifies this container's pet |
-| `BACKEND_CALLBACK_URL` | `https://<railway-backend>/internal/runtime/events/{petId}` | Where container POSTs events back |
-| `HOME` | `/home/node` | Required by Node.js base image |
-| `NODE_ENV` | `production` | |
+| `OPENCLAW_GATEWAY_TOKEN` | `crypto.randomUUID()` per pet | Authenticates tick webhook caller |
+| `HOME` | `/home/node` | Required by OpenClaw container (runs as `node` user) |
 
-No other secrets are needed for the MVP runtime. On-chain wallet operations (X402, Onchain OS) remain in the Railway backend process, not the container — the container handles only LLM reasoning and event emission.
+OpenClaw routes LLM output back to the backend via its webhook egress configuration (`delivery.mode: "webhook"` in `openclaw.json`), not via an env var. The callback URL is written into `openclaw.json` at container creation time. On-chain wallet operations (X402, Onchain OS) remain in the Railway backend process.
 
 ---
 
@@ -185,12 +177,11 @@ Restart policy: `on-failure` with `MaximumRetryCount: 3`. After 3 failures, `con
 
 ### Architecture note
 
-Because OpenClaw does not support external webhook callbacks (confirmed in PR #40), the runtime container is a **custom Node.js service** (`x-pet-runtime`) that implements:
-1. An HTTP server receiving tick triggers from the backend.
-2. LLM calls (Claude via Anthropic SDK) using the pet's SOUL.md as system prompt.
-3. Event POSTs back to the Railway backend on each action taken.
+OpenClaw supports both directions of the tick contract (confirmed in issue #37):
+1. **Tick ingress:** `POST /webhook/<id>` on port 18789 triggers an LLM turn. Configured via `webhooks` array in `openclaw.json`.
+2. **Event egress:** A cron or heartbeat job with `delivery.mode: "webhook"` POSTs LLM output back to the Railway backend. The callback URL and auth token are written into `openclaw.json` at container creation time.
 
-The backend's existing tick loop (in `packages/backend/src/runtime/`) drives the schedule; the container executes the LLM reasoning and returns structured events.
+The backend's tick loop (in `packages/backend/src/runtime/`) drives the schedule; OpenClaw executes the LLM reasoning and POSTs structured events back asynchronously.
 
 ---
 
@@ -198,7 +189,7 @@ The backend's existing tick loop (in `packages/backend/src/runtime/`) drives the
 
 **Endpoint:** `POST http://{container_host}:{container_port}/webhook/{petId}`
 
-**Authentication:** `Authorization: Bearer {PET_GATEWAY_TOKEN}` header. The container validates this token against the `PET_GATEWAY_TOKEN` env var. Requests without a valid token return 401.
+**Authentication:** `Authorization: Bearer {OPENCLAW_GATEWAY_TOKEN}` header. OpenClaw validates this token against the `OPENCLAW_GATEWAY_TOKEN` env var. Requests without a valid token return 401.
 
 **Request body:**
 ```json
@@ -243,7 +234,7 @@ The actual action events arrive asynchronously via the callback (Direction 2). T
 
 The container knows this URL from the `BACKEND_CALLBACK_URL` env var injected at creation. No dynamic registration needed.
 
-**Authentication:** same `PET_GATEWAY_TOKEN` in `Authorization: Bearer` header. The backend validates the token against the value stored in `pets.gateway_token`.
+**Authentication:** `Authorization: Bearer {cron.webhookToken}` — the token written into `openclaw.json` at container creation. The backend validates it against the value stored in `pets.gateway_token`.
 
 **Event body (one POST per action):**
 ```json
@@ -307,14 +298,30 @@ The container knows this URL from the `BACKEND_CALLBACK_URL` env var injected at
 
 ---
 
-### How the container knows the callback URL
+### How OpenClaw knows the callback URL
 
-Injected as `BACKEND_CALLBACK_URL` env var at `docker.createContainer()` time:
-```
-BACKEND_CALLBACK_URL=https://x-pet-backend.railway.app/internal/runtime/events/550e8400-e29b-41d4-a716-446655440000
+Written into `openclaw.json` at container creation time (via bind-mounted `/home/node/.openclaw/openclaw.json`):
+```json
+{
+  "agents": {
+    "defaults": {
+      "heartbeat": { "every": "5m" },
+      "cron": [
+        {
+          "name": "x-pet-event-push",
+          "delivery": {
+            "mode": "webhook",
+            "url": "https://x-pet-backend.railway.app/internal/runtime/events/550e8400-...",
+            "webhookToken": "<gateway_token>"
+          }
+        }
+      ]
+    }
+  }
+}
 ```
 
-The pet UUID is embedded in the URL. The container does not need to discover or register it; it is baked in at creation and immutable for the container's lifetime.
+The callback URL and auth token are baked into the config file at creation time. The container does not need to discover or register them; they are immutable for the container's lifetime.
 
 ---
 
@@ -328,7 +335,7 @@ Add these columns to the existing `pets` table:
 | `container_host` | `text` | Hetzner host IP or hostname (e.g. `65.21.x.x`). Null until created. |
 | `container_port` | `integer` | Host port mapped to runtime port (range 19000–19999). Null until created. |
 | `container_status` | `text` | Enum: `created \| starting \| running \| stopping \| stopped \| deleted` |
-| `gateway_token` | `text` | `crypto.randomUUID()` generated at pet creation. Never null after creation. |
+| `gateway_token` | `text` | `crypto.randomUUID()` generated at pet creation. Used as both `OPENCLAW_GATEWAY_TOKEN` env var and `cron.webhookToken` in `openclaw.json`. Never null after creation. |
 | `port_index` | `integer` | Monotonic allocation index for port range. Unique, not reused while `container_status != deleted`. |
 
 New separate table for port allocation tracking:
@@ -351,11 +358,9 @@ This makes port uniqueness enforced at the DB level, preventing double-allocatio
 
 | Issue | Update needed |
 |---|---|
-| **#37** (OpenClaw research) | Mark as resolved (answered by PR #40). Note that the custom runtime image replaces OpenClaw. |
-| **#38** (Hetzner/Docker TLS) | Proceed as specified. Add: open ports 19000–19999 inbound in Hetzner firewall rule. |
+| **#37** (OpenClaw research) | Mark as resolved — webhook ingress/egress and heartbeat confirmed. Route D viable. |
+| **#38** (Hetzner/Docker access) | Update recommendation from TLS to SSH tunneling (see PR #47). Add: open ports 19000–19999 inbound in Hetzner firewall. |
 | **#44** (this issue) | Close when `docs/container-design.md` is merged. |
-| **New issue needed** | "Build x-pet-runtime Docker image" — custom Node.js service implementing SOUL.md/SKILL.md execution, HTTP tick receiver on port 18789, event callback POSTs. This replaces the assumed `openclaw:latest` image everywhere. |
-| **New issue needed** | "Implement container lifecycle manager in backend" (was #22/#39) — `dockerode` integration using the contract defined in this document. |
-| **#12** (Pet CRUD API) | Update container creation step to use custom image and inject env vars per this document. |
-| **#13** (LLM engine) | Update to clarify LLM execution happens inside the custom runtime container, not in the Railway backend process. |
-| **architecture.md** | Update Route D section: replace `openclaw:latest` with `x-pet-runtime:latest`, add HTTP contract summary, update env var list. |
+| **New issue needed** | "Implement container lifecycle manager in backend" (#39) — `dockerode` SSH integration, port allocation, openclaw.json generation, container status tracking. |
+| **#12** (Pet CRUD API) | Update container creation step to inject env vars and write `openclaw.json` per this document. |
+| **#13** (LLM engine) | Clarify LLM execution happens inside OpenClaw container; Railway backend only drives tick schedule and processes callbacks. |

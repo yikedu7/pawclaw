@@ -131,7 +131,7 @@ x-pet backend tick fires
   → x-pet backend processes result → emits WebSocket event
 ```
 
-**Remote Docker access:** Backend connects to Hetzner dockerd via SSH tunneling (`dockerode` SSH protocol, ed25519 key stored as Railway env var). Port 2376 is not exposed. See `docs/remote-docker-access.md` and `docs/risks.md` R7.
+**Remote Docker access:** Backend connects to Hetzner dockerd via SSH tunneling (`dockerode` SSH protocol, ed25519 key stored as Railway env var). Port 2376 is not exposed. See `docs/risks.md` R7 and issue #38.
 
 **Port allocation:** Static range 19000–19999, tracked in `port_allocations` DB table. See `docs/container-design.md` for full scheme.
 
