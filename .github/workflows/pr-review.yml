@@ -9,32 +9,28 @@ on:
 jobs:
   review:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     permissions:
       contents: read
       pull-requests: write
       issues: read
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Get changed files
-        id: changed
-        run: |
-          git diff --name-only origin/main...HEAD > changed_files.txt
-          cat changed_files.txt
-
-      - name: Get PR diff
-        run: |
-          git diff origin/main...HEAD > pr.diff
-
       - name: Run PR Review Team
-        uses: anthropics/claude-code-action@beta
+        uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          direct_prompt: |
+          additional_permissions: |
+            Bash(gh issue view:*)
+            Bash(gh issue list:*)
+            Bash(gh pr view:*)
+          prompt: |
             You are a PR review team for the x-pet project. Review this PR against the engineering principles in CLAUDE.md.
 
             Before starting:
