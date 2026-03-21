@@ -1,1 +1,23 @@
-export {};
+// Types
+export type {
+  User,
+  AuthResponse,
+  Pet,
+  PetCreate,
+  PetState,
+  SocialEvent,
+  SocialEventType,
+  SocialEventPayload,
+  Transaction,
+} from './types/pet.js';
+export type { WsEvent } from './types/ws.js';
+
+// Schemas
+export {
+  RegisterSchema,
+  LoginSchema,
+  PetCreateSchema,
+  PetIdParamSchema,
+  PetEventsQuerySchema,
+  ChatMessageSchema,
+} from './schemas/pet.js';
