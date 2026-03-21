@@ -18,6 +18,7 @@ Defines the full contract between backend and frontend for x-pet.
 | GET | `/api/pets/:id` | Get pet state |
 | GET | `/api/pets/:id/events` | Get social events for a pet |
 | GET | `/api/pets/:id/diary` | Get AI-generated diary summary |
+| POST | `/api/pets/:id/feed` | Feed the pet to restore hunger |
 
 ### WebSocket
 
@@ -274,6 +275,31 @@ Array<{
 
 ---
 
+### POST /api/pets/:id/feed
+
+Feed the pet to restore its hunger stat. Requires auth.
+
+**Path params:** `id` — pet uuid
+
+**Request body** — empty
+
+**Response — 200 OK**
+
+```typescript
+{
+  hunger: number; // updated hunger value (0–100)
+}
+```
+
+**Error codes**
+
+| Status | code           | Condition                |
+|--------|----------------|--------------------------|
+| 401    | `UNAUTHORIZED` | Missing or invalid token |
+| 404    | `NOT_FOUND`    | Pet id does not exist    |
+
+---
+
 ### GET /api/pets/:id/diary
 
 Fetch the AI-generated daily summary for a pet. Requires auth.
@@ -302,10 +328,11 @@ Fetch the AI-generated daily summary for a pet. Requires auth.
 ### Connection
 
 ```
-ws://<host>/ws?owner_id=<uuid>
+ws://<host>/ws?token=<jwt>
 ```
 
-- `owner_id` — the authenticated user's uuid; the server streams events for all pets owned by this user.
+- `token` — the JWT obtained from `/api/auth/login` or `/api/auth/register`. The server verifies the token and derives `owner_id` from it; unauthenticated connections are rejected with close code `4001`.
+- The server streams events for all pets owned by the authenticated user.
 - The server sends JSON-encoded `WsEvent` messages (server → client only).
 - The client does not send messages over this connection.
 
@@ -319,7 +346,8 @@ type WsEvent =
   | PetSpeakEvent
   | SocialVisitEvent
   | SocialGiftEvent
-  | FriendUnlockedEvent;
+  | FriendUnlockedEvent
+  | ErrorEvent;
 ```
 
 #### pet.state
@@ -383,6 +411,20 @@ Emitted when a pet sends a gift and an X402 payment is submitted on-chain.
     token: string;       // token symbol, e.g. "OKB"
     amount: string;      // decimal string, e.g. "0.01"
     tx_hash: string;     // X Layer transaction hash
+  };
+}
+```
+
+#### error
+
+Emitted when a server-side failure occurs during a pet's tick loop (e.g. LLM call fails, wallet error). The frontend should surface this to the user rather than silently showing a stalled pet.
+
+```typescript
+{
+  type: "error";
+  data: {
+    pet_id: string; // uuid — which pet's tick failed
+    message: string; // human-readable description
   };
 }
 ```
