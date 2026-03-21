@@ -37,12 +37,18 @@ jobs:
           direct_prompt: |
             You are a PR review team for the x-pet project. Review this PR against the engineering principles in CLAUDE.md.
 
+            Before starting:
+            1. Read CLAUDE.md and docs/architecture.md
+            2. Run `gh pr view $PR_NUMBER --json number,title,body` to read the PR title and description
+            3. Run `gh issue view <N>` to read the actual issue scope (extract issue number from PR title/body or first commit)
+            4. Use `git log origin/main...HEAD --oneline` to see commits, `git diff origin/main...HEAD` to see changes
+
             Run three focused reviews in sequence:
 
             ## Reviewer 1 — Ownership & Scope
-            - Does this PR only touch files within the issue's declared directory ownership?
+            - Run `gh issue view <N>` and check: does this PR only touch files relevant to that issue's scope?
             - Does it bundle unrelated changes?
-            - Is there a corresponding issue number referenced in the commit message?
+            - Is there a `closes #N` reference in the PR title, PR description, or the FIRST commit? Subsequent commits in the same PR do NOT need to repeat it — do not flag this as a violation.
 
             ## Reviewer 2 — Architecture & Contracts
             - Do imports follow the layer order: shared → db → api → runtime → ws?
@@ -58,5 +64,3 @@ jobs:
 
             For each reviewer, output: ✅ PASS or ❌ FAIL with specific line references.
             End with an overall APPROVE or REQUEST CHANGES verdict and a one-paragraph summary.
-
-            Read CLAUDE.md and docs/architecture.md before starting.
