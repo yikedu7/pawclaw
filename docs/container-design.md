@@ -232,7 +232,7 @@ The actual action events arrive asynchronously via the callback (Direction 2). T
 
 **Endpoint:** `POST https://{railway-backend-host}/internal/runtime/events/{petId}`
 
-The container knows this URL from the `BACKEND_CALLBACK_URL` env var injected at creation. No dynamic registration needed.
+OpenClaw knows this URL from `openclaw.json` written at container creation (see "How OpenClaw knows the callback URL" below). No env var or dynamic registration needed.
 
 **Authentication:** `Authorization: Bearer {cron.webhookToken}` — the token written into `openclaw.json` at container creation. The backend validates it against the value stored in `pets.gateway_token`.
 
