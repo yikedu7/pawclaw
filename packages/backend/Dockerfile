@@ -1,4 +1,4 @@
-FROM node:20-alpine AS base
+FROM node:22-alpine AS base
 RUN npm install -g pnpm
 
 # Install dependencies
@@ -18,7 +18,7 @@ RUN pnpm --filter @x-pet/shared build
 RUN pnpm --filter @x-pet/backend build
 
 # Runner
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 RUN npm install -g pnpm
 WORKDIR /app
 COPY pnpm-workspace.yaml package.json ./

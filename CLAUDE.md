@@ -31,7 +31,7 @@ packages/
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | Node.js 20 + TypeScript + Fastify |
+| Backend | Node.js 22 + TypeScript 5.8 + Fastify v5 |
 | WebSocket | @fastify/websocket |
 | ORM | Drizzle ORM + postgres |
 | Validation | Zod |

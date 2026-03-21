@@ -14,10 +14,10 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "drizzle-orm": "^0.30.0",
-    "zod": "^3.22.0"
+    "drizzle-orm": "^0.40.0",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
-    "typescript": "^5.4.0"
+    "typescript": "^5.8.0"
   }
 }
