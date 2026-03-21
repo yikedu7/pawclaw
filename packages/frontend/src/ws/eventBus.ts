@@ -3,7 +3,7 @@
  * The real WS client will call eventBus.emit() when messages arrive;
  * canvas modules subscribe here without knowing the transport.
  */
-import type { WsEvent } from './types';
+import type { WsEvent } from '@x-pet/shared';
 
 type Handler<E extends WsEvent> = (event: E) => void;
 

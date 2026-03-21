@@ -1,22 +1,40 @@
+import type { WsEvent } from '@x-pet/shared';
 import { eventBus } from '../ws/eventBus';
-import type { WsEvent } from '../ws/types';
 
 const SPEAK_LINES = [
   'I want to play!',
   'Feeling hungry...',
   'Someone just visited me!',
-  'OKB to the moon! 🚀',
+  'OKB to the moon!',
   'Happy to be alive!',
-  'I love my friends ♥',
+  'I love my friends',
 ];
 
 const VISITS = [
-  { from: 'fluffy', dialogue: ['Hello neighbor!', 'Great to see you!'] },
-  { from: 'sparkle', dialogue: ['Want to play together?', "Sure, let's go!"] },
-  { from: 'noodle', dialogue: ['I brought snacks!', 'Thank you so much!'] },
+  {
+    from_pet_id: 'fluffy',
+    turns: [
+      { speaker_pet_id: 'fluffy', line: 'Hello neighbor!' },
+      { speaker_pet_id: 'my-pet', line: 'Great to see you!' },
+    ],
+  },
+  {
+    from_pet_id: 'sparkle',
+    turns: [
+      { speaker_pet_id: 'sparkle', line: 'Want to play together?' },
+      { speaker_pet_id: 'my-pet', line: "Sure, let's go!" },
+    ],
+  },
+  {
+    from_pet_id: 'noodle',
+    turns: [
+      { speaker_pet_id: 'noodle', line: 'I brought snacks!' },
+      { speaker_pet_id: 'my-pet', line: 'Thank you so much!' },
+    ],
+  },
 ];
 
-const GIFT_SENDERS = ['fluffy', 'sparkle', 'noodle', 'pixel'];
+const SENDERS = ['fluffy', 'sparkle', 'noodle', 'pixel'];
 
 function randRange(min: number, max: number): number {
   return min + Math.random() * (max - min);
@@ -35,7 +53,7 @@ export class MockEvents {
   start(): void {
     if (this.running) return;
     this.running = true;
-    this.emitState(); // initial snapshot
+    this.emitState();
     this.scheduleSpeak();
     this.scheduleVisit();
     this.scheduleGift();
@@ -56,11 +74,7 @@ export class MockEvents {
   private emitState(): void {
     const event: WsEvent = {
       type: 'pet.state',
-      data: {
-        hunger: randRange(40, 95),
-        mood: randRange(40, 95),
-        affection: randRange(20, 80),
-      },
+      data: { pet_id: 'my-pet', hunger: randRange(40, 95), mood: randRange(40, 95), affection: randRange(20, 80) },
     };
     eventBus.emit(event);
   }
@@ -75,25 +89,29 @@ export class MockEvents {
 
   private scheduleVisit(): void {
     this.after(randRange(9000, 16000), () => {
-      const { from, dialogue } = VISITS[this.visitIdx++ % VISITS.length];
-      eventBus.emit({ type: 'social.visit', data: { from, to: 'my-pet', dialogue } });
+      const visit = VISITS[this.visitIdx++ % VISITS.length];
+      const event: WsEvent = {
+        type: 'social.visit',
+        data: { from_pet_id: visit.from_pet_id, to_pet_id: 'my-pet', turns: visit.turns },
+      };
+      eventBus.emit(event);
       this.scheduleVisit();
     });
   }
 
   private scheduleGift(): void {
     this.after(randRange(14000, 22000), () => {
-      const from = GIFT_SENDERS[Math.floor(Math.random() * GIFT_SENDERS.length)];
-      const tx_hash = `0x${Math.random().toString(16).slice(2, 10)}`;
-      eventBus.emit({ type: 'social.gift', data: { from, to: 'my-pet', tx_hash } });
+      const from_pet_id = SENDERS[Math.floor(Math.random() * SENDERS.length)];
+      const event: WsEvent = {
+        type: 'social.gift',
+        data: { from_pet_id, to_pet_id: 'my-pet', token: 'OKB', amount: '0.01', tx_hash: `0x${Math.random().toString(16).slice(2, 10)}` },
+      };
+      eventBus.emit(event);
       this.scheduleGift();
     });
   }
 
   private scheduleStatUpdate(): void {
-    this.after(5000, () => {
-      this.emitState();
-      this.scheduleStatUpdate();
-    });
+    this.after(5000, () => { this.emitState(); this.scheduleStatUpdate(); });
   }
 }

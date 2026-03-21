@@ -30,9 +30,12 @@ async function main(): Promise<void> {
   eventBus.on('pet.state', (e) => room.updateStats(e.data));
   eventBus.on('pet.speak', (e) => room.showDialogue(e.data.message));
   eventBus.on('social.visit', (e) => {
-    room.showDialogue(`[${e.data.from}] ${e.data.dialogue.join(' / ')}`);
+    const lines = e.data.turns.map((t) => t.line).join(' / ');
+    room.showDialogue(`[${e.data.from_pet_id}] ${lines}`);
   });
-  eventBus.on('social.gift', (e) => room.showGift(e.data.from));
+  eventBus.on('social.gift', (e) => room.showGift(e.data.from_pet_id));
+  eventBus.on('friend.unlocked', (e) => room.showFriendUnlocked(e.data.pet_id));
+  eventBus.on('error', (e) => room.showDialogue(`Error: ${e.data.message}`));
 
   new MockEvents().start();
 }

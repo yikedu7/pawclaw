@@ -32,6 +32,11 @@
 - **Action needed:** Run `docker pull ghcr.io/openclaw/openclaw:latest` on a fresh host without `docker login`. If it fails, document the PAT setup step.
 - **Fallback:** Use `1panel/openclaw` or `alpine/openclaw` from Docker Hub as a public mirror (both are community-maintained mirrors that sync from GHCR). Verify image integrity before demo.
 
+**R6 — Frontend WsEvent schema alignment (FE2 prerequisite)**
+- **Risk:** The frontend canvas (issue #10) subscribes to `eventBus` using the canonical `WsEvent` type from `@x-pet/shared`. The real WS client (issue FE2) must emit events using the same field names (`from_pet_id`, `to_pet_id`, `turns`, `token`, `amount`).
+- **Impact:** Silent runtime breakage — `e.data.from_pet_id` returns `undefined` if the WS client sends `from` instead.
+- **Mitigation:** `eventBus.ts` is typed against `@x-pet/shared#WsEvent`; TypeScript catches mismatches at compile time when the real WS client calls `eventBus.emit()`.
+
 ---
 
 ## Resolved

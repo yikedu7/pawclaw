@@ -1,5 +1,5 @@
 import { Application, Container, Graphics, Text, Ticker } from 'pixi.js';
-import type { PetStateData } from '../ws/types';
+import type { WsEvent } from '@x-pet/shared';
 import { DialogueBubble } from './DialogueBubble';
 import { GiftAnimation } from './GiftAnimation';
 
@@ -9,6 +9,7 @@ const BAR_ROW = 26;
 const STAT_BOTTOM_PAD = 90;
 const PET_W = 64;
 const PET_H = 64;
+const FRIEND_FLASH_MS = 1200;
 
 const C = {
   bg: 0x1a1a2e,
@@ -22,6 +23,7 @@ const C = {
   label: 0x8888aa,
 };
 
+type PetStateData = Extract<WsEvent, { type: 'pet.state' }>['data'];
 interface StatBar { fg: Graphics; current: number; target: number; color: number }
 
 /** Main PixiJS scene: background, pet placeholder, animated stat bars. */
@@ -33,6 +35,8 @@ export class PetRoom extends Container {
   private readonly bars: [StatBar, StatBar, StatBar];
   private readonly bubble: DialogueBubble;
   private readonly gift: GiftAnimation;
+  private readonly flash = new Graphics();
+  private flashElapsed = -1;
 
   constructor(private readonly app: Application) {
     super();
@@ -50,7 +54,8 @@ export class PetRoom extends Container {
 
     this.bubble = new DialogueBubble(app);
     this.gift = new GiftAnimation(app);
-    this.overlays.addChild(this.bubble, this.gift);
+    this.flash.alpha = 0;
+    this.overlays.addChild(this.bubble, this.gift, this.flash);
 
     this.layout(app.screen.width, app.screen.height);
     app.ticker.add(this.onTick, this);
@@ -62,13 +67,10 @@ export class PetRoom extends Container {
 
   private buildPet(): void {
     const g = this.pet;
-    // Ears
     g.roundRect(-PET_W / 2 - 4, -PET_H / 2, 10, 14, 3).fill(C.petEdge);
     g.roundRect(PET_W / 2 - 6, -PET_H / 2, 10, 14, 3).fill(C.petEdge);
-    // Body
     g.roundRect(-PET_W / 2, -PET_H / 2, PET_W, PET_H, 12).fill(C.pet);
     g.roundRect(-PET_W / 2, -PET_H / 2, PET_W, PET_H, 12).stroke({ color: C.petEdge, width: 2 });
-    // Eyes
     g.circle(-11, -8, 5).fill(0xffffff);
     g.circle(11, -8, 5).fill(0xffffff);
     g.circle(-10, -7, 3).fill(0x1a1a2e);
@@ -79,12 +81,10 @@ export class PetRoom extends Container {
     labels.forEach((label, i) => {
       const row = new Container();
       row.y = i * BAR_ROW;
-
       const lbl = new Text({ text: label, style: { fill: C.label, fontSize: 11, fontFamily: 'system-ui' } });
       const track = new Graphics();
       track.roundRect(0, 14, BAR_W, BAR_H, 4).fill(C.track);
       statBars[i].fg.roundRect(0, 14, BAR_W, BAR_H, 4).fill(statBars[i].color);
-
       row.addChild(lbl, track, statBars[i].fg);
       this.statRoot.addChild(row);
     });
@@ -97,12 +97,13 @@ export class PetRoom extends Container {
 
     this.pet.x = w / 2;
     this.pet.y = h * 0.42;
-
     this.bubble.setPetPosition(w / 2, h * 0.42 - PET_H / 2);
     this.gift.setOrigin(w / 2, h * 0.42);
-
     this.statRoot.x = (w - BAR_W) / 2;
     this.statRoot.y = h - STAT_BOTTOM_PAD;
+
+    this.flash.clear();
+    this.flash.rect(0, 0, w, h).fill({ color: 0xfbbf24, alpha: 0.18 });
   }
 
   private readonly onTick = (ticker: Ticker): void => {
@@ -112,6 +113,12 @@ export class PetRoom extends Container {
       const w = Math.max(2, BAR_W * (bar.current / 100));
       bar.fg.clear();
       bar.fg.roundRect(0, 14, w, BAR_H, Math.min(4, w / 2)).fill(bar.color);
+    }
+    if (this.flashElapsed >= 0) {
+      this.flashElapsed += ticker.deltaMS;
+      const t = Math.min(1, this.flashElapsed / FRIEND_FLASH_MS);
+      this.flash.alpha = t < 0.3 ? t / 0.3 : 1 - (t - 0.3) / 0.7;
+      if (t >= 1) { this.flash.alpha = 0; this.flashElapsed = -1; }
     }
   };
 
@@ -124,6 +131,11 @@ export class PetRoom extends Container {
   showDialogue(message: string): void { this.bubble.enqueue(message); }
 
   showGift(from: string): void { this.gift.spawn(from); }
+
+  showFriendUnlocked(petId: string): void {
+    this.bubble.enqueue(`Friend unlocked: ${petId}!`);
+    this.flashElapsed = 0;
+  }
 
   destroy(options?: Parameters<Container['destroy']>[0]): void {
     super.destroy(options);
