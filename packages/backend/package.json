@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.40.0",
-    "@fastify/websocket": "^10.0.0",
+    "@fastify/websocket": "^11.0.0",
     "@x-pet/shared": "workspace:*",
     "drizzle-orm": "^0.40.0",
     "ethers": "^6.13.0",
