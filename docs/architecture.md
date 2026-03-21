@@ -49,32 +49,79 @@ OpenClaw is an AI agent runtime format the hackathon judges may require. It defi
 - Custom Node.js service following SOUL.md / SKILL.md format spec
 - **Rejected:** Product requires per-pet process isolation; shared process does not satisfy this
 
-### Route D: Docker per Pet on Hetzner VPS ✅ Selected
+### Route D: Docker per Pet on Hetzner VPS — BLOCKED (see R4 update)
 
-- 1x Hetzner CX21 ($6/mo) running Docker daemon; each pet = one `openclaw:latest` container
-- Up to 20 demo pets on a single host; ~$15/month total
-- Cold start 3-5s; full per-pet container isolation satisfies product requirement
+**Research findings (issue #37, 2026-03-21):**
 
-**Container lifecycle (via `dockerode` SDK):**
+OpenClaw (`github.com/openclaw/openclaw`, 327k stars) is a **personal AI assistant gateway** — not a per-pet container runtime. Key facts discovered:
+
+1. **Image registry:** `openclaw:latest` does NOT exist on Docker Hub (`openclaw/openclaw` returns 404). The official image is at **`ghcr.io/openclaw/openclaw:latest`** (GitHub Container Registry). Common tags: `latest`, `main`, `<version>` (e.g. `2026.2.26`). Latest release: `v2026.3.13-1`.
+
+2. **What OpenClaw actually is:** A persistent personal AI assistant gateway that connects to messaging channels (Telegram, Discord, WhatsApp, etc.) and runs one LLM agent per user. It is NOT designed for multi-tenant per-pet instantiation.
+
+3. **Data directory inside container:**
+   - Config: `/home/node/.openclaw` (bind mount `OPENCLAW_CONFIG_DIR`)
+   - Workspace: `/home/node/.openclaw/workspace` (bind mount `OPENCLAW_WORKSPACE_DIR`)
+   - SOUL.md: `/home/node/.openclaw/workspace/SOUL.md` (identity/personality file)
+   - Skills: `/home/node/.openclaw/workspace/skills/<skill-name>/SKILL.md`
+   - Container runs as user `node` (uid 1000); host mount must be `chown -R 1000:1000`
+
+4. **Required environment variables (from `.env.example` and `docker-compose.yml`):**
+   - `OPENCLAW_GATEWAY_TOKEN` — auth token for gateway (required for network-exposed instances)
+   - `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` — LLM provider key (at least one)
+   - `HOME=/home/node` (set in compose)
+   - Optional channel tokens: `TELEGRAM_BOT_TOKEN`, `DISCORD_BOT_TOKEN`, `SLACK_BOT_TOKEN`
+
+5. **Event output — how OpenClaw communicates back:**
+   - OpenClaw does NOT emit events to an external backend. It owns a self-contained HTTP gateway on **port 18789** with health endpoints `/healthz` and `/readyz`.
+   - It routes agent output to its own messaging channels (Telegram/Discord/etc.) — NOT to our WebSocket server.
+   - There is no webhook or file-based event output to an external process.
+   - Bridge port 18790 is also exposed (internal CLI communication).
+
+6. **SKILL.md tool call execution:**
+   - SKILL.md is a markdown file with YAML frontmatter (`name`, `description`, `metadata`).
+   - Skills are prompt-injection documents — they instruct the LLM how to use built-in tools (exec, browser, file I/O, etc.).
+   - Tool calls execute within the OpenClaw sandbox container using built-in tools (`exec`, `browser`, `system.run`, etc.).
+   - Skills do NOT call external HTTP endpoints by default; they run code via the agent's built-in `exec` tool.
+   - To call our backend, a skill would need to use `exec` to run a `curl` or `fetch` command — this is not automatic.
+
+7. **Architecture mismatch:** The project assumed one OpenClaw container = one pet with our backend receiving events. In reality, OpenClaw is a standalone assistant that does not know about our pet social graph, wallet system, or WebSocket bus. Wiring it into x-pet would require significant custom integration work that likely exceeds hackathon scope.
+
+**Consequence:** Route D as originally designed is not implementable without major rework. See `docs/risks.md` R4 (re-opened as critical blocker) and R7/R8 for updated risk register. Route C (self-implemented compatible runtime using the SOUL.md/SKILL.md file format) is now the recommended path.
+
+**Corrected container reference (if still pursued):**
 ```
-POST /pets  → write SOUL.md/SKILL.md to /data/pets/{uuid}/ on host
-            → docker.createContainer({ Image: 'openclaw:latest',
-                HostConfig: { Binds: ['/data/pets/{uuid}:/home/openclaw'],
-                              Memory: 512 * 1024 * 1024 } })
+POST /pets  → write files to /data/pets/{uuid}/ on Hetzner host
+            → docker.createContainer({
+                Image: 'ghcr.io/openclaw/openclaw:latest',  // NOT openclaw:latest
+                HostConfig: {
+                  Binds: [
+                    '/data/pets/{uuid}/config:/home/node/.openclaw',
+                    '/data/pets/{uuid}/workspace:/home/node/.openclaw/workspace'
+                  ],
+                  Memory: 512 * 1024 * 1024
+                },
+                Env: [
+                  'OPENCLAW_GATEWAY_TOKEN=<per-pet-token>',
+                  'ANTHROPIC_API_KEY=<key>',
+                  'HOME=/home/node'
+                ]
+              })
 DELETE /pets/:id → container.stop() + container.remove()
 ```
 
-**File storage (bind mount per pet):**
+**File layout inside container (confirmed):**
 ```
-/data/pets/{pet_uuid}/
-  ├── SOUL.md        ← written by backend at pet creation
-  ├── SKILL.md       ← written by backend at pet creation
-  └── .openclaw/     ← managed by OpenClaw (memory, history, etc.)
+/home/node/.openclaw/              ← OPENCLAW_CONFIG_DIR bind mount
+  ├── openclaw.json                ← OpenClaw config (model selection, etc.)
+  └── workspace/                   ← OPENCLAW_WORKSPACE_DIR bind mount
+      ├── SOUL.md                  ← pet identity/personality (written at creation)
+      └── skills/
+          └── x-pet/
+              └── SKILL.md         ← pet tool definitions (written at creation)
 ```
 
-DB (`soul_md` column) is source of truth for API/UI; bind mount is OpenClaw's working directory. Host directory persists data across container restarts.
-
-**Fallback:** If Docker image incompatibility or daemon access blocked, activate Route B (Hetzner API directly, pre-provision before demo). See `docs/risks.md` R4.
+**Fallback:** Route C — self-implemented Node.js runtime that reads SOUL.md and SKILL.md in the same format, calls Claude directly, and emits events to our WebSocket bus. This avoids OpenClaw's architecture mismatch entirely. See `docs/risks.md`.
 
 ---
 
