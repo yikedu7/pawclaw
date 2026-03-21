@@ -1,16 +1,28 @@
 import Fastify from 'fastify';
 import fastifyWebsocket from '@fastify/websocket';
+import jwt from 'jsonwebtoken';
 import { registerOwner, unregisterOwner } from './ws/wsRegistry.js';
 
 const fastify = Fastify({ logger: true });
+const JWT_SECRET = process.env.JWT_SECRET ?? 'dev-secret';
 
 await fastify.register(fastifyWebsocket);
 
 fastify.get('/ws', { websocket: true }, (socket, req) => {
-  const ownerId = (req.query as Record<string, string>).owner_id;
+  const token = (req.query as Record<string, string>).token;
 
-  if (!ownerId) {
-    socket.close(4001, 'owner_id required');
+  if (!token) {
+    socket.close(4001, 'token required');
+    return;
+  }
+
+  let ownerId: string;
+  try {
+    const payload = jwt.verify(token, JWT_SECRET) as jwt.JwtPayload;
+    if (!payload.sub) throw new Error('missing sub');
+    ownerId = payload.sub;
+  } catch {
+    socket.close(4001, 'invalid token');
     return;
   }
 

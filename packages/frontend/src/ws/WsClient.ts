@@ -31,8 +31,10 @@ export class WsClient {
       eventBus.emit(event);
     };
 
-    this.ws.onclose = () => {
+    this.ws.onclose = (ev) => {
       if (this.closed) return;
+      // 4001 = auth rejected; do not reconnect
+      if (ev.code === 4001) return;
       const delay = Math.min(BACKOFF_BASE_MS * 2 ** this.attempt, BACKOFF_MAX_MS);
       this.attempt++;
       setTimeout(() => this.connect(), delay);
@@ -49,8 +51,8 @@ export class WsClient {
   }
 }
 
-export function buildWsUrl(ownerId: string): string {
+export function buildWsUrl(token: string): string {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   const host = import.meta.env.VITE_WS_HOST ?? location.host;
-  return `${proto}://${host}/ws?owner_id=${encodeURIComponent(ownerId)}`;
+  return `${proto}://${host}/ws?token=${encodeURIComponent(token)}`;
 }

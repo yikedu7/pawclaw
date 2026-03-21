@@ -38,9 +38,9 @@ async function main(): Promise<void> {
   eventBus.on('friend.unlocked', (e) => room.showFriendUnlocked(e.data.pet_id));
   eventBus.on('error', (e) => room.showDialogue(`Error: ${e.data.message}`));
 
-  const ownerId = new URLSearchParams(location.search).get('owner_id') ?? import.meta.env.VITE_OWNER_ID;
-  if (ownerId) {
-    new WsClient(buildWsUrl(ownerId)).connect();
+  const token = new URLSearchParams(location.search).get('token') ?? import.meta.env.VITE_WS_TOKEN;
+  if (token) {
+    new WsClient(buildWsUrl(token)).connect();
   } else {
     new MockEvents().start();
   }
