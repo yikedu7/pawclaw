@@ -1,0 +1,51 @@
+name: Docs → Issue Sync
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Sync issues with updated docs
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          claude_args: --allowedTools "Bash,Read,Glob"
+          prompt: |
+            A push to main just changed one or more files under docs/.
+
+            1. Find which docs changed:
+               git diff HEAD~1 HEAD --name-only -- 'docs/**'
+
+            2. For each changed doc, read it in full.
+
+            3. List all open GitHub issues:
+               gh issue list --repo ${{ github.repository }} --state open --limit 100 --json number,title,body,labels
+
+            4. For each open issue, check whether its body references any design decisions, field names, env vars, or approach choices that now contradict what the changed docs say.
+
+            5. For every stale issue found, update it:
+               - Edit the body to reflect the current design (gh issue edit <N> --repo ${{ github.repository }} --body "...")
+               - If the issue was blocked by a dependency that the doc change resolves, remove the "blocked" label (gh issue edit <N> --repo ${{ github.repository }} --remove-label "blocked")
+               - Add a comment explaining what changed and why:
+                 gh issue comment <N> --repo ${{ github.repository }} --body "Updated by docs-issue-sync: <doc file> changed on main. <one sentence explaining what was stale and what was corrected>"
+
+            6. If no issues are stale, do nothing.
+
+            Focus only on concrete contradictions (wrong field names, wrong approach, resolved blockers). Do not rewrite style or add detail that isn't already in the doc.
