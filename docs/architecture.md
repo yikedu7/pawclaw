@@ -49,7 +49,7 @@ OpenClaw is an AI agent runtime format the hackathon judges may require. It defi
 - Custom Node.js service following SOUL.md / SKILL.md format spec
 - **Rejected:** Product requires per-pet process isolation; shared process does not satisfy this
 
-### Route D: Docker per Pet on Hetzner VPS
+### Route D: Docker per Pet on Hetzner VPS ✅ Selected
 
 **Research findings (issue #37, 2026-03-21, corrected 2026-03-21):**
 
@@ -86,7 +86,7 @@ OpenClaw (`github.com/openclaw/openclaw`) is a persistent AI agent gateway runti
    - Tool calls execute within the OpenClaw sandbox container using built-in tools (`exec`, `browser`, `system.run`, etc.).
    - To call our backend, a skill uses `exec` to run a `curl` or `fetch` command.
 
-**Container reference:**
+**Container reference (via `dockerode` SDK, SSH transport):**
 ```
 POST /pets  → write files to /data/pets/{uuid}/ on Hetzner host
             → docker.createContainer({
@@ -96,7 +96,9 @@ POST /pets  → write files to /data/pets/{uuid}/ on Hetzner host
                     '/data/pets/{uuid}/config:/home/node/.openclaw',
                     '/data/pets/{uuid}/workspace:/home/node/.openclaw/workspace'
                   ],
-                  Memory: 512 * 1024 * 1024
+                  PortBindings: { '18789/tcp': [{ HostPort: '<allocated>' }] },
+                  Memory: 512 * 1024 * 1024,
+                  RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 3 }
                 },
                 Env: [
                   'OPENCLAW_GATEWAY_TOKEN=<per-pet-token>',
@@ -129,9 +131,11 @@ x-pet backend tick fires
   → x-pet backend processes result → emits WebSocket event
 ```
 
-**Remaining concerns (see risks.md R7, R8):**
-- R7: Docker remote access (Railway → Hetzner) — still open
-- R8: GHCR image authentication on Hetzner host — still open
+**Remote Docker access:** Backend connects to Hetzner dockerd via SSH tunneling (`dockerode` SSH protocol, ed25519 key stored as Railway env var). Port 2376 is not exposed. See `docs/remote-docker-access.md` and `docs/risks.md` R7.
+
+**Port allocation:** Static range 19000–19999, tracked in `port_allocations` DB table. See `docs/container-design.md` for full scheme.
+
+**Fallback:** If Docker image incompatibility or daemon access blocked, activate Route B (Hetzner API directly, pre-provision before demo). See `docs/risks.md` R4.
 
 ---
 
