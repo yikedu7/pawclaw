@@ -19,6 +19,7 @@ Defines the full contract between backend and frontend for x-pet.
 | GET | `/api/pets/:id/events` | Get social events for a pet |
 | GET | `/api/pets/:id/diary` | Get AI-generated diary summary |
 | POST | `/api/pets/:id/feed` | Feed the pet to restore hunger |
+| POST | `/api/pets/:id/chat` | Send a message to the pet, get its reply |
 
 ### WebSocket
 
@@ -297,6 +298,39 @@ Feed the pet to restore its hunger stat. Requires auth.
 |--------|----------------|--------------------------|
 | 401    | `UNAUTHORIZED` | Missing or invalid token |
 | 404    | `NOT_FOUND`    | Pet id does not exist    |
+
+---
+
+### POST /api/pets/:id/chat
+
+Send a message to the pet and get its LLM-generated reply in character. The reply is also emitted as a `pet.speak` WsEvent so other connected clients see it. Requires auth.
+
+**Path params:** `id` — pet uuid
+
+**Request body**
+
+```typescript
+{
+  message: string; // the user's message to the pet
+}
+```
+
+**Response — 200 OK**
+
+```typescript
+{
+  reply: string; // the pet's response, generated in its personality
+}
+```
+
+**Error codes**
+
+| Status | code               | Condition                        |
+|--------|--------------------|----------------------------------|
+| 400    | `VALIDATION_ERROR` | Empty message                    |
+| 401    | `UNAUTHORIZED`     | Missing or invalid token         |
+| 404    | `NOT_FOUND`        | Pet id does not exist            |
+| 500    | `INTERNAL_ERROR`   | LLM call failed                  |
 
 ---
 
