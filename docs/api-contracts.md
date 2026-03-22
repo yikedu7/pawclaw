@@ -10,8 +10,6 @@ Defines the full contract between backend and frontend for x-pet.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/auth/register` | Create account (email + password) |
-| POST | `/api/auth/login` | Sign in, returns JWT |
 | GET | `/api/users/me` | Current user profile |
 | POST | `/api/pets` | Create a new pet |
 | GET | `/api/pets` | List all pets for the current user |
@@ -51,76 +49,13 @@ Base URL: `https://<host>/api`
 
 All endpoints return `Content-Type: application/json`.
 
-Protected endpoints require `Authorization: Bearer <token>` header.
-
----
-
-### POST /api/auth/register
-
-Create a new user account.
-
-**Request body**
-
-```typescript
-{
-  email: string;
-  password: string; // min 8 chars
-}
-```
-
-**Response — 201 Created**
-
-```typescript
-{
-  id: string;    // user uuid
-  email: string;
-  token: string; // JWT for subsequent requests
-}
-```
-
-**Error codes**
-
-| Status | code               | Condition                       |
-|--------|--------------------|---------------------------------|
-| 400    | `VALIDATION_ERROR` | Invalid email or short password |
-| 409    | `CONFLICT`         | Email already registered        |
-
----
-
-### POST /api/auth/login
-
-Sign in with email and password.
-
-**Request body**
-
-```typescript
-{
-  email: string;
-  password: string;
-}
-```
-
-**Response — 200 OK**
-
-```typescript
-{
-  id: string;    // user uuid
-  email: string;
-  token: string; // JWT
-}
-```
-
-**Error codes**
-
-| Status | code           | Condition               |
-|--------|----------------|-------------------------|
-| 401    | `UNAUTHORIZED` | Wrong email or password |
+Protected endpoints require `Authorization: Bearer <supabase-jwt>` header. The backend verifies the token by calling `supabase.auth.getUser(token)` using the Supabase server client (initialized with `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`). Registration and login are handled entirely by the Supabase client SDK — there are no custom auth endpoints on the backend.
 
 ---
 
 ### GET /api/users/me
 
-Return the authenticated user's profile. Requires auth.
+Return the authenticated user's profile. Wraps `supabase.auth.getUser()`. Requires auth.
 
 **Response — 200 OK**
 
@@ -413,7 +348,7 @@ Fetch the AI-generated daily summary for a pet. Requires auth.
 ws://<host>/ws?token=<jwt>
 ```
 
-- `token` — the JWT obtained from `/api/auth/login` or `/api/auth/register`. The server verifies the token and derives `owner_id` from it; unauthenticated connections are rejected with close code `4001`.
+- `token` — the Supabase JWT obtained via the Supabase client SDK. The server verifies the token via `supabase.auth.getUser(token)` and derives `owner_id` from it; unauthenticated connections are rejected with close code `4001`.
 - The server streams events for all pets owned by the authenticated user.
 - The server sends JSON-encoded `WsEvent` messages (server → client only).
 - The client does not send messages over this connection.
