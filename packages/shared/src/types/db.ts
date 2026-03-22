@@ -13,13 +13,14 @@ export type DbPet = {
   name: string;
   soul_md: string;
   skill_md: string;
-  wallet_address: string;
+  wallet_address: string | null;
   hunger: number;
   mood: number;
   affection: number;
   llm_history: unknown;
   last_tick_at: Date | null;
   created_at: Date;
+  diary_text: string | null;
   // Container
   container_id: string | null;
   container_host: string | null;
@@ -46,6 +47,7 @@ export type DbTransaction = {
   token: string;
   tx_hash: string;
   x_layer_confirmed: boolean;
+  social_event_id: string | null;
   created_at: Date;
 };
 

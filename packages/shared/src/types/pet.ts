@@ -20,7 +20,7 @@ export type Pet = {
   name: string;
   soul_md: string;
   skill_md: string;
-  wallet_address: string;
+  wallet_address: string | null;
   hunger: number;
   mood: number;
   affection: number;
