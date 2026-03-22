@@ -2,6 +2,7 @@ import { Application } from 'pixi.js';
 import { PetRoom } from './canvas/PetRoom';
 import { MockEvents } from './canvas/MockEvents';
 import { eventBus } from './ws/eventBus';
+import { WsClient, buildWsUrl } from './ws/WsClient';
 
 async function main(): Promise<void> {
   const mount = document.getElementById('canvas');
@@ -37,7 +38,12 @@ async function main(): Promise<void> {
   eventBus.on('friend.unlocked', (e) => room.showFriendUnlocked(e.data.pet_id));
   eventBus.on('error', (e) => room.showDialogue(`Error: ${e.data.message}`));
 
-  new MockEvents().start();
+  const token = new URLSearchParams(location.search).get('token') ?? import.meta.env.VITE_WS_TOKEN;
+  if (token) {
+    new WsClient(buildWsUrl(token)).connect();
+  } else {
+    new MockEvents().start();
+  }
 }
 
 main();

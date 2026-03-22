@@ -28,9 +28,10 @@ COPY packages/backend/package.json ./packages/backend/
 RUN pnpm install --frozen-lockfile --filter @x-pet/backend... --prod
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/packages/backend/dist ./packages/backend/dist
+COPY --from=builder /app/packages/backend/drizzle ./packages/backend/drizzle
 RUN chown -R appuser:appgroup /app
 USER appuser
 
 ENV PORT=3000
 EXPOSE 3000
-CMD ["node", "packages/backend/dist/index.js"]
+CMD ["sh", "-c", "node packages/backend/dist/db/migrate.js && node packages/backend/dist/index.js"]

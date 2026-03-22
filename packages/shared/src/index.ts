@@ -29,3 +29,4 @@ export {
   ChatMessageSchema,
   SocialEventTypeSchema,
 } from './schemas/pet.js';
+export { WsEventSchema, WsQuerySchema } from './schemas/ws.js';
