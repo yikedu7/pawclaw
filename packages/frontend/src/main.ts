@@ -27,11 +27,13 @@ async function main(): Promise<void> {
   app.stage.addChild(loader);
 
   Assets.add({ alias: 'spritesheet', src: '/assets/characters/Basic Charakter Spritesheet.png' });
-  Assets.add({ alias: 'wall', src: '/assets/tilesets/Wooden_House_Walls_Tilset.png' });
-  Assets.add({ alias: 'floor', src: '/assets/tilesets/Grass.png' });
+  Assets.add({ alias: 'grass', src: '/assets/tilesets/Grass.png' });
+  Assets.add({ alias: 'water', src: '/assets/tilesets/Water.png' });
+  Assets.add({ alias: 'house', src: '/assets/tilesets/Wooden House.png' });
 
-  const textures = await Assets.load<Texture>(['spritesheet', 'wall', 'floor'], (p: number) =>
-    loader.setProgress(p),
+  const textures = await Assets.load<Texture>(
+    ['spritesheet', 'grass', 'water', 'house'],
+    (p: number) => loader.setProgress(p),
   ) as Record<string, Texture>;
 
   app.stage.removeChild(loader);
@@ -39,8 +41,9 @@ async function main(): Promise<void> {
 
   const room = new PetRoom(app, {
     spritesheet: textures['spritesheet'],
-    wall: textures['wall'],
-    floor: textures['floor'],
+    grass: textures['grass'],
+    water: textures['water'],
+    house: textures['house'],
   });
   app.stage.addChild(room, room.overlays);
 

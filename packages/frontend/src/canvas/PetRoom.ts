@@ -2,7 +2,7 @@ import { Application, Container, Graphics, Text, Ticker, Texture } from 'pixi.js
 import type { WsEvent } from '@x-pet/shared';
 import { DialogueBubble } from './DialogueBubble';
 import { GiftAnimation } from './GiftAnimation';
-import { RoomBackground } from './RoomBackground';
+import { SceneBackground } from './SceneBackground';
 import { PetSprite } from './PetSprite';
 import { VisitorSprite } from './VisitorSprite';
 
@@ -12,7 +12,10 @@ const BAR_ROW = 26;
 const STAT_BOTTOM_PAD = 90;
 const PET_SPRITE_H = 144; // 48px × 3 scale — used for bubble positioning
 const FRIEND_FLASH_MS = 1200;
-const VISIT_SLIDE_OUT_DELAY_MS = 4200; // ~1 dialogue message duration
+const VISIT_SLIDE_OUT_DELAY_MS = 4200;
+
+// Pet stands inside the house — 62% of canvas height puts feet in the lower house interior
+const PET_Y_RATIO = 0.62;
 
 const C = {
   hunger: 0xf59e0b,
@@ -27,14 +30,15 @@ interface StatBar { fg: Graphics; current: number; target: number; color: number
 
 export interface SceneTextures {
   spritesheet: Texture;
-  wall: Texture;
-  floor: Texture;
+  grass: Texture;   // Grass.png — ground tiles on the right
+  water: Texture;   // Water.png — ground tiles on the left
+  house: Texture;   // Wooden House.png — the cottage building sprite
 }
 
-/** Main PixiJS scene: tiled room background, animated pet sprite, visitor slide, stat bars. */
+/** Main PixiJS scene: seaside cottage background, animated pet inside the house, visitor slide, stat bars. */
 export class PetRoom extends Container {
   readonly overlays: Container;
-  private readonly bg: RoomBackground;
+  private readonly bg: SceneBackground;
   private readonly petSprite: PetSprite;
   private readonly visitor: VisitorSprite;
   private readonly statRoot = new Container();
@@ -49,7 +53,7 @@ export class PetRoom extends Container {
     super();
     this.overlays = new Container();
 
-    this.bg = new RoomBackground(textures.wall, textures.floor);
+    this.bg = new SceneBackground(textures.grass, textures.water, textures.house);
     this.petSprite = new PetSprite(textures.spritesheet);
     this.visitor = new VisitorSprite(textures.spritesheet);
 
@@ -88,10 +92,11 @@ export class PetRoom extends Container {
   }
 
   layout(w: number, h: number): void {
-    this.bg.layout(w, h);
+    const sceneH = Math.floor(h * 0.72);
+    this.bg.layout(w, sceneH);
 
     const petX = w / 2;
-    const petY = Math.floor(h * 0.72); // pet feet rest on the floor line
+    const petY = Math.floor(h * PET_Y_RATIO); // inside the house
 
     this.petSprite.x = petX;
     this.petSprite.y = petY;
@@ -142,10 +147,9 @@ export class PetRoom extends Container {
 
   showDialogue(message: string): void { this.bubble.enqueue(message); }
 
-  /** Slide a visitor sprite in from the right, show dialogue, then slide out. */
   showVisit(fromPetId: string, message: string): void {
     const w = this.app.screen.width;
-    const petY = Math.floor(this.app.screen.height * 0.72);
+    const petY = Math.floor(this.app.screen.height * PET_Y_RATIO);
     const petX = w / 2;
     const visitorTargetX = petX + 110;
     const offscreenX = w + 80;
