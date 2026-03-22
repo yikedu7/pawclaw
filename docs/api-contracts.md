@@ -18,7 +18,7 @@ Defines the full contract between backend and frontend for x-pet.
 | GET | `/api/pets/:id/diary` | Get AI-generated diary summary |
 | POST | `/api/pets/:id/feed` | Feed the pet to restore hunger |
 | POST | `/api/pets/:id/chat` | Send a message to the pet, get its reply |
-| POST | `/api/pets/:id/tick` | Force an immediate tick (demo / debug only) |
+| POST | `/internal/tick/:petId` | Force an immediate tick (internal, no auth) |
 
 ### WebSocket
 
@@ -293,27 +293,29 @@ data: {"code":"INTERNAL_ERROR","error":"LLM stream interrupted"}
 
 ---
 
-### POST /api/pets/:id/tick
+### POST /internal/tick/:petId
 
-Force an immediate tick for this pet, bypassing the scheduled interval. Triggers the full tick loop: LLM decides action → execute → emit WsEvents. Intended for demo acceleration and debugging. Requires auth.
+Force an immediate tick for this pet. Triggers the full tick loop: read pet state → Claude API decides action → execute side effects → emit WsEvents. Internal-only endpoint with no auth — intended for demo and testing. Replaces the original `/api/pets/:id/tick` contract for MVP (issue #67).
 
-**Path params:** `id` — pet uuid
+**Path params:** `petId` — pet uuid
 
-**Request body** — empty
-
-**Response — 202 Accepted**
+**Request body** (optional)
 
 ```typescript
-{} // tick is enqueued; results arrive via WsEvents
+{ "trigger"?: "manual" | "cron" }
+```
+
+**Response — 200 OK**
+
+```typescript
+{ "ok": true, "action": "speak" | "visit_pet" | "send_gift" | "rest" }
 ```
 
 **Error codes**
 
 | Status | code           | Condition                           |
 |--------|----------------|-------------------------------------|
-| 401    | `UNAUTHORIZED` | Missing or invalid token            |
-| 404    | `NOT_FOUND`    | Pet id does not exist               |
-| 409    | `CONFLICT`     | Tick already in progress for this pet |
+| 500    | —              | Pet not found or tick execution error |
 
 ---
 
