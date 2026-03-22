@@ -27,4 +27,5 @@ export {
   PetIdParamSchema,
   PetEventsQuerySchema,
   ChatMessageSchema,
+  SocialEventTypeSchema,
 } from './schemas/pet.js';
