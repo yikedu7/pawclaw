@@ -5,19 +5,16 @@ import { db } from '../db/client.js';
 import { pets } from '../db/schema.js';
 import { authHook } from './authHook.js';
 
-export type SoulGenerator = (input: { name: string; mood: number; soul_prompt: string }) => string;
-export type SkillGenerator = (input: { id: string; backendUrl: string }) => string;
-
 export type PetRouteDeps = {
-  generateSoulMd: SoulGenerator;
-  generateSkillMd: SkillGenerator;
+  generateSoulMd: (input: { name: string; mood: number; soul_prompt: string }) => string;
+  generateSkillMd: (input: { id: string; backendUrl: string }) => string;
 };
 
 function toPetState(row: typeof pets.$inferSelect) {
   return {
     id: row.id,
-    owner_id: row.owner_id,
     name: row.name,
+    // TODO(#39): return real Onchain OS wallet address once container lifecycle manager lands
     wallet_address: row.wallet_address ?? '',
     hunger: row.hunger,
     mood: row.mood,
