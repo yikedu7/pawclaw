@@ -1,0 +1,160 @@
+import Anthropic from '@anthropic-ai/sdk';
+import { eq, desc } from 'drizzle-orm';
+import { db } from '../db/client.js';
+import { pets, social_events } from '../db/schema.js';
+import { emitToOwner } from '../ws/wsEmitter.js';
+import { tickTools } from './tick-tools.js';
+
+const anthropic = new Anthropic();
+
+export async function executeTick(petId: string): Promise<{ action: string }> {
+  // 1. Fetch pet from DB
+  const pet = await db.query.pets.findFirst({
+    where: eq(pets.id, petId),
+  });
+  if (!pet) throw new Error(`Pet not found: ${petId}`);
+
+  // 2. Fetch last 5 social events involving this pet
+  const recentEvents = await db.query.social_events.findMany({
+    where: eq(social_events.from_pet_id, petId),
+    orderBy: [desc(social_events.created_at)],
+    limit: 5,
+  });
+
+  // 3. Build user message with state summary
+  const stateLines = [
+    `Current state:`,
+    `- Hunger: ${pet.hunger}/100`,
+    `- Mood: ${pet.mood}/100`,
+    `- Affection: ${pet.affection}`,
+    `- Last tick: ${pet.last_tick_at?.toISOString() ?? 'never'}`,
+    ``,
+    `Recent events (newest first):`,
+  ];
+  if (recentEvents.length === 0) {
+    stateLines.push('  (none yet)');
+  } else {
+    for (const ev of recentEvents) {
+      stateLines.push(
+        `  - [${ev.type}] to=${ev.to_pet_id ?? 'self'} payload=${JSON.stringify(ev.payload)} at=${ev.created_at.toISOString()}`,
+      );
+    }
+  }
+  stateLines.push('', 'Decide your next action. Pick one tool to call.');
+
+  // 4. Call Claude API
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6-20250514',
+    max_tokens: 1024,
+    system: pet.soul_md,
+    messages: [{ role: 'user', content: stateLines.join('\n') }],
+    tools: tickTools,
+  });
+
+  // 5. Find the tool_use block
+  const toolUse = response.content.find(
+    (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use',
+  );
+
+  if (!toolUse) {
+    // LLM didn't call a tool — treat as a speak with its text output
+    const textBlock = response.content.find(
+      (block): block is Anthropic.TextBlock => block.type === 'text',
+    );
+    const message = textBlock?.text ?? '...';
+    emitToOwner(pet.owner_id, {
+      type: 'pet.speak',
+      data: { pet_id: petId, message },
+    });
+    await db
+      .update(pets)
+      .set({ last_tick_at: new Date() })
+      .where(eq(pets.id, petId));
+    return { action: 'speak (fallback)' };
+  }
+
+  // 6. Execute side effects based on tool call
+  const input = toolUse.input as Record<string, unknown>;
+
+  switch (toolUse.name) {
+    case 'visit_pet': {
+      const targetPetId = input.target_pet_id as string;
+      const greeting = (input.greeting as string) ?? '';
+      await db.insert(social_events).values({
+        from_pet_id: petId,
+        to_pet_id: targetPetId,
+        type: 'visit',
+        payload: { greeting },
+      });
+      emitToOwner(pet.owner_id, {
+        type: 'social.visit',
+        data: {
+          from_pet_id: petId,
+          to_pet_id: targetPetId,
+          turns: [{ speaker_pet_id: petId, line: greeting }],
+        },
+      });
+      break;
+    }
+
+    case 'speak': {
+      const message = input.message as string;
+      emitToOwner(pet.owner_id, {
+        type: 'pet.speak',
+        data: { pet_id: petId, message },
+      });
+      break;
+    }
+
+    case 'send_gift': {
+      const targetPetId = input.target_pet_id as string;
+      const amount = input.amount as string;
+      // Mock tx_hash — real on-chain integration is a separate issue
+      const txHash = `0xmock_${Date.now().toString(16)}`;
+      await db.insert(social_events).values({
+        from_pet_id: petId,
+        to_pet_id: targetPetId,
+        type: 'gift',
+        payload: { amount, token: 'OKB', tx_hash: txHash },
+      });
+      emitToOwner(pet.owner_id, {
+        type: 'social.gift',
+        data: {
+          from_pet_id: petId,
+          to_pet_id: targetPetId,
+          token: 'OKB',
+          amount,
+          tx_hash: txHash,
+        },
+      });
+      break;
+    }
+
+    case 'rest': {
+      const newHunger = Math.min(100, pet.hunger + 10);
+      const newMood = Math.min(100, pet.mood + 5);
+      await db
+        .update(pets)
+        .set({ hunger: newHunger, mood: newMood })
+        .where(eq(pets.id, petId));
+      emitToOwner(pet.owner_id, {
+        type: 'pet.state',
+        data: {
+          pet_id: petId,
+          hunger: newHunger,
+          mood: newMood,
+          affection: pet.affection,
+        },
+      });
+      break;
+    }
+  }
+
+  // 7. Update last_tick_at
+  await db
+    .update(pets)
+    .set({ last_tick_at: new Date() })
+    .where(eq(pets.id, petId));
+
+  return { action: toolUse.name };
+}
