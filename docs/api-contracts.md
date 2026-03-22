@@ -26,7 +26,7 @@ Defines the full contract between backend and frontend for x-pet.
 
 | URL | Description |
 |-----|-------------|
-| `ws://<host>/ws?owner_id=<uuid>` | Real-time event stream for all pets owned by the user |
+| `ws://<host>/ws?token=<jwt>` | Real-time event stream for all pets owned by the user |
 
 ---
 
