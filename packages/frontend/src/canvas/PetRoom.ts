@@ -10,12 +10,9 @@ const BAR_W = 150;
 const BAR_H = 9;
 const BAR_ROW = 26;
 const STAT_BOTTOM_PAD = 90;
-const PET_SPRITE_H = 144; // 48px × 3 scale — used for bubble positioning
+const PET_SPRITE_H = 144; // 48px frame × 3 scale
 const FRIEND_FLASH_MS = 1200;
 const VISIT_SLIDE_OUT_DELAY_MS = 4200;
-
-// Pet stands inside the house — 62% of canvas height puts feet in the lower house interior
-const PET_Y_RATIO = 0.62;
 
 const C = {
   hunger: 0xf59e0b,
@@ -30,12 +27,11 @@ interface StatBar { fg: Graphics; current: number; target: number; color: number
 
 export interface SceneTextures {
   spritesheet: Texture;
-  grass: Texture;   // Grass.png — ground tiles on the right
-  water: Texture;   // Water.png — ground tiles on the left
-  house: Texture;   // Wooden House.png — the cottage building sprite
+  grass: Texture;  // Grass.png
+  water: Texture;  // Water.png
+  biom: Texture;   // Basic Grass Biom things 1.png
 }
 
-/** Main PixiJS scene: seaside cottage background, animated pet inside the house, visitor slide, stat bars. */
 export class PetRoom extends Container {
   readonly overlays: Container;
   private readonly bg: SceneBackground;
@@ -53,7 +49,7 @@ export class PetRoom extends Container {
     super();
     this.overlays = new Container();
 
-    this.bg = new SceneBackground(textures.grass, textures.water, textures.house);
+    this.bg = new SceneBackground(textures.grass, textures.water, textures.biom);
     this.petSprite = new PetSprite(textures.spritesheet);
     this.visitor = new VisitorSprite(textures.spritesheet);
 
@@ -92,11 +88,10 @@ export class PetRoom extends Container {
   }
 
   layout(w: number, h: number): void {
-    const sceneH = Math.floor(h * 0.72);
-    this.bg.layout(w, sceneH);
+    this.bg.layout(w, h);
 
-    const petX = w / 2;
-    const petY = Math.floor(h * PET_Y_RATIO); // inside the house
+    const petX = this.bg.petStandX;
+    const petY = this.bg.petStandY;
 
     this.petSprite.x = petX;
     this.petSprite.y = petY;
@@ -130,8 +125,7 @@ export class PetRoom extends Container {
     if (this.visitSlideOutTimer >= 0) {
       this.visitSlideOutTimer -= ticker.deltaMS;
       if (this.visitSlideOutTimer < 0) {
-        const offscreenX = this.app.screen.width + 80;
-        this.visitor.slideOut(offscreenX);
+        this.visitor.slideOut(this.app.screen.width + 80);
       }
     }
 
@@ -148,14 +142,12 @@ export class PetRoom extends Container {
   showDialogue(message: string): void { this.bubble.enqueue(message); }
 
   showVisit(fromPetId: string, message: string): void {
-    const w = this.app.screen.width;
-    const petY = Math.floor(this.app.screen.height * PET_Y_RATIO);
-    const petX = w / 2;
-    const visitorTargetX = petX + 110;
-    const offscreenX = w + 80;
+    const visitorTargetX = this.bg.petStandX + 100;
+    const visitorY = this.bg.petStandY;
+    const offscreenX = this.app.screen.width + 80;
 
     this.visitSlideOutTimer = -1;
-    this.visitor.slideIn(offscreenX, visitorTargetX, petY, () => {
+    this.visitor.slideIn(offscreenX, visitorTargetX, visitorY, () => {
       this.bubble.enqueue(`[${fromPetId}] ${message}`);
       this.visitSlideOutTimer = VISIT_SLIDE_OUT_DELAY_MS;
     });
