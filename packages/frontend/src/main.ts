@@ -27,7 +27,7 @@ async function main(): Promise<void> {
   app.stage.addChild(loader);
 
   Assets.add({ alias: 'spritesheet', src: '/assets/characters/Basic Charakter Spritesheet.png' });
-  Assets.add({ alias: 'wall', src: '/assets/tilesets/Wooden House.png' });
+  Assets.add({ alias: 'wall', src: '/assets/tilesets/Wooden_House_Walls_Tilset.png' });
   Assets.add({ alias: 'floor', src: '/assets/tilesets/Grass.png' });
 
   const textures = await Assets.load<Texture>(['spritesheet', 'wall', 'floor'], (p: number) =>
