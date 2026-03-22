@@ -1,12 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import jwt from 'jsonwebtoken';
+import { WsQuerySchema } from '@x-pet/shared';
 import { registerOwner, unregisterOwner } from './wsRegistry.js';
 
 export async function registerWsRoute(fastify: FastifyInstance): Promise<void> {
   fastify.get('/ws', { websocket: true }, (socket, req) => {
-    const token = (req.query as Record<string, string>).token;
-
-    if (!token) {
+    const query = WsQuerySchema.safeParse(req.query);
+    if (!query.success) {
       socket.close(4001, 'token required');
       return;
     }
@@ -14,7 +14,7 @@ export async function registerWsRoute(fastify: FastifyInstance): Promise<void> {
     let ownerId: string;
     try {
       const secret = process.env.JWT_SECRET ?? 'dev-secret';
-      const payload = jwt.verify(token, secret) as jwt.JwtPayload;
+      const payload = jwt.verify(query.data.token, secret) as jwt.JwtPayload;
       if (!payload.sub) throw new Error('missing sub');
       ownerId = payload.sub;
     } catch {

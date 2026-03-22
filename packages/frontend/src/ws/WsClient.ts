@@ -1,4 +1,4 @@
-import type { WsEvent } from '@x-pet/shared';
+import { WsEventSchema } from '@x-pet/shared';
 import { eventBus } from './eventBus';
 
 const BACKOFF_BASE_MS = 1_000;
@@ -22,13 +22,9 @@ export class WsClient {
     };
 
     this.ws.onmessage = (ev) => {
-      let event: WsEvent;
-      try {
-        event = JSON.parse(ev.data as string) as WsEvent;
-      } catch {
-        return;
-      }
-      eventBus.emit(event);
+      const result = WsEventSchema.safeParse(JSON.parse(ev.data as string));
+      if (!result.success) return;
+      eventBus.emit(result.data);
     };
 
     this.ws.onclose = (ev) => {
