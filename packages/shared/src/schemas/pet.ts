@@ -28,3 +28,5 @@ export const PetEventsQuerySchema = z.object({
 export const ChatMessageSchema = z.object({
   message: z.string().min(1),
 });
+
+export const SocialEventTypeSchema = z.enum(['visit', 'gift', 'chat']);
