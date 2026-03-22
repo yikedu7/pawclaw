@@ -92,7 +92,6 @@ export class SceneBackground extends Container {
     waterTex: Texture,
     biomTex: Texture,
     houseTex: Texture,
-    _roofTex: Texture,
     wallsTex: Texture,
     doorTex: Texture,
   ) {

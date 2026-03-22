@@ -30,12 +30,11 @@ async function main(): Promise<void> {
   Assets.add({ alias: 'water',       src: '/assets/tilesets/Water.png' });
   Assets.add({ alias: 'biom',        src: '/assets/objects/Basic Grass Biom things 1.png' });
   Assets.add({ alias: 'house',       src: '/assets/tilesets/Wooden House.png' });
-  Assets.add({ alias: 'roof',        src: '/assets/tilesets/Wooden_House_Roof_Tilset.png' });
   Assets.add({ alias: 'walls',       src: '/assets/tilesets/Wooden_House_Walls_Tilset.png' });
   Assets.add({ alias: 'door',        src: '/assets/tilesets/Doors.png' });
 
   const textures = await Assets.load<Texture>(
-    ['spritesheet', 'grass', 'water', 'biom', 'house', 'roof', 'walls', 'door'],
+    ['spritesheet', 'grass', 'water', 'biom', 'house', 'walls', 'door'],
     (p: number) => loader.setProgress(p),
   ) as Record<string, Texture>;
 
@@ -48,7 +47,6 @@ async function main(): Promise<void> {
     water:       textures['water'],
     biom:        textures['biom'],
     house:       textures['house'],
-    roof:        textures['roof'],
     walls:       textures['walls'],
     door:        textures['door'],
   });

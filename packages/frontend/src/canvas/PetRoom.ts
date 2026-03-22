@@ -31,7 +31,6 @@ export interface SceneTextures {
   water: Texture;  // Water.png
   biom: Texture;   // Basic Grass Biom things 1.png
   house: Texture;  // Wooden House.png
-  roof: Texture;   // Wooden_House_Roof_Tilset.png
   walls: Texture;  // Wooden_House_Walls_Tilset.png
   door: Texture;   // Doors.png
 }
@@ -53,7 +52,7 @@ export class PetRoom extends Container {
     super();
     this.overlays = new Container();
 
-    this.bg = new SceneBackground(textures.grass, textures.water, textures.biom, textures.house, textures.roof, textures.walls, textures.door);
+    this.bg = new SceneBackground(textures.grass, textures.water, textures.biom, textures.house, textures.walls, textures.door);
     this.petSprite = new PetSprite(textures.spritesheet);
     this.visitor = new VisitorSprite(textures.spritesheet);
 
