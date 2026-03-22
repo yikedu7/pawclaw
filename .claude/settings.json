@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.command' | grep -q 'db:generate\\|drizzle-kit generate' && git -C \"$(git rev-parse --show-toplevel)\" add packages/backend/drizzle/ || true"
+          }
+        ]
+      }
+    ]
+  }
+}
