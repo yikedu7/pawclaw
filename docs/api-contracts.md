@@ -160,6 +160,7 @@ Fetch current state of a single pet. Requires auth.
 | Status | code           | Condition                |
 |--------|----------------|--------------------------|
 | 401    | `UNAUTHORIZED` | Missing or invalid token |
+| 403    | `FORBIDDEN`    | Pet belongs to another user |
 | 404    | `NOT_FOUND`    | Pet id does not exist    |
 
 ---
