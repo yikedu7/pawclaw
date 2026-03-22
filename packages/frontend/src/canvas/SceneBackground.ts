@@ -1,4 +1,4 @@
-import { Container, Graphics, Rectangle, Sprite, Texture, TilingSprite } from 'pixi.js';
+import { Container, Rectangle, Sprite, Texture, TilingSprite } from 'pixi.js';
 import { TileMap } from './TileMap';
 
 // ─── Water ───────────────────────────────────────────────────────────────────
