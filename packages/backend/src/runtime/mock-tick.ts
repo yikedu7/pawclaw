@@ -1,11 +1,27 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { eq, desc } from 'drizzle-orm';
+import { z } from 'zod';
 import { db } from '../db/client.js';
 import { pets, social_events } from '../db/schema.js';
 import { emitToOwner } from '../ws/wsEmitter.js';
 import { tickTools } from './tick-tools.js';
 
 const anthropic = new Anthropic();
+
+// Zod schemas for LLM tool inputs
+const VisitPetInput = z.object({
+  target_pet_id: z.string().uuid(),
+  greeting: z.string().optional().default(''),
+});
+
+const SpeakInput = z.object({
+  message: z.string(),
+});
+
+const SendGiftInput = z.object({
+  target_pet_id: z.string().uuid(),
+  amount: z.string(),
+});
 
 export async function executeTick(petId: string): Promise<{ action: string }> {
   // 1. Fetch pet from DB
@@ -74,15 +90,12 @@ export async function executeTick(petId: string): Promise<{ action: string }> {
   }
 
   // 6. Execute side effects based on tool call
-  const input = toolUse.input as Record<string, unknown>;
-
   switch (toolUse.name) {
     case 'visit_pet': {
-      const targetPetId = input.target_pet_id as string;
-      const greeting = (input.greeting as string) ?? '';
+      const { target_pet_id, greeting } = VisitPetInput.parse(toolUse.input);
       await db.insert(social_events).values({
         from_pet_id: petId,
-        to_pet_id: targetPetId,
+        to_pet_id: target_pet_id,
         type: 'visit',
         payload: { greeting },
       });
@@ -90,7 +103,7 @@ export async function executeTick(petId: string): Promise<{ action: string }> {
         type: 'social.visit',
         data: {
           from_pet_id: petId,
-          to_pet_id: targetPetId,
+          to_pet_id: target_pet_id,
           turns: [{ speaker_pet_id: petId, line: greeting }],
         },
       });
@@ -98,7 +111,7 @@ export async function executeTick(petId: string): Promise<{ action: string }> {
     }
 
     case 'speak': {
-      const message = input.message as string;
+      const { message } = SpeakInput.parse(toolUse.input);
       emitToOwner(pet.owner_id, {
         type: 'pet.speak',
         data: { pet_id: petId, message },
@@ -107,13 +120,12 @@ export async function executeTick(petId: string): Promise<{ action: string }> {
     }
 
     case 'send_gift': {
-      const targetPetId = input.target_pet_id as string;
-      const amount = input.amount as string;
+      const { target_pet_id, amount } = SendGiftInput.parse(toolUse.input);
       // Mock tx_hash — real on-chain integration is a separate issue
       const txHash = `0xmock_${Date.now().toString(16)}`;
       await db.insert(social_events).values({
         from_pet_id: petId,
-        to_pet_id: targetPetId,
+        to_pet_id: target_pet_id,
         type: 'gift',
         payload: { amount, token: 'OKB', tx_hash: txHash },
       });
@@ -121,7 +133,7 @@ export async function executeTick(petId: string): Promise<{ action: string }> {
         type: 'social.gift',
         data: {
           from_pet_id: petId,
-          to_pet_id: targetPetId,
+          to_pet_id: target_pet_id,
           token: 'OKB',
           amount,
           tx_hash: txHash,
