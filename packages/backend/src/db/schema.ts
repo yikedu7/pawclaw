@@ -62,7 +62,7 @@ export const social_events = pgTable('social_events', {
   index('social_events_from_pet_id_idx').on(t.from_pet_id),
   index('social_events_to_pet_id_idx').on(t.to_pet_id),
   index('social_events_created_at_idx').on(t.created_at),
-  check('social_events_type_check', sql`${t.type} IN ('visit','gift','chat','speak','rest')`),
+  check('social_events_type_check', sql`${t.type} IN ('visit','gift','chat')`),
 ]);
 
 export const transactions = pgTable('transactions', {
@@ -74,7 +74,6 @@ export const transactions = pgTable('transactions', {
   token: text('token').notNull(),
   tx_hash: text('tx_hash').notNull(),
   x_layer_confirmed: boolean('x_layer_confirmed').notNull().default(false),
-  social_event_id: uuid('social_event_id').references(() => social_events.id, { onDelete: 'set null' }),
   created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   uniqueIndex('transactions_tx_hash_idx').on(t.tx_hash),

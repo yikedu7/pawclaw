@@ -47,7 +47,6 @@ export type DbTransaction = {
   token: string;
   tx_hash: string;
   x_layer_confirmed: boolean;
-  social_event_id: string | null;
   created_at: Date;
 };
 

@@ -1,4 +1,4 @@
-export type SocialEventType = 'visit' | 'gift' | 'chat' | 'speak' | 'rest';
+export type SocialEventType = 'visit' | 'gift' | 'chat';
 
 // User account
 export type User = {
