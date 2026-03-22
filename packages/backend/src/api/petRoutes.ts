@@ -10,11 +10,26 @@ export type PetRouteDeps = {
   generateSkillMd: (input: { id: string; backendUrl: string }) => string;
 };
 
-function toPetState(row: typeof pets.$inferSelect) {
+// TODO(#39): wallet_address returns '' until Onchain OS container lifecycle lands
+
+/** POST /api/pets (201) and GET /api/pets response shape — no owner_id per contract */
+function toPetSummary(row: typeof pets.$inferSelect) {
   return {
     id: row.id,
     name: row.name,
-    // TODO(#39): return real Onchain OS wallet address once container lifecycle manager lands
+    wallet_address: row.wallet_address ?? '',
+    hunger: row.hunger,
+    mood: row.mood,
+    affection: row.affection,
+  };
+}
+
+/** GET /api/pets/:id response shape — includes owner_id per contract */
+function toPetDetail(row: typeof pets.$inferSelect) {
+  return {
+    id: row.id,
+    owner_id: row.owner_id,
+    name: row.name,
     wallet_address: row.wallet_address ?? '',
     hunger: row.hunger,
     mood: row.mood,
@@ -63,7 +78,7 @@ export async function registerPetRoutes(
       .where(eq(pets.id, row.id))
       .returning();
 
-    return reply.code(201).send(toPetState(updated));
+    return reply.code(201).send(toPetSummary(updated));
   });
 
   // GET /api/pets — list all pets for the authenticated owner
@@ -73,7 +88,7 @@ export async function registerPetRoutes(
       .from(pets)
       .where(eq(pets.owner_id, request.owner_id));
 
-    return reply.send(rows.map(toPetState));
+    return reply.send(rows.map(toPetSummary));
   });
 
   // GET /api/pets/:id — get a single pet
@@ -99,6 +114,6 @@ export async function registerPetRoutes(
       return reply.code(404).send({ error: 'Pet not found', code: 'NOT_FOUND' });
     }
 
-    return reply.send(toPetState(row));
+    return reply.send(toPetDetail(row));
   });
 }
