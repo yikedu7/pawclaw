@@ -1,16 +1,24 @@
+import pg from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import pg from 'pg';
 
-const { Pool } = pg;
+const connectionString =
+  process.env.DATABASE_MIGRATION_URL ?? process.env.DATABASE_URL;
 
-if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL environment variable is required');
+if (!connectionString) {
+  process.stderr.write(
+    'Missing DATABASE_MIGRATION_URL or DATABASE_URL environment variable\n',
+  );
+  process.exit(1);
 }
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-const db = drizzle(pool);
+const client = new pg.Client({ connectionString });
+await client.connect();
 
-await migrate(db, { migrationsFolder: './drizzle' });
-process.stdout.write('Migration complete\n');
-await pool.end();
+const db = drizzle(client);
+
+process.stdout.write('Running migrations...\n');
+await migrate(db, { migrationsFolder: './packages/backend/drizzle' });
+process.stdout.write('Migrations complete.\n');
+
+await client.end();

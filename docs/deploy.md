@@ -50,7 +50,8 @@ For the **backend** service, add all variables from `.env.example`:
 
 | Variable | Description |
 |----------|-------------|
-| `DATABASE_URL` | PostgreSQL connection string (e.g., from Supabase) |
+| `DATABASE_URL` | Supabase Pooler URL (port 6543, `?pgbouncer=true`) — used by the app for all queries |
+| `DATABASE_MIGRATION_URL` | Supabase direct connection URL (port 5432) — used only by the migration runner at startup; DDL statements require a direct connection and will fail silently over the Pooler |
 | `ANTHROPIC_API_KEY` | Claude API key for LLM-driven pet personalities |
 | `ONCHAIN_OS_API_KEY` | OKX Onchain OS API key for agent wallets |
 | `ONCHAIN_OS_API_URL` | OKX Onchain OS API base URL |
@@ -68,7 +69,10 @@ For the **backend** service, add all variables from `.env.example`:
 Via CLI:
 
 ```bash
-railway variables set DATABASE_URL=postgresql://... ANTHROPIC_API_KEY=sk-ant-...
+railway variables set \
+  DATABASE_URL=postgresql://user:pass@host:6543/db?pgbouncer=true \
+  DATABASE_MIGRATION_URL=postgresql://user:pass@host:5432/db \
+  ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 The **frontend** service requires no backend env vars; it is purely static content served by nginx.
@@ -95,7 +99,7 @@ After both services are running:
 1. **Backend health check** — visit `https://<backend-url>/health`. Expect `{"status":"ok"}`.
 2. **Frontend** — visit `https://<frontend-url>/`. The PixiJS canvas should load.
 3. **WebSocket** — open browser DevTools > Network > WS. Connect to `wss://<backend-url>/ws`. Expect a connection without errors.
-4. **Database** — confirm `DATABASE_URL` is set and the backend logs show a successful Drizzle connection on startup.
+4. **Database** — confirm both `DATABASE_URL` and `DATABASE_MIGRATION_URL` are set. The backend logs should show `Running migrations...` followed by `Migrations complete.` before the server starts listening.
 
 ## 7. Custom Domains (Optional)
 
@@ -105,5 +109,6 @@ In Railway dashboard, select a service > **Settings** > **Domains** > **Add Cust
 
 - **Build fails on `pnpm install`**: ensure `pnpm-lock.yaml` is committed and up to date.
 - **Backend crashes on startup**: check that all required env vars are set; missing `DATABASE_URL` or `ANTHROPIC_API_KEY` will cause an immediate exit.
+- **Migration fails at startup**: the container will exit before the server starts. Check Railway logs for the error. Common causes: `DATABASE_MIGRATION_URL` not set (falls back to `DATABASE_URL` which may be the Pooler URL — DDL fails over PgBouncer), or the `drizzle/` folder is missing from the image (should not happen after this fix).
 - **Frontend shows blank page**: verify the `build` script in `packages/frontend/package.json` produces output in `dist/`. Check build logs for TypeScript errors.
 - **WebSocket connection refused**: Railway proxies WebSocket connections automatically; ensure the backend registers the `/ws` route via `@fastify/websocket`.
