@@ -1,7 +1,6 @@
 // Types
 export type {
   User,
-  AuthResponse,
   Pet,
   PetCreate,
   PetState,
@@ -21,8 +20,6 @@ export type {
 
 // Schemas
 export {
-  RegisterSchema,
-  LoginSchema,
   PetCreateSchema,
   PetIdParamSchema,
   PetEventsQuerySchema,
