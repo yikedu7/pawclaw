@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { executeTick } from '../runtime/mock-tick.js';
+import { executeTick } from './mock-tick.js';
 
 export async function registerTickRoute(fastify: FastifyInstance) {
   fastify.post<{
