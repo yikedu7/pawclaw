@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import fastifyWebsocket from '@fastify/websocket';
 import { registerWsRoute } from './ws/wsRoute.js';
+import './ws/wsEmitter.js'; // subscribes tickBus events → WebSocket clients
 import { registerTickRoute } from './runtime/tick-route.js';
 
 const fastify = Fastify({ logger: true });

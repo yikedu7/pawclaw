@@ -3,7 +3,7 @@ import { eq, desc } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client.js';
 import { pets, social_events } from '../db/schema.js';
-import { emitToOwner } from '../ws/wsEmitter.js';
+import { tickBus } from './tick-bus.js';
 import { tickTools } from './tick-tools.js';
 
 const anthropic = new Anthropic();
@@ -11,7 +11,7 @@ const anthropic = new Anthropic();
 // Zod schemas for LLM tool inputs
 const VisitPetInput = z.object({
   target_pet_id: z.string().uuid(),
-  greeting: z.string().optional().default(''),
+  greeting: z.string(),
 });
 
 const SpeakInput = z.object({
@@ -78,7 +78,7 @@ export async function executeTick(petId: string): Promise<{ action: string }> {
       (block): block is Anthropic.TextBlock => block.type === 'text',
     );
     const message = textBlock?.text ?? '...';
-    emitToOwner(pet.owner_id, {
+    tickBus.emit('ownerEvent', pet.owner_id, {
       type: 'pet.speak',
       data: { pet_id: petId, message },
     });
@@ -99,7 +99,7 @@ export async function executeTick(petId: string): Promise<{ action: string }> {
         type: 'visit',
         payload: { greeting },
       });
-      emitToOwner(pet.owner_id, {
+      tickBus.emit('ownerEvent', pet.owner_id, {
         type: 'social.visit',
         data: {
           from_pet_id: petId,
@@ -112,7 +112,7 @@ export async function executeTick(petId: string): Promise<{ action: string }> {
 
     case 'speak': {
       const { message } = SpeakInput.parse(toolUse.input);
-      emitToOwner(pet.owner_id, {
+      tickBus.emit('ownerEvent', pet.owner_id, {
         type: 'pet.speak',
         data: { pet_id: petId, message },
       });
@@ -129,7 +129,7 @@ export async function executeTick(petId: string): Promise<{ action: string }> {
         type: 'gift',
         payload: { amount, token: 'OKB', tx_hash: txHash },
       });
-      emitToOwner(pet.owner_id, {
+      tickBus.emit('ownerEvent', pet.owner_id, {
         type: 'social.gift',
         data: {
           from_pet_id: petId,
@@ -149,7 +149,7 @@ export async function executeTick(petId: string): Promise<{ action: string }> {
         .update(pets)
         .set({ hunger: newHunger, mood: newMood })
         .where(eq(pets.id, petId));
-      emitToOwner(pet.owner_id, {
+      tickBus.emit('ownerEvent', pet.owner_id, {
         type: 'pet.state',
         data: {
           pet_id: petId,
