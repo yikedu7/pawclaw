@@ -1,19 +1,21 @@
 import { Application, Container, Graphics, Ticker } from 'pixi.js';
 
-const COIN_R = 14;
-const FLOAT_DURATION_MS = 1100;
-const FLOAT_HEIGHT = 90;
-const SPAWN_SPREAD = 36;
+const FLOAT_DURATION_MS = 1200;
+const FLOAT_HEIGHT = 100;
+const SPAWN_SPREAD = 50;
+const SPARKLE_COUNT = 5;
+const SPARKLE_STAGGER_MS = 110;
+const SPARKLE_COLORS = [0xfbbf24, 0xf59e0b, 0xfcd34d, 0xec4899, 0xa78bfa];
 
-interface ActiveGift {
+interface Sparkle {
   container: Container;
   elapsed: number;
   startY: number;
 }
 
-/** Spawns floating OKB token icons that drift upward and fade out. */
+/** Spawns sparkle particles that rotate, float upward, and fade on social.gift events. */
 export class GiftAnimation extends Container {
-  private readonly active = new Set<ActiveGift>();
+  private readonly active = new Set<Sparkle>();
   private originX = 0;
   private originY = 0;
 
@@ -28,40 +30,57 @@ export class GiftAnimation extends Container {
   }
 
   spawn(_from: string): void {
+    for (let i = 0; i < SPARKLE_COUNT; i++) {
+      setTimeout(() => this.spawnOne(), i * SPARKLE_STAGGER_MS);
+    }
+  }
+
+  private spawnOne(): void {
     const container = new Container();
+    const g = new Graphics();
+    const size = 6 + Math.random() * 7;
+    const color = SPARKLE_COLORS[Math.floor(Math.random() * SPARKLE_COLORS.length)];
 
-    const coin = new Graphics();
-    coin.circle(0, 0, COIN_R).fill(0xf59e0b);
-    coin.circle(0, 0, COIN_R - 3).stroke({ color: 0xd97706, width: 2 });
-    // Inner gem mark
-    coin.circle(0, 0, 5).fill(0xfef3c7);
+    // 4-point star / diamond shape
+    g.moveTo(0, -size)
+      .lineTo(size * 0.3, -size * 0.3)
+      .lineTo(size, 0)
+      .lineTo(size * 0.3, size * 0.3)
+      .lineTo(0, size)
+      .lineTo(-size * 0.3, size * 0.3)
+      .lineTo(-size, 0)
+      .lineTo(-size * 0.3, -size * 0.3)
+      .closePath()
+      .fill(color);
 
-    container.addChild(coin);
+    container.addChild(g);
     container.x = this.originX + (Math.random() - 0.5) * SPAWN_SPREAD;
-    container.y = this.originY;
+    container.y = this.originY + (Math.random() - 0.5) * 20;
+    container.rotation = Math.random() * Math.PI * 2;
 
     this.addChild(container);
     this.active.add({ container, elapsed: 0, startY: container.y });
   }
 
   private readonly onTick = (ticker: Ticker): void => {
-    const done: ActiveGift[] = [];
+    const done: Sparkle[] = [];
 
-    for (const gift of this.active) {
-      gift.elapsed += ticker.deltaMS;
-      const t = Math.min(1, gift.elapsed / FLOAT_DURATION_MS);
+    for (const s of this.active) {
+      s.elapsed += ticker.deltaMS;
+      const t = Math.min(1, s.elapsed / FLOAT_DURATION_MS);
       const eased = 1 - (1 - t) ** 2; // ease-out quad
 
-      gift.container.y = gift.startY - FLOAT_HEIGHT * eased;
-      gift.container.alpha = 1 - t;
+      s.container.y = s.startY - FLOAT_HEIGHT * eased;
+      s.container.rotation += ticker.deltaMS * 0.003;
+      s.container.alpha = 1 - t;
 
-      if (t >= 1) done.push(gift);
+      if (t >= 1) done.push(s);
     }
 
-    for (const gift of done) {
-      this.active.delete(gift);
-      this.removeChild(gift.container);
-      gift.container.destroy({ children: true });
+    for (const s of done) {
+      this.active.delete(s);
+      this.removeChild(s.container);
+      s.container.destroy({ children: true });
     }
   };
 }
