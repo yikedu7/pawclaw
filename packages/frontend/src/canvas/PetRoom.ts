@@ -1,21 +1,20 @@
-import { Application, Container, Graphics, Text, Ticker } from 'pixi.js';
+import { Application, Container, Graphics, Text, Ticker, Texture } from 'pixi.js';
 import type { WsEvent } from '@x-pet/shared';
 import { DialogueBubble } from './DialogueBubble';
 import { GiftAnimation } from './GiftAnimation';
+import { RoomBackground } from './RoomBackground';
+import { PetSprite } from './PetSprite';
+import { VisitorSprite } from './VisitorSprite';
 
 const BAR_W = 150;
 const BAR_H = 9;
 const BAR_ROW = 26;
 const STAT_BOTTOM_PAD = 90;
-const PET_W = 64;
-const PET_H = 64;
+const PET_SPRITE_H = 144; // 48px × 3 scale — used for bubble positioning
 const FRIEND_FLASH_MS = 1200;
+const VISIT_SLIDE_OUT_DELAY_MS = 4200; // ~1 dialogue message duration
 
 const C = {
-  bg: 0x1a1a2e,
-  floor: 0x16213e,
-  pet: 0x7c3aed,
-  petEdge: 0xa78bfa,
   hunger: 0xf59e0b,
   mood: 0x10b981,
   affection: 0xec4899,
@@ -26,25 +25,35 @@ const C = {
 type PetStateData = Extract<WsEvent, { type: 'pet.state' }>['data'];
 interface StatBar { fg: Graphics; current: number; target: number; color: number }
 
-/** Main PixiJS scene: background, pet placeholder, animated stat bars. */
+export interface SceneTextures {
+  spritesheet: Texture;
+  wall: Texture;
+  floor: Texture;
+}
+
+/** Main PixiJS scene: tiled room background, animated pet sprite, visitor slide, stat bars. */
 export class PetRoom extends Container {
   readonly overlays: Container;
-  private readonly bg = new Graphics();
-  private readonly pet = new Graphics();
+  private readonly bg: RoomBackground;
+  private readonly petSprite: PetSprite;
+  private readonly visitor: VisitorSprite;
   private readonly statRoot = new Container();
   private readonly bars: [StatBar, StatBar, StatBar];
   private readonly bubble: DialogueBubble;
   private readonly gift: GiftAnimation;
   private readonly flash = new Graphics();
   private flashElapsed = -1;
+  private visitSlideOutTimer = -1;
 
-  constructor(private readonly app: Application) {
+  constructor(private readonly app: Application, textures: SceneTextures) {
     super();
     this.overlays = new Container();
 
-    this.addChild(this.bg, this.pet, this.statRoot);
+    this.bg = new RoomBackground(textures.wall, textures.floor);
+    this.petSprite = new PetSprite(textures.spritesheet);
+    this.visitor = new VisitorSprite(textures.spritesheet);
 
-    this.buildPet();
+    this.addChild(this.bg, this.visitor, this.petSprite, this.statRoot);
 
     const hungerBar = this.makeBar(C.hunger);
     const moodBar = this.makeBar(C.mood);
@@ -65,18 +74,6 @@ export class PetRoom extends Container {
     return { fg: new Graphics(), current: 70, target: 70, color };
   }
 
-  private buildPet(): void {
-    const g = this.pet;
-    g.roundRect(-PET_W / 2 - 4, -PET_H / 2, 10, 14, 3).fill(C.petEdge);
-    g.roundRect(PET_W / 2 - 6, -PET_H / 2, 10, 14, 3).fill(C.petEdge);
-    g.roundRect(-PET_W / 2, -PET_H / 2, PET_W, PET_H, 12).fill(C.pet);
-    g.roundRect(-PET_W / 2, -PET_H / 2, PET_W, PET_H, 12).stroke({ color: C.petEdge, width: 2 });
-    g.circle(-11, -8, 5).fill(0xffffff);
-    g.circle(11, -8, 5).fill(0xffffff);
-    g.circle(-10, -7, 3).fill(0x1a1a2e);
-    g.circle(12, -7, 3).fill(0x1a1a2e);
-  }
-
   private buildStatRows(labels: string[], statBars: StatBar[]): void {
     labels.forEach((label, i) => {
       const row = new Container();
@@ -91,14 +88,17 @@ export class PetRoom extends Container {
   }
 
   layout(w: number, h: number): void {
-    this.bg.clear();
-    this.bg.rect(0, 0, w, h).fill(C.bg);
-    this.bg.rect(0, h * 0.72, w, h * 0.28).fill(C.floor);
+    this.bg.layout(w, h);
 
-    this.pet.x = w / 2;
-    this.pet.y = h * 0.42;
-    this.bubble.setPetPosition(w / 2, h * 0.42 - PET_H / 2);
-    this.gift.setOrigin(w / 2, h * 0.42);
+    const petX = w / 2;
+    const petY = Math.floor(h * 0.72); // pet feet rest on the floor line
+
+    this.petSprite.x = petX;
+    this.petSprite.y = petY;
+
+    this.bubble.setPetPosition(petX, petY - PET_SPRITE_H);
+    this.gift.setOrigin(petX, petY - PET_SPRITE_H / 2);
+
     this.statRoot.x = (w - BAR_W) / 2;
     this.statRoot.y = h - STAT_BOTTOM_PAD;
 
@@ -114,12 +114,24 @@ export class PetRoom extends Container {
       bar.fg.clear();
       bar.fg.roundRect(0, 14, w, BAR_H, Math.min(4, w / 2)).fill(bar.color);
     }
+
     if (this.flashElapsed >= 0) {
       this.flashElapsed += ticker.deltaMS;
       const t = Math.min(1, this.flashElapsed / FRIEND_FLASH_MS);
       this.flash.alpha = t < 0.3 ? t / 0.3 : 1 - (t - 0.3) / 0.7;
       if (t >= 1) { this.flash.alpha = 0; this.flashElapsed = -1; }
     }
+
+    if (this.visitSlideOutTimer >= 0) {
+      this.visitSlideOutTimer -= ticker.deltaMS;
+      if (this.visitSlideOutTimer < 0) {
+        const offscreenX = this.app.screen.width + 80;
+        this.visitor.slideOut(offscreenX);
+      }
+    }
+
+    this.petSprite.update(ticker.deltaMS);
+    this.visitor.update(ticker);
   };
 
   updateStats(data: PetStateData): void {
@@ -130,11 +142,31 @@ export class PetRoom extends Container {
 
   showDialogue(message: string): void { this.bubble.enqueue(message); }
 
-  showGift(from: string): void { this.gift.spawn(from); }
+  /** Slide a visitor sprite in from the right, show dialogue, then slide out. */
+  showVisit(fromPetId: string, message: string): void {
+    const w = this.app.screen.width;
+    const petY = Math.floor(this.app.screen.height * 0.72);
+    const petX = w / 2;
+    const visitorTargetX = petX + 110;
+    const offscreenX = w + 80;
+
+    this.visitSlideOutTimer = -1;
+    this.visitor.slideIn(offscreenX, visitorTargetX, petY, () => {
+      this.bubble.enqueue(`[${fromPetId}] ${message}`);
+      this.visitSlideOutTimer = VISIT_SLIDE_OUT_DELAY_MS;
+    });
+    this.petSprite.flashHappy();
+  }
+
+  showGift(from: string): void {
+    this.gift.spawn(from);
+    this.petSprite.flashHappy();
+  }
 
   showFriendUnlocked(petId: string): void {
     this.bubble.enqueue(`Friend unlocked: ${petId}!`);
     this.flashElapsed = 0;
+    this.petSprite.flashHappy();
   }
 
   destroy(options?: Parameters<Container['destroy']>[0]): void {
