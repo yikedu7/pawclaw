@@ -111,7 +111,7 @@ export async function registerPetRoutes(
     }
 
     if (row.owner_id !== request.owner_id) {
-      return reply.code(404).send({ error: 'Pet not found', code: 'NOT_FOUND' });
+      return reply.code(403).send({ error: 'Forbidden', code: 'FORBIDDEN' });
     }
 
     return reply.send(toPetDetail(row));

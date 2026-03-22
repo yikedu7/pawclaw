@@ -128,7 +128,7 @@ describe('GET /api/pets/:id', () => {
     expect(res.json().code).toBe('NOT_FOUND');
   });
 
-  it('returns 404 when pet belongs to another owner', async () => {
+  it('returns 403 when pet belongs to another owner', async () => {
     const petId = makePetId();
     seedPet({ id: petId, owner_id: OTHER_OWNER, name: 'NotMine' });
 
@@ -136,8 +136,8 @@ describe('GET /api/pets/:id', () => {
       method: 'GET', url: `/api/pets/${petId}`,
       headers: { authorization: `Bearer ${makeToken(OWNER_ID)}` },
     });
-    expect(res.statusCode).toBe(404);
-    expect(res.json().code).toBe('NOT_FOUND');
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('FORBIDDEN');
   });
 
   it('returns 400 for invalid uuid', async () => {
