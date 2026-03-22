@@ -74,6 +74,27 @@ cd /Users/yikedu/Code/x-pet
 git worktree remove ../x-pet-issue-<N>
 ```
 
+### Frontend canvas verification (PixiJS/WebGL)
+
+DOM UI elements (stat bars, chat log, toasts) can be verified by reading HTML/CSS — no screenshot needed.
+
+Canvas content (sprites, tilesets, animations, scene layout) is WebGL pixels — invisible to DOM parsers. Use the visual verification loop:
+
+1. Change canvas code
+2. Take a Playwright screenshot → `/tmp/x-pet-render.png`
+3. `Read /tmp/x-pet-render.png` — Claude's multimodal vision reviews the render
+4. Fix issues → repeat from 1
+
+Setup (once per worktree):
+```bash
+pnpm --filter @x-pet/frontend add -D playwright
+npx playwright install chromium
+# start dev server in background, then:
+tsx packages/frontend/scripts/screenshot.ts
+```
+
+Apply this loop for: tile coordinates, sprite frame selection, autotile edges, scene layout — anything only visible on canvas.
+
 ### Commit and PR rules
 
 ```bash
@@ -110,3 +131,9 @@ When stuck, don't brute-force. Add the unknown to `docs/risks.md`, comment on th
 
 ### Short PRs, fast merges
 One issue → one branch → one PR. Address feedback, then merge. Technical debt is paid down in dedicated cleanup issues, not bundled into feature PRs.
+
+### Every feature issue must include a test task
+When creating a GitHub issue for a backend feature, always include in the Tasks checklist:
+- `[ ] Integration tests using fastify.inject() against real DB (auth, validation, response shape, DB side effects)`
+
+Use vitest (configured in `packages/backend/vitest.config.ts`). Always run `git rebase origin/main` first to pick up the vitest setup. Test DB: `supabase db reset` for a clean slate. Do not mock the DB — integration tests must hit a real database.
