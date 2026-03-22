@@ -9,7 +9,8 @@
     "lint": "eslint src/",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
-    "test": "node --import tsx/esm --test src/**/*.test.ts"
+    "test": "vitest run",
+    "test:smoke": "vitest run --reporter=verbose src/db/__tests__"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.40.0",
@@ -32,6 +33,7 @@
     "eslint": "^10.1.0",
     "eslint-plugin-import": "^2.32.0",
     "tsx": "^4.7.0",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "vitest": "^2.0.0"
   }
 }
