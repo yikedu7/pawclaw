@@ -3,6 +3,7 @@ import { PetRoom } from './canvas/PetRoom';
 import { MockEvents } from './canvas/MockEvents';
 import { eventBus } from './ws/eventBus';
 import { WsClient, buildWsUrl } from './ws/WsClient';
+import { initUI } from './ui';
 
 async function main(): Promise<void> {
   const mount = document.getElementById('canvas');
@@ -18,6 +19,7 @@ async function main(): Promise<void> {
   });
 
   mount.appendChild(app.canvas);
+  initUI(mount);
 
   const room = new PetRoom(app);
   app.stage.addChild(room, room.overlays);
