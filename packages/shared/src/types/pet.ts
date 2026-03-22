@@ -1,4 +1,4 @@
-export type SocialEventType = 'visit' | 'gift' | 'chat' | 'speak' | 'rest';
+export type SocialEventType = 'visit' | 'gift' | 'chat';
 
 // User account
 export type User = {
@@ -20,12 +20,12 @@ export type Pet = {
   name: string;
   soul_md: string;
   skill_md: string;
-  wallet_address: string;
+  wallet_address: string | null;
   hunger: number;
   mood: number;
   affection: number;
   llm_history: unknown;
-  last_tick_at: Date;
+  last_tick_at: Date | null;
 };
 
 // Fields needed to create a pet (API input)
