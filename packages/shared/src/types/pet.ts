@@ -6,13 +6,6 @@ export type User = {
   email: string;
 };
 
-// Auth response (register / login)
-export type AuthResponse = {
-  id: string;
-  email: string;
-  token: string;
-};
-
 // Pet — one row per pet (DB record)
 export type Pet = {
   id: string;

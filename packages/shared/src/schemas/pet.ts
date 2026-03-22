@@ -1,16 +1,5 @@
 import { z } from 'zod';
 
-// Auth
-export const RegisterSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-});
-
-export const LoginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
-});
-
 // Pets
 export const PetCreateSchema = z.object({
   soul_prompt: z.string().min(1),
