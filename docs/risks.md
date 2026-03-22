@@ -32,6 +32,12 @@
 - **Mitigation:** Prompt explicitly constrains scope to concrete contradictions (wrong field names, resolved blockers) and instructs the LLM to do nothing if no issues are stale. Workflow permissions are scoped to `issues: write` only (no `contents: write`).
 - **Monitoring:** Review `docs-issue-sync` run logs after every docs push; revert any incorrect edits via `gh issue edit`.
 
+### R10: Issue #12 Partial — Deferred Pet Lifecycle Scope — MEDIUM
+- **What's deferred:** Container provisioning (Hetzner file write + Docker start), real `wallet_address` from Onchain OS, `GET /api/pets/:id/events`, `DELETE /api/pets/:id`
+- **Why:** Blocked on #39 (container lifecycle manager)
+- **Impact:** POST /api/pets inserts a DB row with SOUL/SKILL md but no running container. `wallet_address` returns empty string until container + Onchain OS integration lands.
+- **Action needed:** Implement remaining scope once #39 merges.
+
 **R6 — Frontend WsEvent schema alignment (FE2 prerequisite)**
 - **Risk:** The frontend canvas (issue #10) subscribes to `eventBus` using the canonical `WsEvent` type from `@x-pet/shared`. The real WS client (issue FE2) must emit events using the same field names (`from_pet_id`, `to_pet_id`, `turns`, `token`, `amount`).
 - **Impact:** Silent runtime breakage — `e.data.from_pet_id` returns `undefined` if the WS client sends `from` instead.
