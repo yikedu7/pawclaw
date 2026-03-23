@@ -97,17 +97,25 @@ POST /pets  → write files to /data/pets/{uuid}/ on Hetzner host
                     '/data/pets/{uuid}/workspace:/home/node/.openclaw/workspace'
                   ],
                   PortBindings: { '18789/tcp': [{ HostPort: '<allocated>' }] },
-                  Memory: 512 * 1024 * 1024,
+                  Memory: 2048 * 1024 * 1024,   // 2 GB — OpenClaw needs ~750 MB heap at startup
                   RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 3 }
                 },
                 Env: [
                   'OPENCLAW_GATEWAY_TOKEN=<per-pet-token>',
                   'ANTHROPIC_API_KEY=<key>',
-                  'HOME=/home/node'
+                  'HOME=/home/node',
+                  'OPENCLAW_NO_RESPAWN=1',
+                  'NODE_OPTIONS=--max-old-space-size=1536'
                 ]
               })
 DELETE /pets/:id → container.stop() + container.remove()
 ```
+
+**Health check strategy (confirmed via live testing):**
+After `container.start()`, poll `docker.getContainer(id).inspect().State.Health.Status` until
+`'healthy'` (60s deadline). The OpenClaw image has a built-in `HEALTHCHECK` that runs
+`fetch('http://127.0.0.1:18789/healthz')` inside the container. External TCP/HTTP probes
+do not work because the gateway only binds to `127.0.0.1` inside the container namespace.
 
 **File layout inside container (confirmed):**
 ```
