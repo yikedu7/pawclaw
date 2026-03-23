@@ -172,6 +172,11 @@ export async function createPetContainer(
     Env: [
       `OPENCLAW_GATEWAY_TOKEN=${gatewayToken}`,
       `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY}`,
+      // OKX Onchain OS credentials — required by the onchainos CLI inside the container
+      // for wallet login and x402-pay (see packages/openclaw/src/onchain/wallet.ts)
+      `OKX_API_KEY=${process.env.OKX_API_KEY ?? ''}`,
+      `OKX_SECRET_KEY=${process.env.OKX_SECRET_KEY ?? ''}`,
+      `OKX_PASSPHRASE=${process.env.OKX_PASSPHRASE ?? ''}`,
       'HOME=/home/node',
       'OPENCLAW_NO_RESPAWN=1',
       'NODE_OPTIONS=--max-old-space-size=1536',
