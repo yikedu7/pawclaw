@@ -32,6 +32,11 @@
 - **Mitigation:** Prompt explicitly constrains scope to concrete contradictions (wrong field names, resolved blockers) and instructs the LLM to do nothing if no issues are stale. Workflow permissions are scoped to `issues: write` only (no `contents: write`).
 - **Monitoring:** Review `docs-issue-sync` run logs after every docs push; revert any incorrect edits via `gh issue edit`.
 
+### R11: CORS `origin: true` — LOW
+- **Risk:** Backend registered `@fastify/cors` with `origin: true` (allow all origins) for local smoke testing. In production on Railway, any origin can call the API.
+- **Impact:** Low for MVP (no sensitive cross-origin state beyond JWT-gated routes), but violates least-privilege.
+- **Action needed:** Before production deploy, restrict to the Railway frontend URL via `CORS_ORIGIN` env var: `origin: process.env.CORS_ORIGIN ?? true`.
+
 ### R10: Issue #12 Partial — Deferred Pet Lifecycle Scope — MEDIUM
 - **What's deferred:** Container provisioning (Hetzner file write + Docker start), real `wallet_address` from Onchain OS, `GET /api/pets/:id/events`, `DELETE /api/pets/:id`
 - **Why:** Blocked on #39 (container lifecycle manager)

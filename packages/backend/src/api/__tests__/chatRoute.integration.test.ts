@@ -44,7 +44,7 @@ beforeAll(async () => {
 
   process.env.JWT_SECRET = SECRET;
   app = Fastify();
-  await registerChatRoute(app);
+  await registerChatRoute(app, { emitOwnerEvent: () => {} });
   await app.ready();
 });
 

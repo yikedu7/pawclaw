@@ -2,9 +2,9 @@ import type { FastifyInstance } from 'fastify';
 import Anthropic from '@anthropic-ai/sdk';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
+import type { WsEvent } from '@x-pet/shared';
 import { db } from '../db/client.js';
 import { pets } from '../db/schema.js';
-import { tickBus } from '../runtime/tick-bus.js';
 import { authHook } from './authHook.js';
 
 const anthropic = new Anthropic();
@@ -13,7 +13,11 @@ const ChatBodySchema = z.object({
   message: z.string().min(1).max(500),
 });
 
-export async function registerChatRoute(fastify: FastifyInstance): Promise<void> {
+export type ChatRouteDeps = {
+  emitOwnerEvent: (ownerId: string, event: WsEvent) => void;
+};
+
+export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRouteDeps): Promise<void> {
   const auth = authHook(fastify);
 
   fastify.post('/api/pets/:id/chat', { preHandler: auth }, async (request, reply) => {
@@ -52,7 +56,7 @@ export async function registerChatRoute(fastify: FastifyInstance): Promise<void>
       reply_text = textBlock?.text ?? '...';
     }
 
-    tickBus.emit('ownerEvent', pet.owner_id, {
+    deps.emitOwnerEvent(pet.owner_id, {
       type: 'pet.speak',
       data: { pet_id: id, message: reply_text },
     });
