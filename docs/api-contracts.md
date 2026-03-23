@@ -10,13 +10,13 @@ Defines the full contract between backend and frontend for x-pet.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/users/me` | Current user profile |
+| GET | `/api/users/me` | Current user profile — **deferred, not yet implemented** |
 | POST | `/api/pets` | Create a new pet |
 | GET | `/api/pets` | List all pets for the current user |
 | GET | `/api/pets/:id` | Get pet state |
-| GET | `/api/pets/:id/events` | Get social events for a pet |
+| GET | `/api/pets/:id/events` | Get social events for a pet — **deferred, not yet implemented** |
 | GET | `/api/pets/:id/diary` | Get AI-generated diary summary |
-| POST | `/api/pets/:id/feed` | Feed the pet to restore hunger |
+| POST | `/api/pets/:id/feed` | Feed the pet to restore hunger — **deferred, not yet implemented** |
 | POST | `/api/pets/:id/chat` | Send a message to the pet, get its reply |
 | POST | `/internal/tick/:petId` | Force an immediate tick (internal, no auth) |
 
@@ -54,6 +54,8 @@ Protected endpoints require `Authorization: Bearer <supabase-jwt>` header. The b
 ---
 
 ### GET /api/users/me
+
+> **Deferred — not yet implemented.** Registration and login are handled entirely by the Supabase client SDK. This endpoint is not registered in the current backend.
 
 Return the authenticated user's profile. Wraps `supabase.auth.getUser()`. Requires auth.
 
@@ -167,6 +169,8 @@ Fetch current state of a single pet. Requires auth.
 
 ### GET /api/pets/:id/events
 
+> **Deferred — not yet implemented.** This endpoint is not registered in the current backend.
+
 Fetch the list of social events involving this pet, ordered newest first. Requires auth.
 
 **Path params:** `id` — pet uuid
@@ -214,6 +218,8 @@ Array<{
 ---
 
 ### POST /api/pets/:id/feed
+
+> **Deferred — not yet implemented.** This endpoint is not registered in the current backend.
 
 Feed the pet to restore its hunger stat. Requires auth.
 
