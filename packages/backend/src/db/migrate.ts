@@ -18,7 +18,7 @@ await client.connect();
 const db = drizzle(client);
 
 process.stdout.write('Running migrations...\n');
-await migrate(db, { migrationsFolder: './packages/backend/drizzle' });
+await migrate(db, { migrationsFolder: './drizzle' });
 process.stdout.write('Migrations complete.\n');
 
 await client.end();

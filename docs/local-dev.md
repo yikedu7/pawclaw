@@ -80,3 +80,35 @@ Replace `<pet-id>` with the UUID returned by `POST /api/pets`. The tick route is
 3. Enter pet name and soul prompt → submit
 4. Canvas loads at `http://localhost:5173/?token=<access_token>`
 5. WebSocket connects; trigger a tick via curl to see the pet speak
+
+## Known issues / notes
+
+### Fresh Supabase: drizzle migrations tracking
+If you ran `supabase db reset` (or the tables already exist from a previous session), the `drizzle.__drizzle_migrations` table may be empty even though all tables exist. In this case `db:migrate` will fail with `relation "pets" already exists`. Fix by marking migrations applied:
+
+```bash
+node -e "
+const { createHash } = require('crypto');
+const fs = require('fs');
+const files = [
+  'packages/backend/drizzle/0000_parched_reptil.sql',
+  'packages/backend/drizzle/0001_slim_vulture.sql',
+  'packages/backend/drizzle/0002_bizarre_proudstar.sql',
+  'packages/backend/drizzle/0003_happy_gamma_corps.sql',
+];
+const journal = JSON.parse(fs.readFileSync('packages/backend/drizzle/meta/_journal.json', 'utf-8'));
+let vals = files.map((f, i) => {
+  const hash = createHash('sha256').update(fs.readFileSync(f, 'utf-8')).digest('hex');
+  return \`('\${hash}', \${journal.entries[i].when})\`;
+}).join(',\n  ');
+console.log('INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES\n  ' + vals + ';');
+"
+# then paste the output into psql
+psql postgresql://postgres:postgres@localhost:54322/postgres
+```
+
+### MOCK_LLM mode
+Set `MOCK_LLM=1` in `packages/backend/.env` to skip real Anthropic API calls. All endpoints (tick, chat, diary) return canned responses. Required when `ANTHROPIC_API_KEY` is a placeholder.
+
+### OpenClaw / Hetzner container path
+Requires `HETZNER_HOST` env var pointing to a live Hetzner VPS with dockerd + SSH access. Not testable locally without a real VPS. See `docs/architecture.md` for the Docker-per-pet design.

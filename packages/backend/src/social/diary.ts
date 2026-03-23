@@ -47,21 +47,27 @@ export async function registerDiaryRoute(fastify: FastifyInstance): Promise<void
       .map((ev) => `[${ev.type}] at ${ev.created_at.toISOString()}: ${JSON.stringify(ev.payload)}`)
       .join('\n');
 
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6-20250514',
-      max_tokens: 512,
-      system: petRow.soul_md,
-      messages: [
-        {
-          role: 'user',
-          content: `Write a short, first-person diary entry (2–4 sentences) summarising ${petRow.name}'s day based on these events:\n\n${eventLines}`,
-        },
-      ],
-    });
+    let diary: string;
 
-    const diary =
-      response.content.find((b): b is Anthropic.TextBlock => b.type === 'text')?.text ??
-      'Today was a normal day.';
+    if (process.env.MOCK_LLM === '1') {
+      diary = `${petRow.name} had an eventful day! (mock diary — ${events.length} events)`;
+    } else {
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6-20250514',
+        max_tokens: 512,
+        system: petRow.soul_md,
+        messages: [
+          {
+            role: 'user',
+            content: `Write a short, first-person diary entry (2–4 sentences) summarising ${petRow.name}'s day based on these events:\n\n${eventLines}`,
+          },
+        ],
+      });
+
+      diary =
+        response.content.find((b): b is Anthropic.TextBlock => b.type === 'text')?.text ??
+        'Today was a normal day.';
+    }
 
     return reply.send({ diary });
   });
