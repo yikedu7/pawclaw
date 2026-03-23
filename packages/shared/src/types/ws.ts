@@ -42,6 +42,7 @@ export type WsEvent =
       data: {
         pet_id: string;
         owner_id: string;
+        pet_name?: string;
       };
     }
   | {

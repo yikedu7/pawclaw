@@ -40,6 +40,7 @@ export const WsEventSchema = z.discriminatedUnion('type', [
     data: z.object({
       pet_id: z.string(),
       owner_id: z.string(),
+      pet_name: z.string().optional(),
     }),
   }),
   z.object({
