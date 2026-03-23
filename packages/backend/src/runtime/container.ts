@@ -4,12 +4,31 @@ import { db } from '../db/client.js';
 import { pets, port_allocations } from '../db/schema.js';
 import { eq, isNull, sql } from 'drizzle-orm';
 
-const OKX_SKILLS_BASE = 'https://raw.githubusercontent.com/okx/onchainos-skills/main/skills';
+const OKX_SKILLS_RAW = 'https://raw.githubusercontent.com/okx/onchainos-skills/main/skills';
+const OKX_SKILLS_API = 'https://api.github.com/repos/okx/onchainos-skills/contents/skills';
 
-async function fetchOkxSkill(skillName: string): Promise<string> {
-  const res = await fetch(`${OKX_SKILLS_BASE}/${skillName}/SKILL.md`);
-  if (!res.ok) throw new Error(`Failed to fetch OKX skill ${skillName}: ${res.status}`);
-  return res.text();
+type GithubEntry = { name: string; type: string };
+
+/**
+ * Fetch all SKILL.md files from okx/onchainos-skills via GitHub API.
+ * Returns an array of { name, content } for each skill directory found.
+ */
+async function fetchAllOkxSkills(): Promise<Array<{ name: string; content: string }>> {
+  const res = await fetch(OKX_SKILLS_API, {
+    headers: { Accept: 'application/vnd.github+json' },
+  });
+  if (!res.ok) throw new Error(`GitHub API error listing OKX skills: ${res.status}`);
+  const entries = await res.json() as GithubEntry[];
+  const skillDirs = entries.filter((e) => e.type === 'dir');
+
+  const results = await Promise.all(
+    skillDirs.map(async ({ name }) => {
+      const r = await fetch(`${OKX_SKILLS_RAW}/${name}/SKILL.md`);
+      if (!r.ok) return null; // skip skills without SKILL.md
+      return { name, content: await r.text() };
+    }),
+  );
+  return results.filter((s): s is { name: string; content: string } => s !== null);
 }
 
 // ── Docker client (SSH tunnel to Hetzner) ────────────────────────────────────
@@ -156,20 +175,19 @@ export async function createPetContainer(
   const configJson = generateConfigJson({ gatewayToken });
   const heartbeatMd = generateHeartbeatMd({ name: pet.name, hunger: pet.hunger, mood: pet.mood, affection: pet.affection });
 
-  // 3. Fetch OKX skill files and write everything to Hetzner via SSH
-  const [agentWalletSkill, x402Skill] = await Promise.all([
-    fetchOkxSkill('okx-agentic-wallet'),
-    fetchOkxSkill('okx-x402-payment'),
-  ]);
+  // 3. Fetch all OKX skills and write everything to Hetzner via SSH
+  const okxSkills = await fetchAllOkxSkills();
 
   await sshWriteFiles([
     { path: `${dataDir}/${petId}/config/openclaw.json`, content: configJson },
     { path: `${dataDir}/${petId}/workspace/SOUL.md`, content: soulMd },
     { path: `${dataDir}/${petId}/workspace/HEARTBEAT.md`, content: heartbeatMd },
     { path: `${dataDir}/${petId}/workspace/skills/x-pet/SKILL.md`, content: skillMd },
-    // OKX skills — LLM agent reads these to autonomously operate wallet and x402 payments
-    { path: `${dataDir}/${petId}/workspace/skills/okx-agentic-wallet/SKILL.md`, content: agentWalletSkill },
-    { path: `${dataDir}/${petId}/workspace/skills/okx-x402-payment/SKILL.md`, content: x402Skill },
+    // All OKX skills — LLM agent reads these to autonomously operate wallet, swap, payments, etc.
+    ...okxSkills.map(({ name, content }) => ({
+      path: `${dataDir}/${petId}/workspace/skills/${name}/SKILL.md`,
+      content,
+    })),
   ]);
 
   // 4. Create Docker container
