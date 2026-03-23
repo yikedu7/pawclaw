@@ -33,52 +33,69 @@ async function isOnchainOsAvailable(): Promise<boolean> {
 // ── onchainos CLI wrappers ────────────────────────────────────────────────────
 
 /**
- * Register pet identity with onchainos and return its wallet address.
- * Reads OKX_API_KEY / OKX_SECRET_KEY / OKX_PASSPHRASE from process.env.
+ * AK login (no email = uses OKX_API_KEY/SECRET/PASSPHRASE from env),
+ * then fetch X Layer wallet address from `wallet addresses`.
+ * Skips login if a session is already active.
  */
-async function onchainLogin(petId: string): Promise<string> {
-  const { stdout } = await execFileAsync(
-    'onchainos',
-    ['wallet', 'login', '--identity', `pet-${petId}`],
-    { timeout: 30_000 },
-  );
-  const match = stdout.match(/0x[0-9a-fA-F]{40}/);
-  if (!match) throw new Error(`onchainos wallet login: no address in output: ${stdout}`);
-  return match[0];
+async function onchainLogin(): Promise<string> {
+  // Check if already logged in to avoid redundant login calls
+  try {
+    const { stdout: statusOut } = await execFileAsync('onchainos', ['wallet', 'status'], { timeout: 10_000 });
+    const status = JSON.parse(statusOut) as { ok: boolean; data?: { loggedIn?: boolean } };
+    if (!status.data?.loggedIn) {
+      await execFileAsync('onchainos', ['wallet', 'login'], { timeout: 30_000 });
+    }
+  } catch {
+    await execFileAsync('onchainos', ['wallet', 'login'], { timeout: 30_000 });
+  }
+  const { stdout } = await execFileAsync('onchainos', ['wallet', 'addresses'], { timeout: 15_000 });
+  const data = JSON.parse(stdout) as {
+    ok: boolean;
+    data: { xlayer?: Array<{ address: string; chainIndex: string }> };
+  };
+  const address = data.data?.xlayer?.[0]?.address;
+  if (!address) throw new Error(`onchainos wallet addresses: no X Layer address in output`);
+  return address;
 }
 
 /**
- * X402 micropayment via onchainos for pet-to-pet gifts on X Layer.
- * `amountWei` must be in minimal (wei) units.
+ * Native OKB transfer via `wallet send` on X Layer (chain 196).
+ * `amount` is in UI units (e.g. "0.1" for 0.1 OKB).
+ * For ERC-20, pass the contract address as `token`.
  */
-async function onchainX402Pay(to: string, asset: string, amountWei: string): Promise<string> {
-  const { stdout } = await execFileAsync(
-    'onchainos',
-    [
-      'payment', 'x402-pay',
-      '--network', X_LAYER_CAIP2,
-      '--amount', amountWei,
-      '--pay-to', to,
-      '--asset', asset,
-    ],
-    { timeout: 60_000 },
-  );
-  const match = stdout.match(/0x[0-9a-fA-F]{64}/);
-  if (!match) throw new Error(`onchainos x402-pay: no txHash in output: ${stdout}`);
-  return match[0];
+async function onchainSend(to: string, token: string, amount: string): Promise<string> {
+  const args = [
+    'wallet', 'send',
+    '--receipt', to,
+    '--amount', amount,
+    '--chain', '196',
+  ];
+  if (token !== 'OKB') {
+    args.push('--contract-token', token);
+  }
+  const { stdout } = await execFileAsync('onchainos', args, { timeout: 60_000 });
+  const data = JSON.parse(stdout) as { ok: boolean; data?: { orderId?: string; txHash?: string } };
+  const txHash = data.data?.txHash ?? data.data?.orderId;
+  if (!txHash) throw new Error(`onchainos wallet send: no txHash in output: ${stdout}`);
+  return txHash;
 }
 
 /**
- * Query native OKB balance for an address on X Layer (chain 196).
+ * Query native OKB balance on X Layer (chain 196).
  */
-async function onchainGetBalance(address: string): Promise<string> {
+async function onchainGetBalance(): Promise<string> {
   const { stdout } = await execFileAsync(
     'onchainos',
-    ['wallet', 'balance', '--chain', '196', '--address', address],
+    ['wallet', 'balance', '--chain', '196'],
     { timeout: 15_000 },
   );
-  const match = stdout.match(/[\d]+\.?[\d]*/);
-  return match ? match[0] : '0';
+  const data = JSON.parse(stdout) as {
+    ok: boolean;
+    data?: { details?: Array<{ tokenAssets: Array<{ symbol: string; balance: string }> }> };
+  };
+  const assets = data.data?.details?.[0]?.tokenAssets ?? [];
+  const okb = assets.find((a) => a.symbol === 'OKB');
+  return okb?.balance ?? '0';
 }
 
 // ── Ethers.js HD wallet fallback ─────────────────────────────────────────────
@@ -114,7 +131,7 @@ export type WalletInfo = {
 export async function createWallet(petId: string): Promise<WalletInfo> {
   if (await isOnchainOsAvailable()) {
     try {
-      const address = await onchainLogin(petId);
+      const address = await onchainLogin();
       return { address, provider: 'onchainos' };
     } catch (err) {
       console.warn(`[wallet] onchainos login failed for pet ${petId}: ${err}. Falling back to ethers.js`);
@@ -139,10 +156,9 @@ export async function transfer(
 ): Promise<string> {
   if (await isOnchainOsAvailable()) {
     try {
-      const amountWei = ethers.parseEther(amount).toString();
-      return await onchainX402Pay(to, token, amountWei);
+      return await onchainSend(to, token, amount);
     } catch (err) {
-      console.warn(`[wallet] onchainos x402-pay failed: ${err}. Falling back to ethers.js`);
+      console.warn(`[wallet] onchainos wallet send failed: ${err}. Falling back to ethers.js`);
     }
   }
   // Fallback: `from` is treated as petId to derive the private key
@@ -160,7 +176,7 @@ export async function transfer(
 export async function getBalance(address: string, _token: string): Promise<string> {
   if (await isOnchainOsAvailable()) {
     try {
-      return await onchainGetBalance(address);
+      return await onchainGetBalance();
     } catch (err) {
       console.warn(`[wallet] onchainos balance failed: ${err}. Falling back to ethers.js`);
     }
