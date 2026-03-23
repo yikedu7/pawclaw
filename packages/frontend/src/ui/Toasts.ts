@@ -10,10 +10,14 @@ export class Toasts {
     this.el.id = 'toast-container';
   }
 
-  show(message: string, type: 'gift' | 'friend' = 'gift'): void {
+  show(content: string | Node, type: 'gift' | 'friend' = 'gift'): void {
     const toast = document.createElement('div');
     toast.className = `toast ui-panel toast-${type}`;
-    toast.textContent = message;
+    if (typeof content === 'string') {
+      toast.textContent = content;
+    } else {
+      toast.appendChild(content);
+    }
 
     this.el.appendChild(toast);
 
@@ -29,25 +33,17 @@ export class Toasts {
       return;
     }
 
-    const toast = document.createElement('div');
-    toast.className = 'toast ui-panel toast-gift';
-
-    const text = document.createTextNode(`🎁 ${from} sent ${amount} ${token} to ${to} `);
+    const frag = document.createDocumentFragment();
+    frag.appendChild(document.createTextNode(`🎁 ${from} sent ${amount} ${token} to ${to} `));
     const link = document.createElement('a');
     link.href = `https://www.okx.com/explorer/xlayer/tx/${txHash}`;
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
     link.textContent = `${txHash.slice(0, 10)}…`;
     link.style.color = 'inherit';
+    frag.appendChild(link);
 
-    toast.appendChild(text);
-    toast.appendChild(link);
-    this.el.appendChild(toast);
-
-    setTimeout(() => {
-      toast.classList.add('toast-out');
-      setTimeout(() => toast.remove(), ANIM_OUT_MS);
-    }, DISMISS_MS);
+    this.show(frag, 'gift');
   }
 
   friendUnlocked(petId: string): void {
