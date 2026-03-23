@@ -169,12 +169,14 @@ export async function createPetContainer(
       ],
       PortBindings: { '18789/tcp': [{ HostPort: String(containerPort) }] },
       RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 3 },
-      Memory: 512 * 1024 * 1024,
+      Memory: 2048 * 1024 * 1024,
     },
     Env: [
       `OPENCLAW_GATEWAY_TOKEN=${gatewayToken}`,
       `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY}`,
       'HOME=/home/node',
+      'OPENCLAW_NO_RESPAWN=1',
+      'NODE_OPTIONS=--max-old-space-size=1536',
     ],
   });
 
@@ -197,44 +199,37 @@ export async function createPetContainer(
 }
 
 /**
- * Starts a stopped container and polls /healthz until 200 or 30s timeout,
- * then sets container_status = 'running'.
+ * Starts a container and polls Docker's built-in health status until
+ * `State.Health.Status === 'healthy'` or 60s elapses (the image has a
+ * 15s StartPeriod + 3 retries at 180s interval, but in practice the gateway
+ * starts within a few seconds).
+ *
+ * The OpenClaw image health check runs `fetch('http://127.0.0.1:18789/healthz')`
+ * inside the container, so we rely on Docker's own monitor rather than an
+ * external TCP probe (the gateway only binds to 127.0.0.1 inside the container).
  */
 export async function startContainer(containerId: string): Promise<void> {
   const docker = getDocker();
   await docker.getContainer(containerId).start();
 
-  // Health check: poll GET http://{host}:{port}/healthz
-  const [pet] = await db
-    .select({ host: pets.container_host, port: pets.container_port, id: pets.id })
-    .from(pets)
-    .where(eq(pets.container_id, containerId))
-    .limit(1);
-
-  if (!pet || !pet.host || !pet.port) {
-    throw new Error(`No pet found with containerId ${containerId}`);
-  }
-
-  const healthUrl = `http://${pet.host}:${pet.port}/healthz`;
-  const deadline = Date.now() + 30_000;
-
+  const deadline = Date.now() + 60_000;
   while (Date.now() < deadline) {
-    try {
-      const res = await fetch(healthUrl, { signal: AbortSignal.timeout(2000) });
-      if (res.ok) {
-        await db
-          .update(pets)
-          .set({ container_status: 'running' })
-          .where(eq(pets.container_id, containerId));
-        return;
-      }
-    } catch {
-      // container not ready yet — keep polling
+    const info = await docker.getContainer(containerId).inspect();
+    const health = info.State.Health?.Status;
+    if (health === 'healthy') {
+      await db
+        .update(pets)
+        .set({ container_status: 'running' })
+        .where(eq(pets.container_id, containerId));
+      return;
     }
-    await new Promise((r) => setTimeout(r, 1000));
+    if (info.State.Status === 'exited') {
+      throw new Error(`Container ${containerId} exited unexpectedly (exit code ${info.State.ExitCode})`);
+    }
+    await new Promise((r) => setTimeout(r, 2000));
   }
 
-  throw new Error(`Container ${containerId} did not become healthy within 30s`);
+  throw new Error(`Container ${containerId} did not become healthy within 60s`);
 }
 
 /**
