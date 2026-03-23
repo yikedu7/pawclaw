@@ -134,6 +134,7 @@ Decoration sprites placed on top of grass tiles (not walkable). Objects span 1x1
 ### ⚠️ Do NOT use in grass scenes
 These tiles are UI/inventory icons (have white outline border) or aquatic props — they look wrong on grass:
 - **(0,3)**: Dark bush with flowers — has a white pixel outline border = UI/inventory item style
+- **(4,3)**: Strawberry cluster — UI/inventory item (looks like red fruit, not a scene flower)
 - **(2,2)**: Red apple — inventory icon
 - **(3,2), (4,2)**: Brown bell/hive shapes — inventory icons
 - **(5,3)**: Blue chest icon — inventory icon
@@ -189,7 +190,7 @@ These tiles are UI/inventory icons (have white outline border) or aquatic props 
 | (1,3) | Dark green round bush (plain, no flowers) | **16, 48, 16, 16** | ✓ Grass-safe |
 | (2,3) | Tiny pink/brown flower bud | 32, 48, 16, 16 | |
 | (3,3) | Small flower bud with green leaves | 48, 48, 16, 16 | |
-| (4,3) | Pink flower cluster (3 flowers grouped) | **64, 48, 16, 16** | ✓ Grass-safe |
+| (4,3) | Strawberry cluster (3 red fruit) | 64, 48, 16, 16 | ⚠️ UI/inventory item — not for grass scenes |
 | (5,3) | Blue chest icon + green leaves | 80, 48, 16, 16 | ⚠️ UI item |
 | (6,3) | Pink/rose flower cluster (3 flowers + leaves) | 96, 48, 16, 16 | |
 | (7,3) | Pink/rose flower cluster (larger, more detailed) | 112, 48, 16, 16 | |
