@@ -240,7 +240,9 @@ Feed the pet to restore its hunger stat. Requires auth.
 
 ### POST /api/pets/:id/chat
 
-Send a message to the pet and receive its LLM-generated reply streamed token by token. The complete reply is also emitted as a `pet.speak` WsEvent once the stream finishes so other connected clients see it. Requires auth.
+Send a message to the pet and receive its LLM-generated reply. The reply is also emitted as a `pet.speak` WsEvent so all connected clients see it in real time. Requires auth.
+
+> **Note:** SSE streaming (originally specified) is deferred to a future issue. The current implementation returns the full reply as a single JSON response once the LLM call completes.
 
 **Path params:** `id` — pet uuid
 
@@ -248,49 +250,26 @@ Send a message to the pet and receive its LLM-generated reply streamed token by 
 
 ```typescript
 {
-  message: string; // the user's message to the pet
+  message: string; // 1–500 chars
 }
 ```
 
-**Response — 200 OK (`Content-Type: text/event-stream`)**
-
-The response is a Server-Sent Events stream. Each event carries one token delta. The stream ends with a `[DONE]` sentinel.
-
-```
-data: {"delta":"Hey"}
-
-data: {"delta":", I"}
-
-data: {"delta":" missed you!"}
-
-data: [DONE]
-```
-
-Each `data` line is a JSON object with a single `delta: string` field, except the final `[DONE]` sentinel which signals end-of-stream.
-
-Client usage:
+**Response — 200 OK (`Content-Type: application/json`)**
 
 ```typescript
-const es = new EventSource(`/api/pets/${id}/chat`, { /* POST via fetch + ReadableStream */ });
-// accumulate delta fields to reconstruct the full reply
+{
+  reply: string; // pet's LLM-generated reply
+}
 ```
 
 **Error codes**
 
-Errors before streaming begins return a normal JSON response:
-
-| Status | code               | Condition                |
-|--------|--------------------|--------------------------|
-| 400    | `VALIDATION_ERROR` | Empty message            |
-| 401    | `UNAUTHORIZED`     | Missing or invalid token |
-| 404    | `NOT_FOUND`        | Pet id does not exist    |
-
-If the LLM fails mid-stream, the server emits a final error event before closing:
-
-```
-event: error
-data: {"code":"INTERNAL_ERROR","error":"LLM stream interrupted"}
-```
+| Status | code               | Condition                        |
+|--------|--------------------|----------------------------------|
+| 400    | `VALIDATION_ERROR` | Missing or too-long message      |
+| 401    | `UNAUTHORIZED`     | Missing or invalid token         |
+| 403    | `FORBIDDEN`        | Pet belongs to a different owner |
+| 404    | `NOT_FOUND`        | Pet id does not exist            |
 
 ---
 
