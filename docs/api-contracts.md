@@ -442,8 +442,9 @@ Emitted when the affection threshold between two pets' owners is crossed.
 {
   type: "friend.unlocked";
   data: {
-    pet_id: string;   // uuid — the pet whose owner is now a friend
-    owner_id: string; // uuid — the new friend's owner id
+    pet_id: string;    // uuid — the pet whose owner is now a friend
+    owner_id: string;  // uuid — the new friend's owner id
+    pet_name?: string; // display name of the pet (present when available)
   };
 }
 ```

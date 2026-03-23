@@ -19,9 +19,10 @@ export async function applyVisitAffection(
   await db.update(pets).set({ affection: newAffection }).where(eq(pets.id, petId));
 
   if (currentAffection < FRIEND_THRESHOLD && newAffection >= FRIEND_THRESHOLD) {
+    const pet = await db.query.pets.findFirst({ where: eq(pets.id, petId) });
     tickBus.emit('ownerEvent', ownerId, {
       type: 'friend.unlocked',
-      data: { pet_id: petId, owner_id: ownerId },
+      data: { pet_id: petId, owner_id: ownerId, pet_name: pet?.name },
     });
   }
 }
