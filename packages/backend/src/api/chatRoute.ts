@@ -35,17 +35,22 @@ export async function registerChatRoute(fastify: FastifyInstance): Promise<void>
       return reply.code(403).send({ error: 'Forbidden', code: 'FORBIDDEN' });
     }
 
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6-20250514',
-      max_tokens: 256,
-      system: pet.soul_md,
-      messages: [{ role: 'user', content: parsed.data.message }],
-    });
+    let reply_text: string;
 
-    const textBlock = response.content.find(
-      (b): b is Anthropic.TextBlock => b.type === 'text',
-    );
-    const reply_text = textBlock?.text ?? '...';
+    if (process.env.MOCK_LLM === '1') {
+      reply_text = `${pet.name} says: I heard you! (mock chat)`;
+    } else {
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6-20250514',
+        max_tokens: 256,
+        system: pet.soul_md,
+        messages: [{ role: 'user', content: parsed.data.message }],
+      });
+      const textBlock = response.content.find(
+        (b): b is Anthropic.TextBlock => b.type === 'text',
+      );
+      reply_text = textBlock?.text ?? '...';
+    }
 
     tickBus.emit('ownerEvent', pet.owner_id, {
       type: 'pet.speak',
