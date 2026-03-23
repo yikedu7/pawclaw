@@ -4,13 +4,15 @@ import { PetCreateSchema, PetIdParamSchema } from '@x-pet/shared';
 import { db } from '../db/client.js';
 import { pets } from '../db/schema.js';
 import { authHook } from './authHook.js';
+import { createWallet } from '../onchain/wallet.js';
 
 export type PetRouteDeps = {
   generateSoulMd: (input: { name: string; mood: number; soul_prompt: string }) => string;
   generateSkillMd: (input: { id: string; backendUrl: string }) => string;
+  createWallet: (petId: string) => { address: string; encryptedKey: string };
 };
 
-// TODO(#39): wallet_address returns '' until Onchain OS container lifecycle lands
+// Wallet is created synchronously on pet creation via ethers.js HD derivation (docs/risks.md R3)
 
 /** POST /api/pets (201) and GET /api/pets response shape — no owner_id per contract */
 function toPetSummary(row: typeof pets.$inferSelect) {
@@ -70,11 +72,12 @@ export async function registerPetRoutes(
       })
       .returning();
 
-    // Generate skill_md with the real pet id
+    // Generate skill_md with the real pet id, and derive deterministic wallet
     const skill_md = deps.generateSkillMd({ id: row.id, backendUrl });
+    const walletInfo = deps.createWallet(row.id);
     const [updated] = await db
       .update(pets)
-      .set({ skill_md })
+      .set({ skill_md, wallet_address: walletInfo.address, wallet_encrypted_key: walletInfo.encryptedKey })
       .where(eq(pets.id, row.id))
       .returning();
 

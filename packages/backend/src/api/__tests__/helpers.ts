@@ -19,6 +19,7 @@ export type PetRow = {
   soul_md: string;
   skill_md: string;
   wallet_address: string | null;
+  wallet_encrypted_key: string | null;
   hunger: number;
   mood: number;
   affection: number;
@@ -53,6 +54,7 @@ export function seedPet(overrides: Partial<PetRow> & { id: string; owner_id: str
     soul_md: '#',
     skill_md: '#',
     wallet_address: null,
+    wallet_encrypted_key: null,
     hunger: 100,
     mood: 100,
     affection: 0,
@@ -104,6 +106,7 @@ vi.mock('../../db/client.js', () => {
               soul_md: vals.soul_md ?? '',
               skill_md: vals.skill_md ?? '',
               wallet_address: vals.wallet_address ?? null,
+              wallet_encrypted_key: vals.wallet_encrypted_key ?? null,
               hunger: vals.hunger ?? 100,
               mood: vals.mood ?? 100,
               affection: vals.affection ?? 0,
@@ -149,11 +152,13 @@ vi.mock('drizzle-orm', () => ({
 
 export async function buildApp(): Promise<FastifyInstance> {
   process.env.JWT_SECRET = SECRET;
+  process.env.WALLET_ENCRYPTION_KEY = '0'.repeat(64);
   const { registerPetRoutes } = await import('../petRoutes.js');
   const app = Fastify();
   await registerPetRoutes(app, {
     generateSoulMd: () => '# SOUL',
     generateSkillMd: () => '# SKILL',
+    createWallet: (petId: string) => ({ address: `0xwallet-${petId}`, encryptedKey: 'test-encrypted' }),
   });
   return app;
 }

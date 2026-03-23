@@ -9,6 +9,7 @@ import { registerChatRoute } from './api/chatRoute.js';
 import { generateSoulMd } from './runtime/soul-generator.js';
 import { generateSkillMd } from './runtime/skill-generator.js';
 import { tickBus } from './runtime/tick-bus.js';
+import { createWallet } from './onchain/wallet.js';
 
 const fastify = Fastify({ logger: true });
 
@@ -16,7 +17,7 @@ await fastify.register(fastifyCors, { origin: true });
 await fastify.register(fastifyWebsocket);
 await registerWsRoute(fastify);
 await registerTickRoute(fastify);
-await registerPetRoutes(fastify, { generateSoulMd, generateSkillMd });
+await registerPetRoutes(fastify, { generateSoulMd, generateSkillMd, createWallet });
 await registerChatRoute(fastify, {
   emitOwnerEvent: (ownerId, event) => tickBus.emit('ownerEvent', ownerId, event),
 });

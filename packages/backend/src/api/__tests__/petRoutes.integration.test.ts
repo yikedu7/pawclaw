@@ -37,10 +37,12 @@ beforeAll(async () => {
   await pool.query('DELETE FROM pets WHERE owner_id IN ($1, $2)', [OWNER_A, OWNER_B]);
 
   process.env.JWT_SECRET = SECRET;
+  process.env.WALLET_ENCRYPTION_KEY = '0'.repeat(64);
   app = Fastify();
   await registerPetRoutes(app, {
     generateSoulMd: () => '# SOUL smoke',
     generateSkillMd: () => '# SKILL smoke',
+    createWallet: (petId: string) => ({ address: `0xtest-${petId.slice(0, 8)}`, encryptedKey: 'smoke-encrypted' }),
   });
 });
 
@@ -116,6 +118,15 @@ describe('pet CRUD integration', () => {
     expect(rows[0].owner_id).toBe(OWNER_A);
     expect(rows[0].soul_md).toBe('# SOUL smoke');
     expect(rows[0].skill_md).toBe('# SKILL smoke');
+  });
+
+  it('DB side effect: wallet_address and wallet_encrypted_key are persisted after POST', async () => {
+    const { rows } = await pool.query('SELECT wallet_address, wallet_encrypted_key FROM pets WHERE id = $1', [createdPetId]);
+    expect(rows).toHaveLength(1);
+    expect(typeof rows[0].wallet_address).toBe('string');
+    expect(rows[0].wallet_address.length).toBeGreaterThan(0);
+    expect(typeof rows[0].wallet_encrypted_key).toBe('string');
+    expect(rows[0].wallet_encrypted_key.length).toBeGreaterThan(0);
   });
 
   it('GET /api/pets/:id returns 200 with owner_id for owner', async () => {

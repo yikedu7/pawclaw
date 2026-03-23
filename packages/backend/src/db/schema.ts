@@ -27,8 +27,10 @@ export const pets = pgTable('pets', {
   name: text('name').notNull(),
   soul_md: text('soul_md').notNull(),
   skill_md: text('skill_md').notNull(),
-  // Null until Onchain OS creates the wallet asynchronously after container start
+  // Null until wallet is created on pet creation
   wallet_address: text('wallet_address'),
+  // AES-256-GCM encrypted private key — format: iv:tag:ciphertext (all hex)
+  wallet_encrypted_key: text('wallet_encrypted_key'),
   hunger: integer('hunger').notNull().default(100),
   mood: integer('mood').notNull().default(100),
   affection: integer('affection').notNull().default(0),
