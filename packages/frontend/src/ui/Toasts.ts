@@ -23,8 +23,31 @@ export class Toasts {
     }, DISMISS_MS);
   }
 
-  gift(from: string, to: string, amount: string, token: string): void {
-    this.show(`🎁 ${from} sent ${amount} ${token} to ${to}`, 'gift');
+  gift(from: string, to: string, amount: string, token: string, txHash?: string): void {
+    if (!txHash) {
+      this.show(`🎁 ${from} sent ${amount} ${token} to ${to}`, 'gift');
+      return;
+    }
+
+    const toast = document.createElement('div');
+    toast.className = 'toast ui-panel toast-gift';
+
+    const text = document.createTextNode(`🎁 ${from} sent ${amount} ${token} to ${to} `);
+    const link = document.createElement('a');
+    link.href = `https://www.okx.com/explorer/xlayer/tx/${txHash}`;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = `${txHash.slice(0, 10)}…`;
+    link.style.color = 'inherit';
+
+    toast.appendChild(text);
+    toast.appendChild(link);
+    this.el.appendChild(toast);
+
+    setTimeout(() => {
+      toast.classList.add('toast-out');
+      setTimeout(() => toast.remove(), ANIM_OUT_MS);
+    }, DISMISS_MS);
   }
 
   friendUnlocked(petId: string): void {
