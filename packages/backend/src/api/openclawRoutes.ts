@@ -74,7 +74,7 @@ export async function registerOpenclawRoutes(
         // TODO(#16): X402 payment — call pet wallet via Onchain OS to send OKB on X Layer
         deps.emitOwnerEvent(pet.owner_id, {
           type: 'social.gift',
-          data: { from_pet_id: petId, to_pet_id: event.target_pet_id, token: 'OKB', amount: event.amount, tx_hash: null },
+          data: { from_pet_id: petId, to_pet_id: event.target_pet_id, token: 'OKB', amount: event.amount, tx_hash: '' },
         });
         break;
 
@@ -186,7 +186,7 @@ export async function registerOpenclawRoutes(
     // TODO(#16): X402 payment — call pet wallet via Onchain OS to send OKB on X Layer
     deps.emitOwnerEvent(pet.owner_id, {
       type: 'social.gift',
-      data: { from_pet_id: parsed.data.pet_id, to_pet_id: parsed.data.target_pet_id, token: 'OKB', amount: parsed.data.amount, tx_hash: null },
+      data: { from_pet_id: parsed.data.pet_id, to_pet_id: parsed.data.target_pet_id, token: 'OKB', amount: parsed.data.amount, tx_hash: '' },
     });
     return reply.send({ ok: true });
   });
