@@ -4,6 +4,14 @@ import { db } from '../db/client.js';
 import { pets, port_allocations } from '../db/schema.js';
 import { eq, isNull, sql } from 'drizzle-orm';
 
+const OKX_SKILLS_BASE = 'https://raw.githubusercontent.com/okx/onchainos-skills/main/skills';
+
+async function fetchOkxSkill(skillName: string): Promise<string> {
+  const res = await fetch(`${OKX_SKILLS_BASE}/${skillName}/SKILL.md`);
+  if (!res.ok) throw new Error(`Failed to fetch OKX skill ${skillName}: ${res.status}`);
+  return res.text();
+}
+
 // ── Docker client (SSH tunnel to Hetzner) ────────────────────────────────────
 
 function getDocker(): Docker {
@@ -148,12 +156,20 @@ export async function createPetContainer(
   const configJson = generateConfigJson({ gatewayToken });
   const heartbeatMd = generateHeartbeatMd({ name: pet.name, hunger: pet.hunger, mood: pet.mood, affection: pet.affection });
 
-  // 3. Write files to Hetzner via SSH
+  // 3. Fetch OKX skill files and write everything to Hetzner via SSH
+  const [agentWalletSkill, x402Skill] = await Promise.all([
+    fetchOkxSkill('okx-agentic-wallet'),
+    fetchOkxSkill('okx-x402-payment'),
+  ]);
+
   await sshWriteFiles([
     { path: `${dataDir}/${petId}/config/openclaw.json`, content: configJson },
     { path: `${dataDir}/${petId}/workspace/SOUL.md`, content: soulMd },
     { path: `${dataDir}/${petId}/workspace/HEARTBEAT.md`, content: heartbeatMd },
     { path: `${dataDir}/${petId}/workspace/skills/x-pet/SKILL.md`, content: skillMd },
+    // OKX skills — LLM agent reads these to autonomously operate wallet and x402 payments
+    { path: `${dataDir}/${petId}/workspace/skills/okx-agentic-wallet/SKILL.md`, content: agentWalletSkill },
+    { path: `${dataDir}/${petId}/workspace/skills/okx-x402-payment/SKILL.md`, content: x402Skill },
   ]);
 
   // 4. Create Docker container

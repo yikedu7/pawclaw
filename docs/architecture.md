@@ -125,9 +125,16 @@ do not work because the gateway only binds to `127.0.0.1` inside the container n
       ├── SOUL.md                  ← pet identity/personality (written at creation)
       ├── HEARTBEAT.md             ← heartbeat checklist (proactive tick)
       └── skills/
-          └── x-pet/
-              └── SKILL.md         ← pet tool definitions (written at creation)
+          ├── x-pet/
+          │   └── SKILL.md         ← pet tool definitions (written at creation)
+          ├── okx-agentic-wallet/
+          │   └── SKILL.md         ← fetched from okx/onchainos-skills at container creation
+          └── okx-x402-payment/
+              └── SKILL.md         ← fetched from okx/onchainos-skills at container creation
 ```
+
+**OKX wallet architecture:**
+The LLM agent reads `okx-agentic-wallet/SKILL.md` and `okx-x402-payment/SKILL.md` and autonomously decides when to call `onchainos` CLI commands via the built-in `exec` tool. No backend-side wallet wrapper code. OKX credentials (`OKX_API_KEY`, `OKX_SECRET_KEY`, `OKX_PASSPHRASE`) are injected as container env vars at spawn time.
 
 **Tick loop integration pattern:**
 ```
