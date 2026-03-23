@@ -70,10 +70,31 @@ interface Decor {
   sw: number; sh: number;
 }
 const DECORS: Decor[] = [
-  { col:  6, row: 3, sx: 16, sy: 0, sw: 32, sh: 32 }, // green tree — upper-left
-  { col: 22, row: 3, sx: 48, sy: 0, sw: 32, sh: 32 }, // cherry blossom — upper-right
-  { col:  6, row: 8, sx: 16, sy: 0, sw: 32, sh: 32 }, // green tree — lower-left
-  { col: 22, row: 8, sx: 48, sy: 0, sw: 32, sh: 32 }, // cherry blossom — lower-right
+  // ── Original corner trees ──────────────────────────────────────────────────
+  { col:  6, row: 3, sx: 16, sy:  0, sw: 32, sh: 32 }, // green tree — upper-left
+  { col: 22, row: 3, sx: 48, sy:  0, sw: 32, sh: 32 }, // cherry blossom — upper-right
+  { col:  6, row: 8, sx: 16, sy:  0, sw: 32, sh: 32 }, // green tree — lower-left
+  { col: 22, row: 8, sx: 48, sy:  0, sw: 32, sh: 32 }, // cherry blossom — lower-right
+
+  // ── Vegetation fill — biom (2,2)-(3,3) small bush ─────────────────────────
+  { col:  8, row: 5, sx: 32, sy: 32, sw: 32, sh: 32 }, // small bush — left of house
+  { col: 20, row: 4, sx:  0, sy: 32, sw: 32, sh: 32 }, // heart tree — right of house, upper
+  { col: 25, row: 7, sx: 64, sy:  0, sw: 32, sh: 32 }, // mushroom cluster — far right mid
+
+  // ── Rocks & stumps ─────────────────────────────────────────────────────────
+  { col: 10, row: 10, sx: 96, sy:  0, sw: 16, sh: 16 }, // small rock
+  { col: 18, row: 10, sx:112, sy:  0, sw: 16, sh: 16 }, // pebble
+  { col: 26, row:  9, sx:128, sy:  0, sw: 16, sh: 16 }, // tree stump
+
+  // ── Flowers & bird ─────────────────────────────────────────────────────────
+  { col:  8, row:  9, sx: 96, sy: 32, sw: 16, sh: 16 }, // pink flower — lower-left
+  { col: 23, row: 10, sx: 80, sy: 32, sw: 16, sh: 16 }, // blue flower — lower-right
+  { col: 15, row:  9, sx:128, sy: 32, sw: 16, sh: 16 }, // small yellow bird — below house
+
+  // ── Ground clutter ─────────────────────────────────────────────────────────
+  { col: 21, row: 12, sx:  0, sy: 64, sw: 32, sh: 16 }, // log — lower right
+  { col:  7, row:  6, sx: 32, sy: 64, sw: 16, sh: 16 }, // small sprout — left mid
+  { col: 24, row:  8, sx:112, sy: 64, sw: 32, sh: 16 }, // small rounded bush — right mid
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
