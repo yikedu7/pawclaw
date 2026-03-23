@@ -1,31 +1,29 @@
 import Docker from 'dockerode';
 import { Client as SshClient } from 'ssh2';
+import { readdir, readFile } from 'node:fs/promises';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { db } from '../db/client.js';
 import { pets, port_allocations } from '../db/schema.js';
 import { eq, isNull, sql } from 'drizzle-orm';
 
-const OKX_SKILLS_RAW = 'https://raw.githubusercontent.com/okx/onchainos-skills/main/skills';
-const OKX_SKILLS_API = 'https://api.github.com/repos/okx/onchainos-skills/contents/skills';
-
-type GithubEntry = { name: string; type: string };
+const OKX_SKILLS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'okx-skills');
 
 /**
- * Fetch all SKILL.md files from okx/onchainos-skills via GitHub API.
- * Returns an array of { name, content } for each skill directory found.
+ * Load all OKX skill SKILL.md files from the bundled static directory.
+ * Skills are checked in under src/runtime/okx-skills/ — no GitHub API, no rate limits.
  */
-async function fetchAllOkxSkills(): Promise<Array<{ name: string; content: string }>> {
-  const ghHeaders: Record<string, string> = { Accept: 'application/vnd.github+json' };
-  if (process.env.GITHUB_TOKEN) ghHeaders['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
-  const res = await fetch(OKX_SKILLS_API, { headers: ghHeaders });
-  if (!res.ok) throw new Error(`GitHub API error listing OKX skills: ${res.status}`);
-  const entries = await res.json() as GithubEntry[];
-  const skillDirs = entries.filter((e) => e.type === 'dir');
-
+async function loadOkxSkills(): Promise<Array<{ name: string; content: string }>> {
+  const entries = await readdir(OKX_SKILLS_DIR, { withFileTypes: true });
+  const skillDirs = entries.filter((e) => e.isDirectory());
   const results = await Promise.all(
     skillDirs.map(async ({ name }) => {
-      const r = await fetch(`${OKX_SKILLS_RAW}/${name}/SKILL.md`);
-      if (!r.ok) return null; // skip skills without SKILL.md
-      return { name, content: await r.text() };
+      try {
+        const content = await readFile(join(OKX_SKILLS_DIR, name, 'SKILL.md'), 'utf-8');
+        return { name, content };
+      } catch {
+        return null; // skip if no SKILL.md
+      }
     }),
   );
   return results.filter((s): s is { name: string; content: string } => s !== null);
@@ -176,7 +174,7 @@ export async function createPetContainer(
   const heartbeatMd = generateHeartbeatMd({ name: pet.name, hunger: pet.hunger, mood: pet.mood, affection: pet.affection });
 
   // 3. Fetch all OKX skills and write everything to Hetzner via SSH
-  const okxSkills = await fetchAllOkxSkills();
+  const okxSkills = await loadOkxSkills();
 
   await sshWriteFiles([
     { path: `${dataDir}/${petId}/config/openclaw.json`, content: configJson },
