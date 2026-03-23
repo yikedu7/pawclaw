@@ -57,7 +57,7 @@ describe('POST /internal/tick/:petId', () => {
 
   it('inserts a pet then tick returns 200 with an action (requires ANTHROPIC_API_KEY)', async () => {
     if (!process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY.startsWith('sk-ant-placeholder')) {
-      console.log('Skipping LLM tick test — no real ANTHROPIC_API_KEY set');
+      process.stdout.write('Skipping LLM tick test — no real ANTHROPIC_API_KEY set\n');
       return;
     }
 

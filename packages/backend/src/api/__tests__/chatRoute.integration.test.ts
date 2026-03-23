@@ -105,7 +105,7 @@ describe('POST /api/pets/:id/chat', () => {
 
   it('returns 200 with reply (requires ANTHROPIC_API_KEY)', async () => {
     if (!process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY.startsWith('sk-ant-placeholder')) {
-      console.log('Skipping LLM chat test — no real ANTHROPIC_API_KEY set');
+      process.stdout.write('Skipping LLM chat test — no real ANTHROPIC_API_KEY set\n');
       return;
     }
     const res = await app.inject({
