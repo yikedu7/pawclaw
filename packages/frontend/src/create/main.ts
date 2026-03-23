@@ -96,14 +96,14 @@ createBtn.addEventListener('click', async () => {
       body: JSON.stringify({ name, soul_prompt }),
     });
 
+    const data = await res.json().catch(() => ({})) as { id?: string; error?: string };
     if (!res.ok) {
-      const body = await res.json().catch(() => ({})) as { error?: string };
-      errorMsgPet.textContent = body.error ?? `Request failed: ${res.status}`;
+      errorMsgPet.textContent = data.error ?? `Request failed: ${res.status}`;
       return;
     }
 
-    // Redirect to the canvas with the auth token
-    window.location.href = `/?token=${encodeURIComponent(accessToken)}`;
+    // Redirect to the canvas with the auth token and pet id
+    window.location.href = `/?token=${encodeURIComponent(accessToken)}&pet_id=${encodeURIComponent(data.id ?? '')}`;
   } catch (err) {
     errorMsgPet.textContent = err instanceof Error ? err.message : 'Unknown error';
   } finally {

@@ -1,4 +1,5 @@
 const MAX_ENTRIES = 50;
+const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string | undefined) ?? 'http://localhost:3001';
 
 interface ChatEntry {
   speaker: string;
@@ -24,7 +25,62 @@ export class ChatLog {
     this.messages = document.createElement('div');
     this.messages.className = 'chat-messages';
 
-    this.el.append(header, this.messages);
+    const inputRow = this.buildInputRow();
+
+    this.el.append(header, this.messages, inputRow);
+  }
+
+  private buildInputRow(): HTMLDivElement {
+    const params = new URLSearchParams(location.search);
+    const petId = params.get('pet_id');
+    const token = params.get('token');
+
+    const row = document.createElement('div');
+    row.className = 'chat-input-row';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'chat-input';
+    input.placeholder = 'Say something…';
+    input.maxLength = 500;
+
+    const btn = document.createElement('button');
+    btn.className = 'chat-send-btn';
+    btn.textContent = '▶';
+
+    const send = async () => {
+      const message = input.value.trim();
+      if (!message || !petId || !token) return;
+
+      input.disabled = true;
+      btn.disabled = true;
+
+      // Show user message immediately
+      this.add({ speaker: 'You', text: message, time: new Date() });
+      input.value = '';
+
+      try {
+        await fetch(`${BACKEND_URL}/api/pets/${petId}/chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ message }),
+        });
+        // Pet reply arrives via WS pet.speak event — no need to handle response body
+      } finally {
+        input.disabled = false;
+        btn.disabled = false;
+        input.focus();
+      }
+    };
+
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
+    btn.addEventListener('click', send);
+
+    row.append(input, btn);
+    return row;
   }
 
   add(entry: ChatEntry): void {
