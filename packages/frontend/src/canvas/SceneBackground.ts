@@ -88,8 +88,7 @@ const DECORS: Decor[] = [
   // ── Rock — (7,1) grey pile only (no aquatic-shadow variants) ──────────────
   { col: 10, row: 10, sx:112, sy: 16, sw: 16, sh: 16 }, // grey rock pile — below house left
 
-  // ── Flowers (4,3) pink · (8,2)+(8,3) sunflower 16×32 ────────────────────
-  { col:  8, row:  9, sx: 64, sy: 48, sw: 16, sh: 16 }, // pink flower cluster — lower-left
+  // ── Flowers (8,2)+(8,3) sunflower 16×32 ─────────────────────────────────
   { col: 15, row:  8, sx:128, sy: 32, sw: 16, sh: 32 }, // sunflower (full 16×32) — below house
 
   // ── Grass patches from Grass.png rows 5-6 (ground variation) ─────────────
