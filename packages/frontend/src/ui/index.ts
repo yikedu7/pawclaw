@@ -36,6 +36,6 @@ export function initUI(mount: HTMLElement): void {
   });
 
   eventBus.on('friend.unlocked', (e) => {
-    toasts.friendUnlocked(e.data.pet_id);
+    toasts.friendUnlocked(e.data.pet_name ?? e.data.pet_id);
   });
 }

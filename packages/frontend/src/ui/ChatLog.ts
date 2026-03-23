@@ -140,8 +140,12 @@ export class ChatLog {
   }
 
   addVisit(fromPetId: string, turns: { speaker_pet_id: string; line: string }[]): void {
+    const token = new URLSearchParams(location.search).get('token');
     for (const turn of turns) {
-      this.add({ speaker: turn.speaker_pet_id, text: turn.line, time: new Date() });
+      const time = new Date();
+      resolvePetName(turn.speaker_pet_id, token).then((name) => {
+        this.add({ speaker: name, text: turn.line, time });
+      });
     }
   }
 
