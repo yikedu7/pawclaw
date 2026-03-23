@@ -258,35 +258,45 @@
   to   { opacity: 0; transform: translateX(40px); }
 }
 
-/* ── Stat bars ────────────────────────────────────────────────────── */
-#stat-bars {
+/* ── HUD bar ──────────────────────────────────────────────────────── */
+#hud-bar {
   position: absolute;
-  bottom: 12px;
-  left: 50%;
-  transform: translateX(-50%);
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
   display: flex;
-  gap: 16px;
-  padding: 8px 16px;
-}
-
-.stat-item {
-  display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 3px;
-  min-width: 80px;
+  padding: 0 12px;
+  gap: 12px;
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
 }
 
-.stat-label {
-  font-family: var(--ui-font-pixel);
-  font-size: 7px;
-  color: var(--ui-brown);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+/* Left: stat bars */
+.hud-stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.hud-stat-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 90px;
+}
+
+.hud-stat-label {
+  font-size: 14px;
+  flex-shrink: 0;
 }
 
 .stat-track {
-  width: 100%;
+  flex: 1;
   height: 10px;
   background: rgba(139, 111, 71, 0.2);
   border-radius: 5px;
@@ -301,14 +311,165 @@
   width: 70%;
 }
 
-.stat-fill.hunger  { background: linear-gradient(90deg, #e8c547, #f5dfa0); }
-.stat-fill.mood    { background: linear-gradient(90deg, #6b8f4e, #a3c585); }
-.stat-fill.affection { background: linear-gradient(90deg, #e8a0b4, #f0c8d8); }
+.stat-fill.hunger     { background: linear-gradient(90deg, #e8c547, #f5dfa0); }
+.stat-fill.mood       { background: linear-gradient(90deg, #6b8f4e, #a3c585); }
+.stat-fill.affection  { background: linear-gradient(90deg, #e8a0b4, #f0c8d8); }
 
 .stat-value {
   font-size: 10px;
   color: var(--ui-text-muted);
   font-family: var(--ui-font-body);
+  min-width: 20px;
+  text-align: right;
+}
+
+/* Center: diary + friends */
+.hud-center {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.hud-btn {
+  background: var(--ui-brown);
+  color: var(--ui-cream);
+  border: none;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-family: var(--ui-font-body);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.hud-btn:hover {
+  background: var(--ui-brown-light);
+  color: var(--ui-text);
+}
+
+/* Right: wallet */
+.hud-wallet {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--ui-text-muted);
+}
+
+.hud-wallet-balance {
+  font-family: var(--ui-font-body);
+  font-weight: 600;
+  color: var(--ui-brown);
+}
+
+/* ── Friends panel ────────────────────────────────────────────────── */
+#friends-panel {
+  position: absolute;
+  bottom: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 160px;
+  padding: 8px 12px;
+}
+
+.friends-header {
+  font-family: var(--ui-font-pixel);
+  font-size: 9px;
+  color: var(--ui-brown);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.friends-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.friend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ui-text);
+}
+
+.friend-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ui-green);
+  flex-shrink: 0;
+}
+
+/* ── Diary overlay ────────────────────────────────────────────────── */
+#diary-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(74, 55, 40, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+
+#diary-overlay[hidden] {
+  display: none;
+}
+
+#diary-modal {
+  width: min(480px, 90%);
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.diary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--ui-brown-light);
+}
+
+.diary-title {
+  font-family: var(--ui-font-pixel);
+  font-size: 10px;
+  color: var(--ui-brown);
+}
+
+.diary-close-btn {
+  background: none;
+  border: none;
+  font-size: 14px;
+  color: var(--ui-text-muted);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.diary-close-btn:hover {
+  color: var(--ui-text);
+}
+
+.diary-body {
+  padding: 14px;
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ui-text);
+  white-space: pre-wrap;
+}
+
+.diary-empty {
+  color: var(--ui-text-muted);
+  font-style: italic;
 }
 
 /* ── Mobile responsive ────────────────────────────────────────────── */
@@ -318,23 +479,28 @@
     right: 6px;
     left: 6px;
     top: auto;
-    bottom: 100px;
+    bottom: 64px;
     width: auto;
     max-height: 30vh;
   }
 
-  #stat-bars {
-    gap: 8px;
-    padding: 6px 10px;
-    bottom: 6px;
+  #hud-bar {
+    height: 48px;
+    padding: 0 6px;
+    gap: 6px;
   }
 
-  .stat-item {
-    min-width: 60px;
+  .hud-stat-item {
+    min-width: 70px;
   }
 
-  .stat-label {
-    font-size: 6px;
+  .hud-btn {
+    font-size: 10px;
+    padding: 4px 7px;
+  }
+
+  .hud-wallet-balance {
+    font-size: 10px;
   }
 
   #toast-container {
