@@ -145,6 +145,7 @@ vi.mock('drizzle-orm', () => ({
   },
 }));
 
+
 // ── App factory ─────────────────────────────────────────────────────────────
 
 export async function buildApp(): Promise<FastifyInstance> {

@@ -144,10 +144,19 @@ orb run -m hetzner-test -u deploy docker ps                       # expect: empt
 
 # Run again to verify idempotency (should skip all steps, no errors)
 orb run -m hetzner-test -u root bash < scripts/provision-hetzner.sh
-
-# Clean up
-orb delete hetzner-test
 ```
+
+> **Keep the VM** — `hetzner-test` doubles as the local e2e test environment
+> for container lifecycle tests (see `packages/backend/scripts/e2e-container.ts`).
+> Stop it when not in use; start it again before running tests:
+> ```bash
+> orb stop hetzner-test   # when done
+> orb start hetzner-test  # before next test run
+> ```
+> Pre-pull the OpenClaw image once so subsequent test runs are fast:
+> ```bash
+> ssh deploy@$(orb ip hetzner-test) "docker pull ghcr.io/openclaw/openclaw:latest"
+> ```
 
 ---
 

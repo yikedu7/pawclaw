@@ -8,9 +8,9 @@ import { authHook } from './authHook.js';
 export type PetRouteDeps = {
   generateSoulMd: (input: { name: string; mood: number; soul_prompt: string }) => string;
   generateSkillMd: (input: { id: string; backendUrl: string }) => string;
+  /** Optional — injected by index.ts when HETZNER_HOST is set; absent in tests */
+  launchContainer?: (petId: string, soulMd: string, skillMd: string) => void;
 };
-
-// TODO(#39): wallet_address returns '' until Onchain OS container lifecycle lands
 
 /** POST /api/pets (201) and GET /api/pets response shape — no owner_id per contract */
 function toPetSummary(row: typeof pets.$inferSelect) {
@@ -77,6 +77,9 @@ export async function registerPetRoutes(
       .set({ skill_md })
       .where(eq(pets.id, row.id))
       .returning();
+
+    // Spin up the OpenClaw container (non-blocking — errors are logged but don't fail the response)
+    deps.launchContainer?.(row.id, soul_md, skill_md);
 
     return reply.code(201).send(toPetSummary(updated));
   });
