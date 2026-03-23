@@ -20,11 +20,23 @@
 - **Action needed:** Read Onchain OS SDK docs
 - **Fallback:** Generate HD wallet derivation from pet UUID using ethers.js, store encrypted private key in DB
 
-### R8: OpenClaw GHCR Image Authentication — MEDIUM
-- **Unknown:** Does `ghcr.io/openclaw/openclaw:latest` require authentication for `docker pull` on a Hetzner host? GitHub Container Registry allows public images to be pulled unauthenticated, but this must be verified for this specific package.
-- **Impact:** If auth is required, the Hetzner host needs a GitHub PAT with `read:packages` scope configured on first boot — adds ops complexity.
-- **Action needed:** Run `docker pull ghcr.io/openclaw/openclaw:latest` on a fresh host without `docker login`. If it fails, document the PAT setup step.
-- **Fallback:** Use `1panel/openclaw` or `alpine/openclaw` from Docker Hub as a public mirror (both are community-maintained mirrors that sync from GHCR). Verify image integrity before demo.
+### R12: OpenClaw Gateway Binds to 127.0.0.1 Only — HIGH
+- **Confirmed (2026-03-23 smoke test):** `ghcr.io/openclaw/openclaw:latest` gateway process listens on `ws://127.0.0.1:18789` only, not `0.0.0.0`. Docker port mapping (`-p 19000:18789`) is therefore non-functional — requests to `HETZNER_IP:19000` do not reach the container. Attempting `gateway.host: "0.0.0.0"` in `openclaw.json` causes `Unrecognized key: "host"` and crashes the container.
+- **Impact:** The container port allocation design in `docs/container-design.md` (static range 19000–19999, `container_port` DB column, `http://{container_host}:{container_port}/webhook/{id}`) must be revised. Direct HTTP tick delivery from Railway backend to `HETZNER_IP:port` will not work.
+- **Fix (confirmed working):** Use `dockerode container.exec()` to deliver tick webhooks inside the container:
+  ```typescript
+  const exec = await container.exec({
+    Cmd: ['wget', '-q', '-O', '-', '--post-data', body, 'http://localhost:18789/webhook/' + petId],
+    AttachStdout: true,
+    AttachStderr: true,
+  });
+  ```
+  This routes the HTTP request through the container's own localhost, bypassing the bind address limitation. Tested working via dockerode SSH.
+- **Scope impact:** `container_port` column and port allocation table (`port_allocations`) are no longer needed for tick delivery. Port mapping may still be useful for the OpenClaw web UI (port 18790) but is not required for MVP. Issue #39 (container lifecycle manager) must implement `exec`-based tick delivery instead of direct HTTP.
+- **Action needed:** Update #39 implementation plan and `docs/container-design.md` tick contract section.
+
+### R8: OpenClaw GHCR Image Authentication — RESOLVED ✅
+- **Confirmed (2026-03-23 smoke test):** `docker pull ghcr.io/openclaw/openclaw:latest` succeeded on the OrbStack hetzner-test VM without any `docker login`. The image is publicly accessible. No GitHub PAT required.
 
 ### R9: docs-issue-sync LLM Write-Access — MEDIUM
 - **Risk:** The `docs-issue-sync` workflow grants Claude Code Action write-access to **all** open issue bodies on every `docs/**` push. If the LLM misidentifies a contradiction, it silently rewrites an issue body with no human review step.
@@ -71,6 +83,10 @@
 - **Decision:** Random matching for MVP
 - **Reason:** Reduces scope, still creates compelling social events
 - **v2:** Personality embedding similarity (cosine distance on SOUL.md embeddings)
+
+### R8: OpenClaw GHCR Image Authentication — RESOLVED ✅
+- `docker pull ghcr.io/openclaw/openclaw:latest` works without authentication. Image is public.
+- Confirmed 2026-03-23 on OrbStack Ubuntu 22.04 VM.
 
 ### R7: Docker Remote Access (Railway → Hetzner) — RESOLVED ✅
 - **Decision:** SSH tunneling via `dockerode` SSH protocol. Backend connects using an ed25519 private key stored as a Railway env var (`HETZNER_SSH_KEY`). No port 2376 exposure required.
