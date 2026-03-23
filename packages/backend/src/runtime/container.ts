@@ -4,6 +4,33 @@ import { db } from '../db/client.js';
 import { pets, port_allocations } from '../db/schema.js';
 import { eq, isNull, sql } from 'drizzle-orm';
 
+const OKX_SKILLS_RAW = 'https://raw.githubusercontent.com/okx/onchainos-skills/main/skills';
+const OKX_SKILLS_API = 'https://api.github.com/repos/okx/onchainos-skills/contents/skills';
+
+type GithubEntry = { name: string; type: string };
+
+/**
+ * Fetch all SKILL.md files from okx/onchainos-skills via GitHub API.
+ * Returns an array of { name, content } for each skill directory found.
+ */
+async function fetchAllOkxSkills(): Promise<Array<{ name: string; content: string }>> {
+  const res = await fetch(OKX_SKILLS_API, {
+    headers: { Accept: 'application/vnd.github+json' },
+  });
+  if (!res.ok) throw new Error(`GitHub API error listing OKX skills: ${res.status}`);
+  const entries = await res.json() as GithubEntry[];
+  const skillDirs = entries.filter((e) => e.type === 'dir');
+
+  const results = await Promise.all(
+    skillDirs.map(async ({ name }) => {
+      const r = await fetch(`${OKX_SKILLS_RAW}/${name}/SKILL.md`);
+      if (!r.ok) return null; // skip skills without SKILL.md
+      return { name, content: await r.text() };
+    }),
+  );
+  return results.filter((s): s is { name: string; content: string } => s !== null);
+}
+
 // ── Docker client (SSH tunnel to Hetzner) ────────────────────────────────────
 
 function getDocker(): Docker {
@@ -148,12 +175,19 @@ export async function createPetContainer(
   const configJson = generateConfigJson({ gatewayToken });
   const heartbeatMd = generateHeartbeatMd({ name: pet.name, hunger: pet.hunger, mood: pet.mood, affection: pet.affection });
 
-  // 3. Write files to Hetzner via SSH
+  // 3. Fetch all OKX skills and write everything to Hetzner via SSH
+  const okxSkills = await fetchAllOkxSkills();
+
   await sshWriteFiles([
     { path: `${dataDir}/${petId}/config/openclaw.json`, content: configJson },
     { path: `${dataDir}/${petId}/workspace/SOUL.md`, content: soulMd },
     { path: `${dataDir}/${petId}/workspace/HEARTBEAT.md`, content: heartbeatMd },
     { path: `${dataDir}/${petId}/workspace/skills/x-pet/SKILL.md`, content: skillMd },
+    // All OKX skills — LLM agent reads these to autonomously operate wallet, swap, payments, etc.
+    ...okxSkills.map(({ name, content }) => ({
+      path: `${dataDir}/${petId}/workspace/skills/${name}/SKILL.md`,
+      content,
+    })),
   ]);
 
   // 4. Create Docker container
@@ -172,6 +206,11 @@ export async function createPetContainer(
     Env: [
       `OPENCLAW_GATEWAY_TOKEN=${gatewayToken}`,
       `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY}`,
+      // OKX Onchain OS credentials — required by the onchainos CLI inside the container
+      // for wallet login and x402-pay (see packages/openclaw/src/onchain/wallet.ts)
+      `OKX_API_KEY=${process.env.OKX_API_KEY ?? ''}`,
+      `OKX_SECRET_KEY=${process.env.OKX_SECRET_KEY ?? ''}`,
+      `OKX_PASSPHRASE=${process.env.OKX_PASSPHRASE ?? ''}`,
       'HOME=/home/node',
       'OPENCLAW_NO_RESPAWN=1',
       'NODE_OPTIONS=--max-old-space-size=1536',
