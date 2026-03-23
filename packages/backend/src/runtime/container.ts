@@ -14,9 +14,9 @@ type GithubEntry = { name: string; type: string };
  * Returns an array of { name, content } for each skill directory found.
  */
 async function fetchAllOkxSkills(): Promise<Array<{ name: string; content: string }>> {
-  const res = await fetch(OKX_SKILLS_API, {
-    headers: { Accept: 'application/vnd.github+json' },
-  });
+  const ghHeaders: Record<string, string> = { Accept: 'application/vnd.github+json' };
+  if (process.env.GITHUB_TOKEN) ghHeaders['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
+  const res = await fetch(OKX_SKILLS_API, { headers: ghHeaders });
   if (!res.ok) throw new Error(`GitHub API error listing OKX skills: ${res.status}`);
   const entries = await res.json() as GithubEntry[];
   const skillDirs = entries.filter((e) => e.type === 'dir');
