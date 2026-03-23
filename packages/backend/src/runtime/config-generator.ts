@@ -1,10 +1,5 @@
-import type { Pet } from '@x-pet/shared';
-
-type ConfigInput = Pick<Pet, 'id'> & {
-  backendUrl: string;
-  /** Bearer token OpenClaw uses when POSTing events to the x-pet backend. */
-  webhookToken: string;
-  /** OPENCLAW_GATEWAY_TOKEN for this container. */
+type ConfigInput = {
+  /** OPENCLAW_GATEWAY_TOKEN — set in config and passed as container env var. */
   gatewayToken: string;
 };
 
@@ -24,9 +19,7 @@ type ConfigInput = Pick<Pet, 'id'> & {
  * config keys (confirmed via `openclaw doctor`). The model is set via
  * ANTHROPIC_API_KEY env var; event delivery uses the WebSocket gateway directly.
  */
-export function generateConfigJson(input: ConfigInput): string {
-  const { gatewayToken } = input;
-
+export function generateConfigJson({ gatewayToken }: ConfigInput): string {
   const config = {
     gateway: {
       mode: 'local',

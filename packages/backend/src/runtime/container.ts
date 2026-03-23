@@ -130,10 +130,8 @@ export async function createPetContainer(
   skillMd: string,
 ): Promise<CreateContainerResult> {
   const dataDir = process.env.HETZNER_HOST_DATA_DIR ?? '/data/pets';
-  const backendUrl = process.env.BACKEND_URL ?? 'http://localhost:3001';
 
   const gatewayToken = crypto.randomUUID();
-  const webhookToken = crypto.randomUUID();
 
   // 1. Allocate port
   const { port: containerPort } = await allocatePort(petId);
@@ -147,7 +145,7 @@ export async function createPetContainer(
   const [pet] = await db.select().from(pets).where(eq(pets.id, petId)).limit(1);
   if (!pet) throw new Error(`Pet ${petId} not found`);
 
-  const configJson = generateConfigJson({ id: petId, backendUrl, webhookToken, gatewayToken });
+  const configJson = generateConfigJson({ gatewayToken });
   const heartbeatMd = generateHeartbeatMd({ name: pet.name, hunger: pet.hunger, mood: pet.mood, affection: pet.affection });
 
   // 3. Write files to Hetzner via SSH
