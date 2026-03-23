@@ -57,6 +57,7 @@ For the **backend** service, add all variables from `.env.example`:
 | `ONCHAIN_OS_API_URL` | OKX Onchain OS API base URL |
 | `X_LAYER_RPC_URL` | X Layer (zkEVM L2) RPC endpoint |
 | `X402_FACILITATOR_URL` | X402 payment facilitator URL |
+| `BACKEND_URL` | Public Railway backend URL — baked into each pet's SKILL.md at creation so OpenClaw containers on Hetzner can curl `/internal/tools/*` (e.g. `https://backend.up.railway.app`) |
 | `PORT` | HTTP port, defaults to `3000` (Railway sets this automatically) |
 | `JWT_SECRET` | Secret for signing JWT tokens |
 | `TELEGRAM_BOT_TOKEN` | (Optional) Telegram bot token |
