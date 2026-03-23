@@ -1,10 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
+import type { WsEvent } from '@x-pet/shared';
 import { db } from '../db/client.js';
 import { pets } from '../db/schema.js';
-import { tickBus } from '../runtime/tick-bus.js';
 import { executeVisit } from '../social/visit.js';
+
+export type OpenclawRouteDeps = {
+  emitOwnerEvent: (ownerId: string, event: WsEvent) => void;
+};
 
 function checkBearerToken(authHeader: string | undefined): boolean {
   const token = process.env.OPENCLAW_WEBHOOK_TOKEN;
@@ -26,9 +30,13 @@ const RuntimeEventSchema = z.discriminatedUnion('event_type', [
   }),
 ]);
 
-export async function registerOpenclawRoutes(fastify: FastifyInstance) {
+export async function registerOpenclawRoutes(
+  fastify: FastifyInstance,
+  deps: OpenclawRouteDeps,
+) {
   // ── POST /internal/runtime/events/:petId ──────────────────────────────────
   // Receives lifecycle/action events from the OpenClaw container.
+  // Auth: per-pet gateway_token (set by OpenClaw on container start).
   fastify.post('/internal/runtime/events/:petId', async (request, reply) => {
     const petIdParsed = PetIdSchema.safeParse((request.params as { petId: string }).petId);
     if (!petIdParsed.success) {
@@ -44,9 +52,7 @@ export async function registerOpenclawRoutes(fastify: FastifyInstance) {
     const pet = await db.query.pets.findFirst({ where: eq(pets.id, petId) });
     if (!pet) return reply.code(404).send({ error: 'Pet not found', code: 'NOT_FOUND' });
 
-    // Events endpoint authenticates via per-pet gateway_token (set by OpenClaw on container start)
-    const authHeader = request.headers.authorization;
-    if (!pet.gateway_token || authHeader !== `Bearer ${pet.gateway_token}`) {
+    if (!pet.gateway_token || request.headers.authorization !== `Bearer ${pet.gateway_token}`) {
       return reply.code(401).send({ error: 'Unauthorized', code: 'UNAUTHORIZED' });
     }
 
@@ -54,7 +60,7 @@ export async function registerOpenclawRoutes(fastify: FastifyInstance) {
 
     switch (event.event_type) {
       case 'speak':
-        tickBus.emit('ownerEvent', pet.owner_id, {
+        deps.emitOwnerEvent(pet.owner_id, {
           type: 'pet.speak',
           data: { pet_id: petId, message: event.message },
         });
@@ -66,15 +72,9 @@ export async function registerOpenclawRoutes(fastify: FastifyInstance) {
 
       case 'gift':
         // TODO(#16): X402 payment — call pet wallet via Onchain OS to send OKB on X Layer
-        tickBus.emit('ownerEvent', pet.owner_id, {
+        deps.emitOwnerEvent(pet.owner_id, {
           type: 'social.gift',
-          data: {
-            from_pet_id: petId,
-            to_pet_id: event.target_pet_id,
-            token: 'OKB',
-            amount: event.amount,
-            tx_hash: null,
-          },
+          data: { from_pet_id: petId, to_pet_id: event.target_pet_id, token: 'OKB', amount: event.amount, tx_hash: null },
         });
         break;
 
@@ -82,7 +82,7 @@ export async function registerOpenclawRoutes(fastify: FastifyInstance) {
         const newHunger = Math.min(100, pet.hunger + 10);
         const newMood = Math.min(100, pet.mood + 5);
         await db.update(pets).set({ hunger: newHunger, mood: newMood }).where(eq(pets.id, petId));
-        tickBus.emit('ownerEvent', pet.owner_id, {
+        deps.emitOwnerEvent(pet.owner_id, {
           type: 'pet.state',
           data: { pet_id: petId, hunger: newHunger, mood: newMood, affection: pet.affection },
         });
@@ -96,7 +96,7 @@ export async function registerOpenclawRoutes(fastify: FastifyInstance) {
         if (Object.keys(updates).length > 0) {
           await db.update(pets).set(updates).where(eq(pets.id, petId));
         }
-        tickBus.emit('ownerEvent', pet.owner_id, {
+        deps.emitOwnerEvent(pet.owner_id, {
           type: 'pet.state',
           data: {
             pet_id: petId,
@@ -134,16 +134,13 @@ export async function registerOpenclawRoutes(fastify: FastifyInstance) {
     if (!checkBearerToken(request.headers.authorization)) {
       return reply.code(401).send({ error: 'Unauthorized', code: 'UNAUTHORIZED' });
     }
-    const parsed = z.object({
-      pet_id: z.string().uuid(),
-      message: z.string(),
-    }).safeParse(request.body);
+    const parsed = z.object({ pet_id: z.string().uuid(), message: z.string() }).safeParse(request.body);
     if (!parsed.success) {
       return reply.code(400).send({ error: parsed.error.message, code: 'VALIDATION_ERROR' });
     }
     const pet = await db.query.pets.findFirst({ where: eq(pets.id, parsed.data.pet_id) });
     if (!pet) return reply.code(404).send({ error: 'Pet not found', code: 'NOT_FOUND' });
-    tickBus.emit('ownerEvent', pet.owner_id, {
+    deps.emitOwnerEvent(pet.owner_id, {
       type: 'pet.speak',
       data: { pet_id: parsed.data.pet_id, message: parsed.data.message },
     });
@@ -164,7 +161,7 @@ export async function registerOpenclawRoutes(fastify: FastifyInstance) {
     const newHunger = Math.min(100, pet.hunger + 10);
     const newMood = Math.min(100, pet.mood + 5);
     await db.update(pets).set({ hunger: newHunger, mood: newMood }).where(eq(pets.id, parsed.data.pet_id));
-    tickBus.emit('ownerEvent', pet.owner_id, {
+    deps.emitOwnerEvent(pet.owner_id, {
       type: 'pet.state',
       data: { pet_id: parsed.data.pet_id, hunger: newHunger, mood: newMood, affection: pet.affection },
     });
@@ -187,15 +184,9 @@ export async function registerOpenclawRoutes(fastify: FastifyInstance) {
     const pet = await db.query.pets.findFirst({ where: eq(pets.id, parsed.data.pet_id) });
     if (!pet) return reply.code(404).send({ error: 'Pet not found', code: 'NOT_FOUND' });
     // TODO(#16): X402 payment — call pet wallet via Onchain OS to send OKB on X Layer
-    tickBus.emit('ownerEvent', pet.owner_id, {
+    deps.emitOwnerEvent(pet.owner_id, {
       type: 'social.gift',
-      data: {
-        from_pet_id: parsed.data.pet_id,
-        to_pet_id: parsed.data.target_pet_id,
-        token: 'OKB',
-        amount: parsed.data.amount,
-        tx_hash: null,
-      },
+      data: { from_pet_id: parsed.data.pet_id, to_pet_id: parsed.data.target_pet_id, token: 'OKB', amount: parsed.data.amount, tx_hash: null },
     });
     return reply.send({ ok: true });
   });

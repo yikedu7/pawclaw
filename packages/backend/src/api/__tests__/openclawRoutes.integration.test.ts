@@ -44,7 +44,7 @@ beforeAll(async () => {
 
   process.env.OPENCLAW_WEBHOOK_TOKEN = WEBHOOK_TOKEN;
   app = Fastify();
-  await registerOpenclawRoutes(app);
+  await registerOpenclawRoutes(app, { emitOwnerEvent: () => {} });
   await app.ready();
 });
 
