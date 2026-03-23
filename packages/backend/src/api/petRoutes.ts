@@ -4,13 +4,12 @@ import { PetCreateSchema, PetIdParamSchema } from '@x-pet/shared';
 import { db } from '../db/client.js';
 import { pets } from '../db/schema.js';
 import { authHook } from './authHook.js';
+import { createPetContainer, startContainer } from '../runtime/container.js';
 
 export type PetRouteDeps = {
   generateSoulMd: (input: { name: string; mood: number; soul_prompt: string }) => string;
   generateSkillMd: (input: { id: string; backendUrl: string }) => string;
 };
-
-// TODO(#39): wallet_address returns '' until Onchain OS container lifecycle lands
 
 /** POST /api/pets (201) and GET /api/pets response shape — no owner_id per contract */
 function toPetSummary(row: typeof pets.$inferSelect) {
@@ -77,6 +76,15 @@ export async function registerPetRoutes(
       .set({ skill_md })
       .where(eq(pets.id, row.id))
       .returning();
+
+    // Spin up the OpenClaw container (non-blocking — errors are logged but don't fail the response)
+    if (process.env.HETZNER_HOST) {
+      createPetContainer(row.id, soul_md, skill_md)
+        .then(({ containerId }) => startContainer(containerId))
+        .catch((err: unknown) => {
+          fastify.log.error({ err, petId: row.id }, 'container lifecycle failed');
+        });
+    }
 
     return reply.code(201).send(toPetSummary(updated));
   });

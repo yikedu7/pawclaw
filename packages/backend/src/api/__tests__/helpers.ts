@@ -145,6 +145,15 @@ vi.mock('drizzle-orm', () => ({
   },
 }));
 
+// Container lifecycle is a no-op in unit tests (HETZNER_HOST not set)
+vi.mock('../../runtime/container.js', () => ({
+  createPetContainer: vi.fn().mockResolvedValue({ containerId: 'mock-id', containerPort: 19000, gatewayToken: 'mock-token' }),
+  startContainer: vi.fn().mockResolvedValue(undefined),
+  stopContainer: vi.fn().mockResolvedValue(undefined),
+  removeContainer: vi.fn().mockResolvedValue(undefined),
+  getContainerStatus: vi.fn().mockResolvedValue('running'),
+}));
+
 // ── App factory ─────────────────────────────────────────────────────────────
 
 export async function buildApp(): Promise<FastifyInstance> {
