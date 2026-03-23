@@ -10,10 +10,14 @@ export class Toasts {
     this.el.id = 'toast-container';
   }
 
-  show(message: string, type: 'gift' | 'friend' = 'gift'): void {
+  show(content: string | Node, type: 'gift' | 'friend' = 'gift'): void {
     const toast = document.createElement('div');
     toast.className = `toast ui-panel toast-${type}`;
-    toast.textContent = message;
+    if (typeof content === 'string') {
+      toast.textContent = content;
+    } else {
+      toast.appendChild(content);
+    }
 
     this.el.appendChild(toast);
 
@@ -23,8 +27,23 @@ export class Toasts {
     }, DISMISS_MS);
   }
 
-  gift(from: string, to: string, amount: string, token: string): void {
-    this.show(`🎁 ${from} sent ${amount} ${token} to ${to}`, 'gift');
+  gift(from: string, to: string, amount: string, token: string, txHash?: string): void {
+    if (!txHash) {
+      this.show(`🎁 ${from} sent ${amount} ${token} to ${to}`, 'gift');
+      return;
+    }
+
+    const frag = document.createDocumentFragment();
+    frag.appendChild(document.createTextNode(`🎁 ${from} sent ${amount} ${token} to ${to} `));
+    const link = document.createElement('a');
+    link.href = `https://www.okx.com/explorer/xlayer/tx/${txHash}`;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = `${txHash.slice(0, 10)}…`;
+    link.style.color = 'inherit';
+    frag.appendChild(link);
+
+    this.show(frag, 'gift');
   }
 
   friendUnlocked(petId: string): void {
