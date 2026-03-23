@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
     "lint": "eslint src/",
     "screenshot": "tsx scripts/screenshot.ts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.99.3",
     "@x-pet/shared": "workspace:*",
     "pixi.js": "^8.9.0"
   },
