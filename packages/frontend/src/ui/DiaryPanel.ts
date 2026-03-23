@@ -52,8 +52,8 @@ export class DiaryPanel {
       .then((data) => {
         this.body.textContent = data.summary ?? 'No diary entry.';
       })
-      .catch((err: unknown) => {
-        this.body.textContent = `Failed to load diary: ${err instanceof Error ? err.message : String(err)}`;
+      .catch(() => {
+        this.body.innerHTML = '<span class="diary-empty">📭 No entries yet — come back after your pet has had a big day!</span>';
       });
   }
 

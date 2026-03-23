@@ -467,6 +467,11 @@
   white-space: pre-wrap;
 }
 
+.diary-empty {
+  color: var(--ui-text-muted);
+  font-style: italic;
+}
+
 /* ── Mobile responsive ────────────────────────────────────────────── */
 @media (max-width: 600px) {
   #chat-log {
