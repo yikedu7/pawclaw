@@ -47,10 +47,10 @@ export class DiaryPanel {
     fetch('/api/pets/demo/diary')
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json() as Promise<{ entry?: string; diary?: string; text?: string }>;
+        return res.json() as Promise<{ summary?: string; entry?: string; diary?: string; text?: string }>;
       })
       .then((data) => {
-        this.body.textContent = data.entry ?? data.diary ?? data.text ?? JSON.stringify(data);
+        this.body.textContent = data.summary ?? data.entry ?? data.diary ?? data.text ?? JSON.stringify(data);
       })
       .catch((err: unknown) => {
         this.body.textContent = `Failed to load diary: ${err instanceof Error ? err.message : String(err)}`;
