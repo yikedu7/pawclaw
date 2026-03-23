@@ -20,11 +20,11 @@
 - **Action needed:** Read Onchain OS SDK docs
 - **Fallback:** Generate HD wallet derivation from pet UUID using ethers.js, store encrypted private key in DB
 
-### R8: OpenClaw GHCR Image Authentication — MEDIUM
-- **Unknown:** Does `ghcr.io/openclaw/openclaw:latest` require authentication for `docker pull` on a Hetzner host? GitHub Container Registry allows public images to be pulled unauthenticated, but this must be verified for this specific package.
-- **Impact:** If auth is required, the Hetzner host needs a GitHub PAT with `read:packages` scope configured on first boot — adds ops complexity.
-- **Action needed:** Run `docker pull ghcr.io/openclaw/openclaw:latest` on a fresh host without `docker login`. If it fails, document the PAT setup step.
-- **Fallback:** Use `1panel/openclaw` or `alpine/openclaw` from Docker Hub as a public mirror (both are community-maintained mirrors that sync from GHCR). Verify image integrity before demo.
+### R12: OpenClaw Tick Delivery via External Port — MEDIUM
+- **Risk:** `mock-tick.ts` delivers ticks to a running OpenClaw container via `POST http://<host>:<port>/webhook/<petId>`. The OpenClaw gateway binds to `127.0.0.1:18789` inside the container — Docker port binding cannot forward to loopback-only services. The fetch call returns `connection refused`.
+- **Impact:** Tick-driven LLM turns do not reach the container. The OpenClaw heartbeat (5-min internal timer) still fires independently, so the pet acts autonomously; manual ticks just don't add extra turns.
+- **Action needed:** Replace the `fetch(containerUrl)` call in `mock-tick.ts` with `container.exec(['curl', '-X', 'POST', ...])` so the request runs inside the container's network namespace. Track in a dedicated issue.
+- **Does NOT affect:** Docker health polling (uses `docker inspect`); OpenClaw tool call callbacks (`curl` inside the container can reach `http://127.0.0.1/internal/tools/*` on the backend).
 
 ### R9: docs-issue-sync LLM Write-Access — MEDIUM
 - **Risk:** The `docs-issue-sync` workflow grants Claude Code Action write-access to **all** open issue bodies on every `docs/**` push. If the LLM misidentifies a contradiction, it silently rewrites an issue body with no human review step.
@@ -38,10 +38,10 @@
 - **Action needed:** Before production deploy, restrict to the Railway frontend URL via `CORS_ORIGIN` env var: `origin: process.env.CORS_ORIGIN ?? true`.
 
 ### R10: Issue #12 Partial — Deferred Pet Lifecycle Scope — MEDIUM
-- **What's deferred:** Container provisioning (Hetzner file write + Docker start), real `wallet_address` from Onchain OS, `GET /api/pets/:id/events`, `DELETE /api/pets/:id`
-- **Why:** Blocked on #39 (container lifecycle manager)
-- **Impact:** POST /api/pets inserts a DB row with SOUL/SKILL md but no running container. `wallet_address` returns empty string until container + Onchain OS integration lands.
-- **Action needed:** Implement remaining scope once #39 merges.
+- **What's deferred:** Real `wallet_address` from Onchain OS, `GET /api/pets/:id/events`, `DELETE /api/pets/:id`
+- **Container provisioning:** Landed in PR #89 (merged). `POST /api/pets` now calls `createPetContainer` + `startContainer` when `HETZNER_HOST` is set.
+- **Impact:** `wallet_address` returns empty string until Onchain OS integration lands. Events and delete endpoints not yet implemented.
+- **Action needed:** Track remaining scope in separate issues.
 
 **R6 — Frontend WsEvent schema alignment (FE2 prerequisite)**
 - **Risk:** The frontend canvas (issue #10) subscribes to `eventBus` using the canonical `WsEvent` type from `@x-pet/shared`. The real WS client (issue FE2) must emit events using the same field names (`from_pet_id`, `to_pet_id`, `turns`, `token`, `amount`).
@@ -51,6 +51,11 @@
 ---
 
 ## Resolved
+
+### R8: OpenClaw GHCR Image Authentication — RESOLVED ✅
+- **Decision:** `ghcr.io/openclaw/openclaw:latest` is a public image — no `docker login` required.
+- **Verified:** `docker pull` on an OrbStack Ubuntu 22.04 VM without any credentials succeeds (image size ~3.5GB). No GitHub PAT needed.
+
 
 ### R4: Runtime Architecture — RESOLVED ✅
 - **Previously re-opened as critical blocker** based on incomplete research that concluded OpenClaw had no event output mechanism and no proactive mode.
