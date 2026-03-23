@@ -6,6 +6,7 @@ import { pets, social_events } from '../db/schema.js';
 import { tickBus } from './tick-bus.js';
 import { tickTools } from './tick-tools.js';
 import { executeVisit } from '../social/visit.js';
+import { deliverTick } from './container.js';
 
 const anthropic = new Anthropic();
 
@@ -100,10 +101,10 @@ export async function executeTick(petId: string): Promise<{ action: string }> {
     return { action: `${action} (demo cycle ${demoCycle})` };
   }
 
-  // 2. If a container is registered for this pet, delegate the tick to it.
-  // The container runs the LLM and calls back /internal/runtime/events/:petId to report actions.
-  if (pet.container_host && pet.container_port) {
-    const containerUrl = `http://${pet.container_host}:${pet.container_port}/webhook/${petId}`;
+  // 2. If a container is running for this pet, deliver the tick via exec.
+  // Using container.exec() rather than HTTP POST because the OpenClaw gateway
+  // binds to 127.0.0.1:18789 — Docker port mapping cannot forward to loopback.
+  if (pet.container_id && pet.container_status === 'running' && process.env.HETZNER_HOST) {
     const [recentForContainer, nearbyPets] = await Promise.all([
       db.query.social_events.findMany({
         where: eq(social_events.from_pet_id, petId),
@@ -112,30 +113,24 @@ export async function executeTick(petId: string): Promise<{ action: string }> {
       }),
       db.query.pets.findMany({ where: ne(pets.id, petId) }),
     ]);
-    await fetch(containerUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(pet.gateway_token ? { Authorization: `Bearer ${pet.gateway_token}` } : {}),
+    const payload = {
+      pet_id: petId,
+      tick_at: new Date().toISOString(),
+      state: { hunger: pet.hunger, mood: pet.mood, affection: pet.affection },
+      context: {
+        nearby_pets: nearbyPets.map((p) => ({
+          id: p.id,
+          name: p.name,
+          soul_summary: p.soul_md.split('\n')[0] ?? '',
+        })),
+        recent_events: recentForContainer.map((e) => ({
+          type: e.type,
+          from: e.from_pet_id,
+          at: e.created_at.toISOString(),
+        })),
       },
-      body: JSON.stringify({
-        pet_id: petId,
-        tick_at: new Date().toISOString(),
-        state: { hunger: pet.hunger, mood: pet.mood, affection: pet.affection },
-        context: {
-          nearby_pets: nearbyPets.map((p) => ({
-            id: p.id,
-            name: p.name,
-            soul_summary: p.soul_md.split('\n')[0] ?? '',
-          })),
-          recent_events: recentForContainer.map((e) => ({
-            type: e.type,
-            from: e.from_pet_id,
-            at: e.created_at.toISOString(),
-          })),
-        },
-      }),
-    });
+    };
+    await deliverTick(pet.container_id, petId, payload);
     await db.update(pets).set({ last_tick_at: new Date() }).where(eq(pets.id, petId));
     return { action: 'container' };
   }

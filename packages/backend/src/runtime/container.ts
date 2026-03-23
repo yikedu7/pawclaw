@@ -310,6 +310,52 @@ export async function removeContainer(containerId: string): Promise<void> {
 }
 
 /**
+ * Delivers a tick payload to an OpenClaw container by executing curl inside
+ * the container's network namespace.
+ *
+ * Why exec instead of HTTP: the OpenClaw gateway binds to 127.0.0.1:18789,
+ * so Docker port mapping cannot forward external HTTP to it. Running curl
+ * inside the container reaches loopback directly.
+ *
+ * Throws if the exec exits with a non-zero code (curl failed or gateway
+ * returned an error).
+ */
+export async function deliverTick(
+  containerId: string,
+  petId: string,
+  payload: object,
+): Promise<void> {
+  const docker = getDocker();
+  const container = docker.getContainer(containerId);
+
+  const exec = await container.exec({
+    Cmd: [
+      'curl', '-s', '-X', 'POST',
+      `http://localhost:18789/webhook/${petId}`,
+      '-H', 'Content-Type: application/json',
+      '-d', JSON.stringify(payload),
+    ],
+    AttachStdout: true,
+    AttachStderr: true,
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    exec.start({}, (err: Error | null, stream: NodeJS.ReadableStream | undefined) => {
+      if (err) return reject(err);
+      if (!stream) return reject(new Error('exec start returned no stream'));
+      stream.resume(); // drain so the stream ends
+      stream.on('end', resolve);
+      stream.on('error', reject);
+    });
+  });
+
+  const info = await exec.inspect();
+  if (info.ExitCode !== 0) {
+    throw new Error(`deliverTick exec exited ${info.ExitCode} for container ${containerId}`);
+  }
+}
+
+/**
  * Returns the current status of a container: running, stopped, or missing.
  */
 export async function getContainerStatus(

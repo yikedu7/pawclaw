@@ -20,11 +20,9 @@
 - **Action needed:** Read Onchain OS SDK docs
 - **Fallback:** Generate HD wallet derivation from pet UUID using ethers.js, store encrypted private key in DB
 
-### R12: OpenClaw Tick Delivery via External Port — MEDIUM
-- **Risk:** `mock-tick.ts` delivers ticks to a running OpenClaw container via `POST http://<host>:<port>/webhook/<petId>`. The OpenClaw gateway binds to `127.0.0.1:18789` inside the container — Docker port binding cannot forward to loopback-only services. The fetch call returns `connection refused`.
-- **Impact:** Tick-driven LLM turns do not reach the container. The OpenClaw heartbeat (5-min internal timer) still fires independently, so the pet acts autonomously; manual ticks just don't add extra turns.
-- **Action needed:** Replace the `fetch(containerUrl)` call in `mock-tick.ts` with `container.exec(['curl', '-X', 'POST', ...])` so the request runs inside the container's network namespace. Track in a dedicated issue.
-- **Does NOT affect:** Docker health polling (uses `docker inspect`); OpenClaw tool call callbacks (`curl` inside the container can reach `http://127.0.0.1/internal/tools/*` on the backend).
+### R12: OpenClaw Tick Delivery via External Port — RESOLVED ✅
+- **Was:** `mock-tick.ts` used `fetch(http://<host>:<port>/webhook/<petId>)`. The OpenClaw gateway binds to `127.0.0.1:18789` — Docker port binding cannot forward to loopback-only services.
+- **Fix:** Replaced with `deliverTick(containerId, petId, payload)` in `container.ts`. Uses `dockerode container.exec()` to run `curl` inside the container's network namespace, where `localhost:18789` is reachable. `mock-tick.ts` now checks `pet.container_id && pet.container_status === 'running' && HETZNER_HOST` before calling `deliverTick`.
 
 ### R9: docs-issue-sync LLM Write-Access — MEDIUM
 - **Risk:** The `docs-issue-sync` workflow grants Claude Code Action write-access to **all** open issue bodies on every `docs/**` push. If the LLM misidentifies a contradiction, it silently rewrites an issue body with no human review step.
