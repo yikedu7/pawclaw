@@ -185,7 +185,7 @@ describe('POST /internal/runtime/events/:petId', () => {
     expect(rows[0].mood).toBe(80); // unchanged
   });
 
-  it('handles gift event — returns ok:true (TODO #16 stub)', async () => {
+  it('handles gift event via runtime events endpoint (no x402 on this path)', async () => {
     const res = await app.inject({
       method: 'POST', url: `/internal/runtime/events/${petId}`,
       headers: auth,
@@ -247,18 +247,26 @@ describe('POST /internal/tools/rest', () => {
 });
 
 // ── POST /internal/tools/send_gift ───────────────────────────────────────────
+// Full x402 flow coverage lives in src/payment/__tests__/sendGift.x402.test.ts
 
 describe('POST /internal/tools/send_gift', () => {
   const auth = { authorization: `Bearer ${WEBHOOK_TOKEN}` };
 
-  it('returns 200 with ok:true (TODO #16 stub)', async () => {
+  it('returns 402 on first call (no PAYMENT-SIGNATURE header)', async () => {
+    // Seed wallet_address on target pet so 402 can populate payTo
+    await pool.query('UPDATE pets SET wallet_address = $1 WHERE id = $2', ['0x0000000000000000000000000000000000000099', otherPetId]);
+    process.env.PAYMENT_TOKEN_ADDRESS = '0x0000000000000000000000000000000000000001';
+
     const res = await app.inject({
       method: 'POST', url: '/internal/tools/send_gift',
       headers: auth,
       payload: { pet_id: petId, target_pet_id: otherPetId, amount: '0.01' },
     });
-    expect(res.statusCode).toBe(200);
-    expect(res.json()).toMatchObject({ ok: true });
+    expect(res.statusCode).toBe(402);
+    const body = JSON.parse(Buffer.from(res.body, 'base64').toString('utf8'));
+    expect(body.x402Version).toBe(2);
+
+    delete process.env.PAYMENT_TOKEN_ADDRESS;
   });
 
   it('returns 400 when amount missing', async () => {
