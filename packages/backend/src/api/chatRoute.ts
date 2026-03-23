@@ -38,7 +38,7 @@ export async function registerChatRoute(fastify: FastifyInstance): Promise<void>
     let reply_text: string;
 
     if (process.env.MOCK_LLM === '1') {
-      reply_text = `${pet.name} says: I heard you! (mock chat)`;
+      reply_text = 'I heard you! (mock chat)';
     } else {
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-6-20250514',
