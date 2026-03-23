@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, ne } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client.js';
 import { pets, social_events } from '../db/schema.js';
@@ -7,6 +7,10 @@ import { tickBus } from './tick-bus.js';
 import { tickTools } from './tick-tools.js';
 
 const anthropic = new Anthropic();
+
+// Demo cycle counter — rotates through all action types for frontend testing
+let demoCycle = 0;
+const DEMO_ACTIONS = ['speak', 'rest', 'visit', 'gift'] as const;
 
 // Zod schemas for LLM tool inputs
 const VisitPetInput = z.object({
@@ -30,15 +34,69 @@ export async function executeTick(petId: string): Promise<{ action: string }> {
   });
   if (!pet) throw new Error(`Pet not found: ${petId}`);
 
-  // Mock mode — skip LLM, emit a canned speak event
+  // Demo cycle mode — skip LLM, rotate through all action types for frontend testing
   if (process.env.MOCK_LLM === '1') {
-    const message = `Hello! I am ${pet.name}. (mock tick)`;
-    tickBus.emit('ownerEvent', pet.owner_id, {
-      type: 'pet.speak',
-      data: { pet_id: petId, message },
-    });
+    const action = DEMO_ACTIONS[demoCycle % DEMO_ACTIONS.length];
+    demoCycle++;
+
+    // Find another pet for visit/gift actions
+    const otherPet = await db.query.pets.findFirst({ where: ne(pets.id, petId) });
+    const targetId = otherPet?.id ?? petId; // fall back to self if no other pet
+
+    switch (action) {
+      case 'speak':
+        tickBus.emit('ownerEvent', pet.owner_id, {
+          type: 'pet.speak',
+          data: { pet_id: petId, message: `Hi! I'm ${pet.name}. (demo tick ${demoCycle})` },
+        });
+        break;
+
+      case 'rest': {
+        const newHunger = Math.min(100, pet.hunger + 10);
+        const newMood = Math.min(100, pet.mood + 5);
+        await db.update(pets).set({ hunger: newHunger, mood: newMood }).where(eq(pets.id, petId));
+        tickBus.emit('ownerEvent', pet.owner_id, {
+          type: 'pet.state',
+          data: { pet_id: petId, hunger: newHunger, mood: newMood, affection: pet.affection },
+        });
+        break;
+      }
+
+      case 'visit':
+        await db.insert(social_events).values({
+          from_pet_id: petId,
+          to_pet_id: targetId,
+          type: 'visit',
+          payload: { greeting: `Hey ${otherPet?.name ?? 'friend'}! (demo)` },
+        });
+        tickBus.emit('ownerEvent', pet.owner_id, {
+          type: 'social.visit',
+          data: {
+            from_pet_id: petId,
+            to_pet_id: targetId,
+            turns: [{ speaker_pet_id: petId, line: `Hey ${otherPet?.name ?? 'friend'}! Nice to see you!` }],
+          },
+        });
+        break;
+
+      case 'gift': {
+        const txHash = `0xdemo_${Date.now().toString(16)}`;
+        await db.insert(social_events).values({
+          from_pet_id: petId,
+          to_pet_id: targetId,
+          type: 'gift',
+          payload: { amount: '0.001', token: 'OKB', tx_hash: txHash },
+        });
+        tickBus.emit('ownerEvent', pet.owner_id, {
+          type: 'social.gift',
+          data: { from_pet_id: petId, to_pet_id: targetId, token: 'OKB', amount: '0.001', tx_hash: txHash },
+        });
+        break;
+      }
+    }
+
     await db.update(pets).set({ last_tick_at: new Date() }).where(eq(pets.id, petId));
-    return { action: 'speak (mock)' };
+    return { action: `${action} (demo cycle ${demoCycle})` };
   }
 
   // 2. Fetch last 5 social events involving this pet
