@@ -9,6 +9,7 @@ import { registerChatRoute } from './api/chatRoute.js';
 import { registerDiaryRoute } from './social/diary.js';
 import { generateSoulMd } from './runtime/soul-generator.js';
 import { generateSkillMd } from './runtime/skill-generator.js';
+import { createPetContainer, startContainer } from './runtime/container.js';
 import { tickBus } from './runtime/tick-bus.js';
 
 const fastify = Fastify({ logger: true });
@@ -17,7 +18,17 @@ await fastify.register(fastifyCors, { origin: true });
 await fastify.register(fastifyWebsocket);
 await registerWsRoute(fastify);
 await registerTickRoute(fastify);
-await registerPetRoutes(fastify, { generateSoulMd, generateSkillMd });
+await registerPetRoutes(fastify, {
+  generateSoulMd,
+  generateSkillMd,
+  launchContainer: process.env.HETZNER_HOST
+    ? (petId, soulMd, skillMd) => {
+        createPetContainer(petId, soulMd, skillMd)
+          .then(({ containerId }) => startContainer(containerId))
+          .catch((err: unknown) => fastify.log.error({ err, petId }, 'container lifecycle failed'));
+      }
+    : undefined,
+});
 await registerChatRoute(fastify, {
   emitOwnerEvent: (ownerId, event) => tickBus.emit('ownerEvent', ownerId, event),
 });
