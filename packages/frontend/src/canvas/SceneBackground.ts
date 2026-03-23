@@ -85,19 +85,15 @@ const DECORS: Decor[] = [
   { col: 25, row:  8, sx: 96, sy:  0, sw: 16, sh: 16 }, // pink mushroom cap — far right
   { col: 26, row:  7, sx:112, sy:  0, sw: 16, sh: 16 }, // purple mushroom — far right
 
-  // ── Rocks (7,1) grey pile · stump (4,4) ───────────────────────────────────
+  // ── Rocks — (7,1) grey pile · (5,4) medium pile · (6,4) angular ──────────
   { col: 10, row: 10, sx:112, sy: 16, sw: 16, sh: 16 }, // grey rock pile — below house left
-  { col: 18, row: 10, sx: 64, sy: 64, sw: 16, sh: 16 }, // tree stump — below house right
+  { col: 18, row: 10, sx: 80, sy: 64, sw: 16, sh: 16 }, // grey rock pile (medium) — below house right
+  { col: 21, row: 12, sx: 96, sy: 64, sw: 16, sh: 16 }, // grey rock angular — lower right
 
-  // ── Flowers (4,3) pink · (5,3) blue · (8,2) sunflower ─────────────────────
+  // ── Flowers (4,3) pink · (5,3) blue · (8,2)+(8,3) sunflower 16×32 ────────
   { col:  8, row:  9, sx: 64, sy: 48, sw: 16, sh: 16 }, // pink flower cluster — lower-left
   { col: 23, row: 10, sx: 80, sy: 48, sw: 16, sh: 16 }, // blue flower — lower-right
-  { col: 15, row:  9, sx:128, sy: 32, sw: 16, sh: 16 }, // sunflower — below house
-
-  // ── Ground clutter ─────────────────────────────────────────────────────────
-  { col: 21, row: 12, sx:  0, sy: 64, sw: 32, sh: 16 }, // log — lower right
-  { col:  7, row:  6, sx:128, sy: 48, sw: 16, sh: 16 }, // small branching plant — left mid
-  { col: 24, row:  8, sx:112, sy: 64, sw: 32, sh: 16 }, // small rounded bush — right mid
+  { col: 15, row:  8, sx:128, sy: 32, sw: 16, sh: 32 }, // sunflower (full 16×32) — below house
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
