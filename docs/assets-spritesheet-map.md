@@ -133,9 +133,11 @@ Decoration sprites placed on top of grass tiles (not walkable). Objects span 1x1
 
 ### ⚠️ Do NOT use in grass scenes
 These tiles are UI/inventory icons (have white outline border) or aquatic props — they look wrong on grass:
+- **(0,3)**: Dark bush with flowers — has a white pixel outline border = UI/inventory item style
 - **(2,2)**: Red apple — inventory icon
 - **(3,2), (4,2)**: Brown bell/hive shapes — inventory icons
 - **(5,3)**: Blue chest icon — inventory icon
+- **(5,4), (6,4)**: Grey rocks — have a white glow shadow underneath = water light reflection, aquatic only
 - **(0,4)–(3,4)**: Lily pad and log fragments — aquatic, visually incomplete when isolated
 - **(7,4)–(8,4)**: Lily pads — aquatic water plants
 
@@ -183,7 +185,7 @@ These tiles are UI/inventory icons (have white outline border) or aquatic props 
 
 | Grid | Object | sx, sy, sw, sh | Notes |
 |------|--------|----------------|-------|
-| (0,3) | Dark green round bush with pink flower dots | **0, 48, 16, 16** | ✓ Grass-safe |
+| (0,3) | Dark green round bush with pink flower dots | 0, 48, 16, 16 | ⚠️ White outline border = UI item |
 | (1,3) | Dark green round bush (plain, no flowers) | **16, 48, 16, 16** | ✓ Grass-safe |
 | (2,3) | Tiny pink/brown flower bud | 32, 48, 16, 16 | |
 | (3,3) | Small flower bud with green leaves | 48, 48, 16, 16 | |
@@ -206,8 +208,8 @@ To render the complete sunflower (head + stem + leaves), use: **sx=128, sy=32, s
 | (2,4) | Large round green leaf — lily pad | 32, 64, 16, 16 | ⚠️ Aquatic |
 | (3,4) | Green oval + brown cap — log fragment | 48, 64, 16, 16 | ⚠️ Aquatic/incomplete |
 | (4,4) | Brown stump base (thin trunk bottom only) | 64, 64, 16, 16 | Poor standalone visual |
-| (5,4) | Grey rock pile (medium, 2 stacked stones) | **80, 64, 16, 16** | ✓ Grass-safe |
-| (6,4) | Grey rock (angular, stepped) | **96, 64, 16, 16** | ✓ Grass-safe |
+| (5,4) | Grey rock pile (medium, 2 stacked stones) | 80, 64, 16, 16 | ⚠️ White glow shadow = aquatic light, not for grass |
+| (6,4) | Grey rock (angular, stepped) | 96, 64, 16, 16 | ⚠️ White glow shadow = aquatic light, not for grass |
 | (7,4) | Green lily pad with notch | 112, 64, 16, 16 | ⚠️ Aquatic |
 | (8,4) | Lily pad + lily flower | 128, 64, 16, 16 | ⚠️ Aquatic |
 
