@@ -129,28 +129,90 @@ Contains grass tiles combined with cliff edges across three distinct sections:
 
 Decoration sprites placed on top of grass tiles (not walkable). Objects span 1x1, 1x2, or 2x2 tile areas.
 
-| Grid Region     | Object                                        | Size      |
-|-----------------|-----------------------------------------------|-----------|
-| (0,0)–(1,1)     | Large round green tree (bushy, solid green)   | 2x2 tiles |
-| (2,0)–(3,1)     | Small round tree / bush (darker green)        | 2x2 tiles |
-| (4,0)–(5,1)     | Mushroom cluster (red/pink caps, white dots)  | 2x2 tiles |
-| (6, 0)          | Small rock / stone (grey)                     | 1x1 tile  |
-| (7, 0)          | Pebble / small stone variant                  | 1x1 tile  |
-| (8, 0)          | Tree stump (brown, round)                     | 1x1 tile  |
-| (0,2)–(1,3)     | Heart tree (round tree with pink heart decor) | 2x2 tiles |
-| (2,2)–(3,3)     | Small bush / shrub (dark teal/green, round)   | 2x2 tiles |
-| (4, 2)          | Pink/purple small flower cluster              | 1x1 tile  |
-| (5, 2)          | Blue/purple butterfly or flower               | 1x1 tile  |
-| (6, 2)          | Pink flower                                   | 1x1 tile  |
-| (7, 2)          | Orange/brown small item (acorn?)              | 1x1 tile  |
-| (8, 2)          | Small yellow bird                             | 1x1 tile  |
-| (0,4)–(1,4)     | Log / fallen tree (brown horizontal)          | 2x1 tiles |
-| (2, 4)          | Small green sprout / plant                    | 1x1 tile  |
-| (3, 4)          | Another small sprout                          | 1x1 tile  |
-| (4, 4)          | Small mushroom (single)                       | 1x1 tile  |
-| (5, 4)          | Rock variant                                  | 1x1 tile  |
-| (6, 4)          | Heart / small decoration                      | 1x1 tile  |
-| (7,4)–(8,4)     | Small rounded bush (teal)                     | 2x1 tiles |
+> **Verified**: every tile below was confirmed by pixel-accurate extraction and visual inspection. Pixel offsets (sx, sy) are the values that render correctly in PixiJS at 3× scale.
+
+### ⚠️ Do NOT use in grass scenes
+These tiles are UI/inventory icons (have white outline border) or aquatic props — they look wrong on grass:
+- **(0,3)**: Dark bush with flowers — has a white pixel outline border = UI/inventory item style
+- **(4,3)**: Strawberry cluster — UI/inventory item (looks like red fruit, not a scene flower)
+- **(2,2)**: Red apple — inventory icon
+- **(3,2), (4,2)**: Brown bell/hive shapes — inventory icons
+- **(5,3)**: Blue chest icon — inventory icon
+- **(5,4), (6,4)**: Grey rocks — have a white glow shadow underneath = water light reflection, aquatic only
+- **(0,4)–(3,4)**: Lily pad and log fragments — aquatic, visually incomplete when isolated
+- **(7,4)–(8,4)**: Lily pads — aquatic water plants
+
+### Row 0–1: Trees (cols 0–4)
+
+| Grid Region | Object | Size | sx, sy, sw, sh |
+|-------------|--------|------|----------------|
+| (0,0)–(0,1) | Small standalone tree — round green canopy + brown trunk | 1×2 tiles (16×32) | 0, 0, 16, 32 |
+| (1,0)–(2,1) | Large green round tree — full bushy canopy + trunk | 2×2 tiles (32×32) | **16, 0, 32, 32** |
+| (3,0)–(4,1) | Cherry blossom / heart tree — green canopy with pink hearts | 2×2 tiles (32×32) | **48, 0, 32, 32** |
+
+### Row 0: Individual mushrooms (cols 5–8)
+
+| Grid | Object | sx, sy, sw, sh |
+|------|--------|----------------|
+| (5,0) | Brown mushroom pair (two caps + stems) | 80, 0, 16, 16 |
+| (6,0) | Pink/brown mushroom (single cap) | 96, 0, 16, 16 |
+| (7,0) | Purple cross mushroom | 112, 0, 16, 16 |
+| (8,0) | Purple mushroom variant | 128, 0, 16, 16 |
+
+### Row 1: Leaf clusters & rocks (cols 5–8)
+
+| Grid | Object | sx, sy, sw, sh |
+|------|--------|----------------|
+| (5,1) | Green leaf cluster — 3 leaves (upper portion of a bush) | 80, 16, 16, 16 |
+| (6,1) | Green leaf cluster — 6 leaves, double row | 96, 16, 16, 16 |
+| (7,1) | Grey rock pile (medium, angular) | **112, 16, 16, 16** |
+| (8,1) | Grey rock pile (large, rounded) | 128, 16, 16, 16 |
+
+### Row 2: Berry clusters, log, flowers, sunflower top (cols 0–8)
+
+| Grid | Object | sx, sy, sw, sh | Notes |
+|------|--------|----------------|-------|
+| (0,2) | Pink berry cluster (3 berries, no leaves) | 0, 32, 16, 16 | |
+| (1,2) | Pink berries + green leaf | 16, 32, 16, 16 | |
+| (2,2) | Red apple + leaf | 32, 32, 16, 16 | ⚠️ UI item |
+| (3,2) | Brown bell/hive shape | 48, 32, 16, 16 | ⚠️ UI item |
+| (4,2) | Brown bell shape variant | 64, 32, 16, 16 | ⚠️ UI item |
+| (5,2) | Horizontal log / fallen trunk | 80, 32, 16, 16 | |
+| (6,2) | Yellow flower + green leaves | 96, 32, 16, 16 | |
+| (7,2) | Yellow flower + leaves (larger) | 112, 32, 16, 16 | |
+| (8,2) | Sunflower head — top half only | 128, 32, 16, 16 | Use as 16×32 with row 3 |
+
+### Row 3: Bushes, flower buds, flower clusters, sunflower stem (cols 0–8)
+
+| Grid | Object | sx, sy, sw, sh | Notes |
+|------|--------|----------------|-------|
+| (0,3) | Dark green round bush with pink flower dots | 0, 48, 16, 16 | ⚠️ White outline border = UI item |
+| (1,3) | Dark green round bush (plain, no flowers) | **16, 48, 16, 16** | ✓ Grass-safe |
+| (2,3) | Tiny pink/brown flower bud | 32, 48, 16, 16 | |
+| (3,3) | Small flower bud with green leaves | 48, 48, 16, 16 | |
+| (4,3) | Strawberry cluster (3 red fruit) | 64, 48, 16, 16 | ⚠️ UI/inventory item — not for grass scenes |
+| (5,3) | Blue chest icon + green leaves | 80, 48, 16, 16 | ⚠️ UI item |
+| (6,3) | Pink/rose flower cluster (3 flowers + leaves) | 96, 48, 16, 16 | |
+| (7,3) | Pink/rose flower cluster (larger, more detailed) | 112, 48, 16, 16 | |
+| (8,3) | Sunflower stem — bottom half only | 128, 48, 16, 16 | Use as 16×32 with row 2 |
+
+### Full sunflower (16×32 spanning rows 2–3, col 8)
+
+To render the complete sunflower (head + stem + leaves), use: **sx=128, sy=32, sw=16, sh=32**
+
+### Row 4: Lily pads, rocks (cols 0–8)
+
+| Grid | Object | sx, sy, sw, sh | Notes |
+|------|--------|----------------|-------|
+| (0,4) | Green oval — lily pad left half | 0, 64, 16, 16 | ⚠️ Aquatic |
+| (1,4) | Green oval + brown end — lily pad/log fragment | 16, 64, 16, 16 | ⚠️ Aquatic/incomplete |
+| (2,4) | Large round green leaf — lily pad | 32, 64, 16, 16 | ⚠️ Aquatic |
+| (3,4) | Green oval + brown cap — log fragment | 48, 64, 16, 16 | ⚠️ Aquatic/incomplete |
+| (4,4) | Brown stump base (thin trunk bottom only) | 64, 64, 16, 16 | Poor standalone visual |
+| (5,4) | Grey rock pile (medium, 2 stacked stones) | 80, 64, 16, 16 | ⚠️ White glow shadow = aquatic light, not for grass |
+| (6,4) | Grey rock (angular, stepped) | 96, 64, 16, 16 | ⚠️ White glow shadow = aquatic light, not for grass |
+| (7,4) | Green lily pad with notch | 112, 64, 16, 16 | ⚠️ Aquatic |
+| (8,4) | Lily pad + lily flower | 128, 64, 16, 16 | ⚠️ Aquatic |
 
 ---
 
@@ -438,10 +500,12 @@ Pixel offset formula: `x = col * 48`, `y = row * 48`, frame size = 48x48.
 | Grass island top-right corner | Grass.png                | (2,0)                            |
 | Grass island bottom-left corner | Grass.png              | (0,2)                            |
 | Grass island bottom-right corner | Grass.png             | (2,2)                            |
-| Large tree decoration  | Basic Grass Biom things 1.png    | (0,0)–(1,1) = 32x32 sprite       |
-| Small bush             | Basic Grass Biom things 1.png    | (2,2)–(3,3) = 32x32 sprite       |
-| Heart tree             | Basic Grass Biom things 1.png    | (0,2)–(1,3) = 32x32 sprite       |
-| Small yellow bird      | Basic Grass Biom things 1.png    | (8,2) = 16x16 sprite             |
+| Large green tree       | Basic Grass Biom things 1.png    | (1,0)–(2,1) = sx=16,sy=0,32×32   |
+| Cherry blossom tree    | Basic Grass Biom things 1.png    | (3,0)–(4,1) = sx=48,sy=0,32×32   |
+| Dark bush w/ flowers   | Basic Grass Biom things 1.png    | (0,3) = sx=0,sy=48,16×16         |
+| Sunflower              | Basic Grass Biom things 1.png    | (8,2)+(8,3) = sx=128,sy=32,16×32 |
+| Pink flower cluster    | Basic Grass Biom things 1.png    | (4,3) = sx=64,sy=48,16×16        |
+| Grey rock pile         | Basic Grass Biom things 1.png    | (7,1) = sx=112,sy=16,16×16       |
 | Path tiles             | Paths.png                        | (0,0) or other segment variants  |
 | Chest                  | Chest.png                        | Row 0, Col 0 = 48x48 sprite      |
 | Pet character (idle)   | Basic Charakter Spritesheet.png  | Row 0, frames 0+2                |

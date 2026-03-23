@@ -68,12 +68,42 @@ interface Decor {
   col: number; row: number;
   sx: number; sy: number;
   sw: number; sh: number;
+  tex?: 'biom' | 'grass'; // default: 'biom'
 }
 const DECORS: Decor[] = [
-  { col:  6, row: 3, sx: 16, sy: 0, sw: 32, sh: 32 }, // green tree — upper-left
-  { col: 22, row: 3, sx: 48, sy: 0, sw: 32, sh: 32 }, // cherry blossom — upper-right
-  { col:  6, row: 8, sx: 16, sy: 0, sw: 32, sh: 32 }, // green tree — lower-left
-  { col: 22, row: 8, sx: 48, sy: 0, sw: 32, sh: 32 }, // cherry blossom — lower-right
+  // ── Original corner trees ──────────────────────────────────────────────────
+  { col:  6, row: 3, sx: 16, sy:  0, sw: 32, sh: 32 }, // green tree — upper-left
+  { col: 22, row: 3, sx: 48, sy:  0, sw: 32, sh: 32 }, // cherry blossom — upper-right
+  { col:  6, row: 8, sx: 16, sy:  0, sw: 32, sh: 32 }, // green tree — lower-left
+  { col: 22, row: 8, sx: 48, sy:  0, sw: 32, sh: 32 }, // cherry blossom — lower-right
+
+  // ── Bush (1,3) plain dark ─────────────────────────────────────────────────
+  { col: 21, row:  4, sx: 16, sy: 48, sw: 16, sh: 16 }, // plain dark bush — right of house
+
+  // ── Mushrooms (5,0) brown · (6,0) pink · (7,0) purple ─────────────────────
+  { col: 24, row:  7, sx: 80, sy:  0, sw: 16, sh: 16 }, // brown mushroom — far right
+  { col: 25, row:  8, sx: 96, sy:  0, sw: 16, sh: 16 }, // pink mushroom cap — far right
+  { col: 26, row:  7, sx:112, sy:  0, sw: 16, sh: 16 }, // purple mushroom — far right
+
+  // ── Rock — (7,1) grey pile only (no aquatic-shadow variants) ──────────────
+  { col: 10, row: 10, sx:112, sy: 16, sw: 16, sh: 16 }, // grey rock pile — below house left
+
+  // ── Flowers (8,2)+(8,3) sunflower 16×32 ─────────────────────────────────
+  { col: 15, row:  8, sx:128, sy: 32, sw: 16, sh: 32 }, // sunflower (full 16×32) — below house
+
+  // ── Grass patches from Grass.png rows 5-6 (ground variation) ─────────────
+  // (7,5) dark green blobs · (8,5) tiny yellow flowers · (9,5) yellow cross flower
+  // (7,6) light green blobs · (8,6) tiny olive dots
+  // house footprint = cols 9–18, rows 2–7 — keep patches outside that zone
+  { tex: 'grass', col:  7, row:  4, sx:112, sy: 80, sw: 16, sh: 16 }, // dark grass blobs — left of house
+  { tex: 'grass', col: 20, row:  3, sx:112, sy: 96, sw: 16, sh: 16 }, // light grass blobs — right of house
+  { tex: 'grass', col: 20, row:  6, sx:128, sy: 80, sw: 16, sh: 16 }, // tiny yellow flowers — right of house
+  { tex: 'grass', col: 11, row: 11, sx:112, sy: 80, sw: 16, sh: 16 }, // dark grass blobs — below house left
+  { tex: 'grass', col: 17, row: 11, sx:112, sy: 96, sw: 16, sh: 16 }, // light grass blobs — below house right
+  { tex: 'grass', col: 20, row: 11, sx:128, sy: 96, sw: 16, sh: 16 }, // tiny olive dots — lower-right
+  { tex: 'grass', col: 14, row: 10, sx:144, sy: 80, sw: 16, sh: 16 }, // yellow cross flower — center-bottom
+  { tex: 'grass', col: 25, row: 10, sx:128, sy: 80, sw: 16, sh: 16 }, // tiny yellow flowers — far right
+  { tex: 'grass', col: 26, row:  5, sx:112, sy: 96, sw: 16, sh: 16 }, // light grass blobs — far right upper
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -113,8 +143,9 @@ export class SceneBackground extends Container {
 
     // Decoration sprites
     for (const d of DECORS) {
+      const src = d.tex === 'grass' ? grassTex : biomTex;
       const frame = new Texture({
-        source: biomTex.source,
+        source: src.source,
         frame: new Rectangle(d.sx, d.sy, d.sw, d.sh),
       });
       const spr = new Sprite(frame);
