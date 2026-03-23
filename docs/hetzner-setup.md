@@ -126,6 +126,31 @@ Port 2376 (Docker TCP) is intentionally closed. All Docker management goes over 
 
 ---
 
+## Local testing with OrbStack
+
+You can validate the provision script locally using [OrbStack](https://orbstack.dev/) before running on a real Hetzner server. OrbStack runs full Linux VMs with systemd, so `systemctl`, UFW, and Docker all work as on real hardware.
+
+```bash
+# Create a fresh Ubuntu 22.04 VM
+orb create ubuntu:22.04 hetzner-test
+
+# Run the provision script as root
+orb run -m hetzner-test -u root bash < scripts/provision-hetzner.sh
+
+# Verify results
+orb run -m hetzner-test -u root stat -c '%u:%g %a' /data/pets    # expect: 1000:1000 755
+orb run -m hetzner-test -u root ufw status                        # expect: 22, 19000:19999
+orb run -m hetzner-test -u deploy docker ps                       # expect: empty table, no permission error
+
+# Run again to verify idempotency (should skip all steps, no errors)
+orb run -m hetzner-test -u root bash < scripts/provision-hetzner.sh
+
+# Clean up
+orb delete hetzner-test
+```
+
+---
+
 ## Troubleshooting
 
 **SSH auth fails:**
