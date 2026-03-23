@@ -5,6 +5,7 @@ import { db } from '../db/client.js';
 import { pets, social_events } from '../db/schema.js';
 import { tickBus } from './tick-bus.js';
 import { tickTools } from './tick-tools.js';
+import { executeVisit } from '../social/visit.js';
 
 const anthropic = new Anthropic();
 
@@ -162,20 +163,7 @@ export async function executeTick(petId: string): Promise<{ action: string }> {
   switch (toolUse.name) {
     case 'visit_pet': {
       const { target_pet_id, greeting } = VisitPetInput.parse(toolUse.input);
-      await db.insert(social_events).values({
-        from_pet_id: petId,
-        to_pet_id: target_pet_id,
-        type: 'visit',
-        payload: { greeting },
-      });
-      tickBus.emit('ownerEvent', pet.owner_id, {
-        type: 'social.visit',
-        data: {
-          from_pet_id: petId,
-          to_pet_id: target_pet_id,
-          turns: [{ speaker_pet_id: petId, line: greeting }],
-        },
-      });
+      await executeVisit(petId, target_pet_id, greeting);
       break;
     }
 
@@ -190,6 +178,8 @@ export async function executeTick(petId: string): Promise<{ action: string }> {
 
     case 'send_gift': {
       const { target_pet_id, amount } = SendGiftInput.parse(toolUse.input);
+      // TODO(#16): X402 payment — call pet wallet via Onchain OS to send OKB on X Layer,
+      // then confirm tx on-chain before inserting the social_event.
       // Mock tx_hash — real on-chain integration is a separate issue
       const txHash = `0xmock_${Date.now().toString(16)}`;
       await db.insert(social_events).values({
