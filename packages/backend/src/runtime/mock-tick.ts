@@ -100,7 +100,36 @@ export async function executeTick(petId: string): Promise<{ action: string }> {
     return { action: `${action} (demo cycle ${demoCycle})` };
   }
 
-  // 2. Fetch last 5 social events involving this pet
+  // 2. If a container is registered for this pet, delegate the tick to it.
+  // The container runs the LLM and calls back /internal/tools/* to execute actions.
+  if (pet.container_host && pet.container_port) {
+    const containerUrl = `http://${pet.container_host}:${pet.container_port}/tick`;
+    const recentForContainer = await db.query.social_events.findMany({
+      where: eq(social_events.from_pet_id, petId),
+      orderBy: [desc(social_events.created_at)],
+      limit: 5,
+    });
+    await fetch(containerUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(pet.gateway_token ? { Authorization: `Bearer ${pet.gateway_token}` } : {}),
+      },
+      body: JSON.stringify({
+        pet_id: petId,
+        hunger: pet.hunger,
+        mood: pet.mood,
+        affection: pet.affection,
+        soul_md: pet.soul_md,
+        skill_md: pet.skill_md,
+        recent_events: recentForContainer,
+      }),
+    });
+    await db.update(pets).set({ last_tick_at: new Date() }).where(eq(pets.id, petId));
+    return { action: 'container' };
+  }
+
+  // 3. Fetch last 5 social events involving this pet
   const recentEvents = await db.query.social_events.findMany({
     where: eq(social_events.from_pet_id, petId),
     orderBy: [desc(social_events.created_at)],
