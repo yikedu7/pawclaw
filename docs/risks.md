@@ -20,10 +20,11 @@
 - **Action needed:** Read Onchain OS SDK docs
 - **Fallback:** Generate HD wallet derivation from pet UUID using ethers.js, store encrypted private key in DB
 
-### R12: OpenClaw Gateway Binds to 127.0.0.1 Only — HIGH
-- **Confirmed (2026-03-23 smoke test):** `ghcr.io/openclaw/openclaw:latest` gateway process listens on `ws://127.0.0.1:18789` only, not `0.0.0.0`. Docker port mapping (`-p 19000:18789`) is therefore non-functional — requests to `HETZNER_IP:19000` do not reach the container. Attempting `gateway.host: "0.0.0.0"` in `openclaw.json` causes `Unrecognized key: "host"` and crashes the container.
-- **Impact:** The container port allocation design in `docs/container-design.md` (static range 19000–19999, `container_port` DB column, `http://{container_host}:{container_port}/webhook/{id}`) must be revised. Direct HTTP tick delivery from Railway backend to `HETZNER_IP:port` will not work.
-- **Fix (confirmed working):** Use `dockerode container.exec()` to deliver tick webhooks inside the container:
+### R12: OpenClaw Tick Webhook Not Reachable via Docker Port Mapping — HIGH
+- **Confirmed (2026-03-23 smoke test):** `openclaw-gateway` listens on `ws://127.0.0.1:18789` only, not `0.0.0.0`. Docker port mapping (`-p 19000:18789`) is therefore non-functional for the tick webhook — `POST HETZNER_IP:19000/webhook/<id>` does not reach the container. Attempting `gateway.host: "0.0.0.0"` in `openclaw.json` causes `Unrecognized key: "host"` and crashes the container.
+- **Health checking is NOT affected:** The image has a built-in `HEALTHCHECK` (`node -e "fetch('http://127.0.0.1:18789/healthz')"`) that runs inside the container. Container health is read via `dockerode container.inspect() → State.Health.Status`. This works correctly and requires no port access.
+- **Impact:** The tick delivery design in `docs/container-design.md` (`POST http://{container_host}:{container_port}/webhook/{id}` from Railway backend) must be revised.
+- **Fix (confirmed working):** Use `dockerode container.exec()` to deliver tick webhooks from inside the container:
   ```typescript
   const exec = await container.exec({
     Cmd: ['wget', '-q', '-O', '-', '--post-data', body, 'http://localhost:18789/webhook/' + petId],
@@ -31,8 +32,8 @@
     AttachStderr: true,
   });
   ```
-  This routes the HTTP request through the container's own localhost, bypassing the bind address limitation. Tested working via dockerode SSH.
-- **Scope impact:** `container_port` column and port allocation table (`port_allocations`) are no longer needed for tick delivery. Port mapping may still be useful for the OpenClaw web UI (port 18790) but is not required for MVP. Issue #39 (container lifecycle manager) must implement `exec`-based tick delivery instead of direct HTTP.
+  Tested working via dockerode SSH on OrbStack VM.
+- **Scope impact:** `container_port` column and `port_allocations` table are no longer needed for tick delivery. Issue #39 (container lifecycle manager) must implement `exec`-based tick delivery instead of direct HTTP.
 - **Action needed:** Update #39 implementation plan and `docs/container-design.md` tick contract section.
 
 ### R8: OpenClaw GHCR Image Authentication — RESOLVED ✅
