@@ -1,4 +1,4 @@
-import { Application, Container, Graphics, Text, Ticker, Texture } from 'pixi.js';
+import { Application, Container, Graphics, Ticker, Texture } from 'pixi.js';
 import type { WsEvent } from '@x-pet/shared';
 import { DialogueBubble } from './DialogueBubble';
 import { GiftAnimation } from './GiftAnimation';
@@ -6,24 +6,11 @@ import { SceneBackground } from './SceneBackground';
 import { PetSprite } from './PetSprite';
 import { VisitorSprite } from './VisitorSprite';
 
-const BAR_W = 150;
-const BAR_H = 9;
-const BAR_ROW = 26;
-const STAT_BOTTOM_PAD = 90;
 const PET_SPRITE_H = 144; // 48px frame × 3 scale
 const FRIEND_FLASH_MS = 1200;
 const VISIT_SLIDE_OUT_DELAY_MS = 4200;
 
-const C = {
-  hunger: 0xf59e0b,
-  mood: 0x10b981,
-  affection: 0xec4899,
-  track: 0x2a2a4a,
-  label: 0x8888aa,
-};
-
 type PetStateData = Extract<WsEvent, { type: 'pet.state' }>['data'];
-interface StatBar { fg: Graphics; current: number; target: number; color: number }
 
 export interface SceneTextures {
   spritesheet: Texture;
@@ -40,8 +27,6 @@ export class PetRoom extends Container {
   private readonly bg: SceneBackground;
   private readonly petSprite: PetSprite;
   private readonly visitor: VisitorSprite;
-  private readonly statRoot = new Container();
-  private readonly bars: [StatBar, StatBar, StatBar];
   private readonly bubble: DialogueBubble;
   private readonly gift: GiftAnimation;
   private readonly flash = new Graphics();
@@ -56,13 +41,7 @@ export class PetRoom extends Container {
     this.petSprite = new PetSprite(textures.spritesheet);
     this.visitor = new VisitorSprite(textures.spritesheet);
 
-    this.addChild(this.bg, this.visitor, this.petSprite, this.statRoot);
-
-    const hungerBar = this.makeBar(C.hunger);
-    const moodBar = this.makeBar(C.mood);
-    const affectionBar = this.makeBar(C.affection);
-    this.bars = [hungerBar, moodBar, affectionBar];
-    this.buildStatRows(['Hunger', 'Mood', 'Affection'], [hungerBar, moodBar, affectionBar]);
+    this.addChild(this.bg, this.visitor, this.petSprite);
 
     this.bubble = new DialogueBubble(app);
     this.gift = new GiftAnimation(app);
@@ -71,23 +50,6 @@ export class PetRoom extends Container {
 
     this.layout(app.screen.width, app.screen.height);
     app.ticker.add(this.onTick, this);
-  }
-
-  private makeBar(color: number): StatBar {
-    return { fg: new Graphics(), current: 70, target: 70, color };
-  }
-
-  private buildStatRows(labels: string[], statBars: StatBar[]): void {
-    labels.forEach((label, i) => {
-      const row = new Container();
-      row.y = i * BAR_ROW;
-      const lbl = new Text({ text: label, style: { fill: C.label, fontSize: 11, fontFamily: 'system-ui' } });
-      const track = new Graphics();
-      track.roundRect(0, 14, BAR_W, BAR_H, 4).fill(C.track);
-      statBars[i].fg.roundRect(0, 14, BAR_W, BAR_H, 4).fill(statBars[i].color);
-      row.addChild(lbl, track, statBars[i].fg);
-      this.statRoot.addChild(row);
-    });
   }
 
   layout(w: number, h: number): void {
@@ -102,22 +64,11 @@ export class PetRoom extends Container {
     this.bubble.setPetPosition(petX, petY - PET_SPRITE_H);
     this.gift.setOrigin(petX, petY - PET_SPRITE_H / 2);
 
-    this.statRoot.x = (w - BAR_W) / 2;
-    this.statRoot.y = h - STAT_BOTTOM_PAD;
-
     this.flash.clear();
     this.flash.rect(0, 0, w, h).fill({ color: 0xfbbf24, alpha: 0.18 });
   }
 
   private readonly onTick = (ticker: Ticker): void => {
-    const speed = 1 - Math.exp(-5 * (ticker.deltaMS / 1000));
-    for (const bar of this.bars) {
-      bar.current += (bar.target - bar.current) * speed;
-      const w = Math.max(2, BAR_W * (bar.current / 100));
-      bar.fg.clear();
-      bar.fg.roundRect(0, 14, w, BAR_H, Math.min(4, w / 2)).fill(bar.color);
-    }
-
     if (this.flashElapsed >= 0) {
       this.flashElapsed += ticker.deltaMS;
       const t = Math.min(1, this.flashElapsed / FRIEND_FLASH_MS);
@@ -136,10 +87,8 @@ export class PetRoom extends Container {
     this.visitor.update(ticker);
   };
 
-  updateStats(data: PetStateData): void {
-    this.bars[0].target = data.hunger;
-    this.bars[1].target = data.mood;
-    this.bars[2].target = data.affection;
+  updateStats(_data: PetStateData): void {
+    // Stats are now rendered by the DOM UI overlay (packages/frontend/src/ui/StatBars.ts)
   }
 
   showDialogue(message: string): void { this.bubble.enqueue(message); }
