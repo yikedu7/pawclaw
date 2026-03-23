@@ -4,6 +4,7 @@ import { LoadingScreen } from './canvas/LoadingScreen';
 import { MockEvents } from './canvas/MockEvents';
 import { eventBus } from './ws/eventBus';
 import { WsClient, buildWsUrl } from './ws/WsClient';
+import { initUI } from './ui';
 
 // Crisp pixel-art rendering — nearest-neighbour, no bilinear blur.
 TextureStyle.defaultOptions.scaleMode = 'nearest';
@@ -22,6 +23,7 @@ async function main(): Promise<void> {
   });
 
   mount.appendChild(app.canvas);
+  initUI(mount);
 
   const loader = new LoadingScreen(mount.clientWidth, mount.clientHeight);
   app.stage.addChild(loader);
