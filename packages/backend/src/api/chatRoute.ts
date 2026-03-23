@@ -39,6 +39,27 @@ export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRout
       return reply.code(403).send({ error: 'Forbidden', code: 'FORBIDDEN' });
     }
 
+    // If a container is registered, forward the message to it asynchronously.
+    // The container will call back /internal/runtime/events/:petId with a speak event.
+    if (pet.container_host && pet.container_port) {
+      const containerUrl = `http://${pet.container_host}:${pet.container_port}/webhook/${id}`;
+      fetch(containerUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(pet.gateway_token ? { Authorization: `Bearer ${pet.gateway_token}` } : {}),
+        },
+        body: JSON.stringify({
+          pet_id: id,
+          user_message: parsed.data.message,
+          state: { hunger: pet.hunger, mood: pet.mood, affection: pet.affection },
+        }),
+      }).catch((err: unknown) => {
+        request.log.error({ err, petId: id }, 'Container chat forward failed');
+      });
+      return reply.send({ reply: null });
+    }
+
     let reply_text: string;
 
     if (process.env.MOCK_LLM === '1') {
