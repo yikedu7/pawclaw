@@ -1,4 +1,23 @@
 const MAX_ENTRIES = 50;
+const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string | undefined) ?? 'http://localhost:3001';
+
+// petId → display name, populated lazily from GET /api/pets/:id
+const petNames = new Map<string, string>();
+
+async function resolvePetName(petId: string, token: string | null): Promise<string> {
+  if (petNames.has(petId)) return petNames.get(petId)!;
+  if (!token) return petId;
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/pets/${petId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      const data = await res.json() as { name?: string };
+      if (data.name) { petNames.set(petId, data.name); return data.name; }
+    }
+  } catch { /* ignore */ }
+  return petId;
+}
 
 interface ChatEntry {
   speaker: string;
@@ -24,7 +43,62 @@ export class ChatLog {
     this.messages = document.createElement('div');
     this.messages.className = 'chat-messages';
 
-    this.el.append(header, this.messages);
+    const inputRow = this.buildInputRow();
+
+    this.el.append(header, this.messages, inputRow);
+  }
+
+  private buildInputRow(): HTMLDivElement {
+    const params = new URLSearchParams(location.search);
+    const petId = params.get('pet_id');
+    const token = params.get('token');
+
+    const row = document.createElement('div');
+    row.className = 'chat-input-row';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'chat-input';
+    input.placeholder = 'Say something…';
+    input.maxLength = 500;
+
+    const btn = document.createElement('button');
+    btn.className = 'chat-send-btn';
+    btn.textContent = '▶';
+
+    const send = async () => {
+      const message = input.value.trim();
+      if (!message || !petId || !token) return;
+
+      input.disabled = true;
+      btn.disabled = true;
+
+      // Show user message immediately
+      this.add({ speaker: 'You', text: message, time: new Date() });
+      input.value = '';
+
+      try {
+        await fetch(`${BACKEND_URL}/api/pets/${petId}/chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ message }),
+        });
+        // Pet reply arrives via WS pet.speak event — no need to handle response body
+      } finally {
+        input.disabled = false;
+        btn.disabled = false;
+        input.focus();
+      }
+    };
+
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
+    btn.addEventListener('click', send);
+
+    row.append(input, btn);
+    return row;
   }
 
   add(entry: ChatEntry): void {
@@ -58,7 +132,11 @@ export class ChatLog {
   }
 
   addSpeak(petId: string, message: string): void {
-    this.add({ speaker: petId, text: message, time: new Date() });
+    const token = new URLSearchParams(location.search).get('token');
+    const time = new Date();
+    resolvePetName(petId, token).then((name) => {
+      this.add({ speaker: name, text: message, time });
+    });
   }
 
   addVisit(fromPetId: string, turns: { speaker_pet_id: string; line: string }[]): void {

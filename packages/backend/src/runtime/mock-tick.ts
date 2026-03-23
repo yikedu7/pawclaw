@@ -30,6 +30,17 @@ export async function executeTick(petId: string): Promise<{ action: string }> {
   });
   if (!pet) throw new Error(`Pet not found: ${petId}`);
 
+  // Mock mode — skip LLM, emit a canned speak event
+  if (process.env.MOCK_LLM === '1') {
+    const message = `Hello! I am ${pet.name}. (mock tick)`;
+    tickBus.emit('ownerEvent', pet.owner_id, {
+      type: 'pet.speak',
+      data: { pet_id: petId, message },
+    });
+    await db.update(pets).set({ last_tick_at: new Date() }).where(eq(pets.id, petId));
+    return { action: 'speak (mock)' };
+  }
+
   // 2. Fetch last 5 social events involving this pet
   const recentEvents = await db.query.social_events.findMany({
     where: eq(social_events.from_pet_id, petId),

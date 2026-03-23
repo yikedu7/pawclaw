@@ -5,15 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
     "lint": "eslint src/",
-    "screenshot": "tsx scripts/screenshot.ts"
+    "screenshot": "tsx scripts/screenshot.ts",
+    "test": "playwright test"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.99.3",
     "@x-pet/shared": "workspace:*",
     "pixi.js": "^8.9.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@types/node": "^22.0.0",
     "@typescript-eslint/eslint-plugin": "^8.57.1",
     "@typescript-eslint/parser": "^8.57.1",
