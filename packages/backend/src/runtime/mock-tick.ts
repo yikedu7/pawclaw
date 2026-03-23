@@ -101,14 +101,17 @@ export async function executeTick(petId: string): Promise<{ action: string }> {
   }
 
   // 2. If a container is registered for this pet, delegate the tick to it.
-  // The container runs the LLM and calls back /internal/tools/* to execute actions.
+  // The container runs the LLM and calls back /internal/runtime/events/:petId to report actions.
   if (pet.container_host && pet.container_port) {
-    const containerUrl = `http://${pet.container_host}:${pet.container_port}/tick`;
-    const recentForContainer = await db.query.social_events.findMany({
-      where: eq(social_events.from_pet_id, petId),
-      orderBy: [desc(social_events.created_at)],
-      limit: 5,
-    });
+    const containerUrl = `http://${pet.container_host}:${pet.container_port}/webhook/${petId}`;
+    const [recentForContainer, nearbyPets] = await Promise.all([
+      db.query.social_events.findMany({
+        where: eq(social_events.from_pet_id, petId),
+        orderBy: [desc(social_events.created_at)],
+        limit: 5,
+      }),
+      db.query.pets.findMany({ where: ne(pets.id, petId) }),
+    ]);
     await fetch(containerUrl, {
       method: 'POST',
       headers: {
@@ -117,12 +120,20 @@ export async function executeTick(petId: string): Promise<{ action: string }> {
       },
       body: JSON.stringify({
         pet_id: petId,
-        hunger: pet.hunger,
-        mood: pet.mood,
-        affection: pet.affection,
-        soul_md: pet.soul_md,
-        skill_md: pet.skill_md,
-        recent_events: recentForContainer,
+        tick_at: new Date().toISOString(),
+        state: { hunger: pet.hunger, mood: pet.mood, affection: pet.affection },
+        context: {
+          nearby_pets: nearbyPets.map((p) => ({
+            id: p.id,
+            name: p.name,
+            soul_summary: p.soul_md.split('\n')[0] ?? '',
+          })),
+          recent_events: recentForContainer.map((e) => ({
+            type: e.type,
+            from: e.from_pet_id,
+            at: e.created_at.toISOString(),
+          })),
+        },
       }),
     });
     await db.update(pets).set({ last_tick_at: new Date() }).where(eq(pets.id, petId));

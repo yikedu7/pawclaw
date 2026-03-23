@@ -30,10 +30,6 @@ export async function registerOpenclawRoutes(fastify: FastifyInstance) {
   // ── POST /internal/runtime/events/:petId ──────────────────────────────────
   // Receives lifecycle/action events from the OpenClaw container.
   fastify.post('/internal/runtime/events/:petId', async (request, reply) => {
-    if (!checkBearerToken(request.headers.authorization)) {
-      return reply.code(401).send({ error: 'Unauthorized', code: 'UNAUTHORIZED' });
-    }
-
     const petIdParsed = PetIdSchema.safeParse((request.params as { petId: string }).petId);
     if (!petIdParsed.success) {
       return reply.code(400).send({ error: 'Invalid petId', code: 'VALIDATION_ERROR' });
@@ -47,6 +43,12 @@ export async function registerOpenclawRoutes(fastify: FastifyInstance) {
 
     const pet = await db.query.pets.findFirst({ where: eq(pets.id, petId) });
     if (!pet) return reply.code(404).send({ error: 'Pet not found', code: 'NOT_FOUND' });
+
+    // Events endpoint authenticates via per-pet gateway_token (set by OpenClaw on container start)
+    const authHeader = request.headers.authorization;
+    if (!pet.gateway_token || authHeader !== `Bearer ${pet.gateway_token}`) {
+      return reply.code(401).send({ error: 'Unauthorized', code: 'UNAUTHORIZED' });
+    }
 
     const event = bodyParsed.data;
 

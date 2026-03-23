@@ -33,10 +33,10 @@ beforeAll(async () => {
   await pool.query('DELETE FROM pets WHERE owner_id IN ($1, $2)', [OWNER_A, OWNER_B]);
 
   const { rows } = await pool.query<{ id: string }>(`
-    INSERT INTO pets (owner_id, name, soul_md, skill_md)
+    INSERT INTO pets (owner_id, name, soul_md, skill_md, gateway_token)
     VALUES
-      ($1, 'OcPetA', 'You are a curious dog.', '# tools'),
-      ($2, 'OcPetB', 'You are a lazy cat.', '# tools')
+      ($1, 'OcPetA', 'You are a curious dog.', '# tools', 'pet-a-gateway-token'),
+      ($2, 'OcPetB', 'You are a lazy cat.', '# tools', 'pet-b-gateway-token')
     RETURNING id
   `, [OWNER_A, OWNER_B]);
   petId = rows[0].id;
@@ -57,25 +57,24 @@ afterAll(async () => {
 
 // ── Auth validation ──────────────────────────────────────────────────────────
 
-describe('Bearer token auth', () => {
-  const endpoints = [
-    { method: 'POST' as const, url: () => `/internal/runtime/events/${petId}` },
-    { method: 'POST' as const, url: () => '/internal/tools/speak' },
-    { method: 'POST' as const, url: () => '/internal/tools/visit_pet' },
-    { method: 'POST' as const, url: () => '/internal/tools/rest' },
-    { method: 'POST' as const, url: () => '/internal/tools/send_gift' },
+describe('Bearer token auth — /internal/tools/* (OPENCLAW_WEBHOOK_TOKEN)', () => {
+  const toolEndpoints = [
+    { method: 'POST' as const, url: '/internal/tools/speak' },
+    { method: 'POST' as const, url: '/internal/tools/visit_pet' },
+    { method: 'POST' as const, url: '/internal/tools/rest' },
+    { method: 'POST' as const, url: '/internal/tools/send_gift' },
   ];
 
-  for (const { method, url } of endpoints) {
-    it(`returns 401 with no token on ${url()}`, async () => {
-      const res = await app.inject({ method, url: url(), payload: {} });
+  for (const { method, url } of toolEndpoints) {
+    it(`returns 401 with no token on ${url}`, async () => {
+      const res = await app.inject({ method, url, payload: {} });
       expect(res.statusCode).toBe(401);
       expect(res.json().code).toBe('UNAUTHORIZED');
     });
 
-    it(`returns 401 with wrong token on ${url()}`, async () => {
+    it(`returns 401 with wrong token on ${url}`, async () => {
       const res = await app.inject({
-        method, url: url(),
+        method, url,
         headers: { authorization: 'Bearer wrong-token' },
         payload: {},
       });
@@ -85,10 +84,41 @@ describe('Bearer token auth', () => {
   }
 });
 
+describe('Bearer token auth — /internal/runtime/events/:petId (per-pet gateway_token)', () => {
+  it('returns 401 with no token', async () => {
+    const res = await app.inject({
+      method: 'POST', url: `/internal/runtime/events/${petId}`,
+      payload: { event_type: 'speak', message: 'hi' },
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.json().code).toBe('UNAUTHORIZED');
+  });
+
+  it('returns 401 with wrong token', async () => {
+    const res = await app.inject({
+      method: 'POST', url: `/internal/runtime/events/${petId}`,
+      headers: { authorization: 'Bearer wrong-token' },
+      payload: { event_type: 'speak', message: 'hi' },
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.json().code).toBe('UNAUTHORIZED');
+  });
+
+  it('returns 200 with correct gateway_token', async () => {
+    const res = await app.inject({
+      method: 'POST', url: `/internal/runtime/events/${petId}`,
+      headers: { authorization: 'Bearer pet-a-gateway-token' },
+      payload: { event_type: 'speak', message: 'Woof!' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ ok: true });
+  });
+});
+
 // ── POST /internal/runtime/events/:petId ─────────────────────────────────────
 
 describe('POST /internal/runtime/events/:petId', () => {
-  const auth = { authorization: `Bearer ${WEBHOOK_TOKEN}` };
+  const auth = { authorization: 'Bearer pet-a-gateway-token' };
 
   it('returns 400 on invalid petId', async () => {
     const res = await app.inject({
@@ -118,16 +148,6 @@ describe('POST /internal/runtime/events/:petId', () => {
     });
     expect(res.statusCode).toBe(404);
     expect(res.json().code).toBe('NOT_FOUND');
-  });
-
-  it('handles speak event — returns ok:true', async () => {
-    const res = await app.inject({
-      method: 'POST', url: `/internal/runtime/events/${petId}`,
-      headers: auth,
-      payload: { event_type: 'speak', message: 'Woof!' },
-    });
-    expect(res.statusCode).toBe(200);
-    expect(res.json()).toMatchObject({ ok: true });
   });
 
   it('handles rest event — updates hunger/mood in DB', async () => {
