@@ -85,6 +85,7 @@ OpenClaw (`github.com/openclaw/openclaw`) is a persistent AI agent gateway runti
    - Skills are prompt-injection documents — they instruct the LLM how to use built-in tools (exec, browser, file I/O, etc.).
    - Tool calls execute within the OpenClaw sandbox container using built-in tools (`exec`, `browser`, `system.run`, etc.).
    - To call our backend, a skill uses `exec` to run a `curl` or `fetch` command.
+   - Full SOUL.md / SKILL.md / HEARTBEAT.md / openclaw.json format specification: `docs/soul-skill-format.md`.
 
 **Container reference (via `dockerode` SDK, SSH transport):**
 ```
