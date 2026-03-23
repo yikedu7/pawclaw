@@ -76,9 +76,11 @@ git worktree remove ../x-pet-issue-<N>
 
 ### Frontend canvas verification (PixiJS/WebGL)
 
-DOM UI elements (stat bars, chat log, toasts) can be verified by reading HTML/CSS — no screenshot needed.
+**DOM UI elements** (stat bars, chat log, toasts) have two verification modes:
+- Read HTML/CSS to verify static structure (element ids, class names, initial text).
+- For interaction and state changes (event-driven updates, toggled panels, toast render/dismiss), run `pnpm --filter @x-pet/frontend test:ui`. Tests live in `src/ui/*.test.ts`, use vitest + jsdom (no browser needed).
 
-Canvas content (sprites, tilesets, animations, scene layout) is WebGL pixels — invisible to DOM parsers. Use the visual verification loop:
+**Canvas content** (sprites, tilesets, animations, scene layout) is WebGL pixels — invisible to DOM parsers. Use the visual verification loop:
 
 1. Change canvas code
 2. Take a Playwright screenshot → `/tmp/x-pet-render.png`

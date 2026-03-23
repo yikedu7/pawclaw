@@ -8,7 +8,8 @@
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "lint": "eslint src/",
     "screenshot": "tsx scripts/screenshot.ts",
-    "test": "playwright test"
+    "test": "playwright test",
+    "test:ui": "vitest run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.3",
@@ -21,9 +22,11 @@
     "@typescript-eslint/eslint-plugin": "^8.57.1",
     "@typescript-eslint/parser": "^8.57.1",
     "eslint": "^10.1.0",
+    "jsdom": "^29.0.1",
     "playwright": "^1.58.2",
     "tsx": "^4.7.0",
     "typescript": "^5.8.0",
-    "vite": "^6.2.0"
+    "vite": "^6.2.0",
+    "vitest": "^2.0.0"
   }
 }

@@ -29,6 +29,9 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Frontend DOM UI tests
+        run: pnpm --filter @x-pet/frontend test:ui
+
       - name: Check migrations are committed
         run: |
           pnpm --filter @x-pet/backend db:generate
