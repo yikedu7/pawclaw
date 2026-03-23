@@ -68,11 +68,10 @@ Frontend dev server listens on `http://localhost:5173`.
 Once a pet exists, you can manually trigger a tick to test the LLM → WS pipeline:
 
 ```bash
-curl -X POST http://localhost:3001/api/tick/<pet-id> \
-  -H "Authorization: Bearer <your-jwt-token>"
+curl -X POST http://localhost:3001/internal/tick/<pet-id>
 ```
 
-Replace `<pet-id>` with the UUID returned by `POST /api/pets` and `<your-jwt-token>` with the Supabase access token from the create-pet flow.
+Replace `<pet-id>` with the UUID returned by `POST /api/pets`. The tick route is internal and requires no auth header.
 
 ## Full flow
 
