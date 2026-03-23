@@ -53,19 +53,22 @@ For the **backend** service, add all variables from `.env.example`:
 | `DATABASE_URL` | Supabase Pooler URL (port 6543, `?pgbouncer=true`) — used by the app for all queries |
 | `DATABASE_MIGRATION_URL` | Supabase direct connection URL (port 5432) — used only by the migration runner at startup; DDL statements require a direct connection and will fail silently over the Pooler |
 | `ANTHROPIC_API_KEY` | Claude API key for LLM-driven pet personalities |
-| `ONCHAIN_OS_API_KEY` | OKX Onchain OS API key for agent wallets |
-| `ONCHAIN_OS_API_URL` | OKX Onchain OS API base URL |
-| `X_LAYER_RPC_URL` | X Layer (zkEVM L2) RPC endpoint |
-| `X402_FACILITATOR_URL` | X402 payment facilitator URL |
-| `BACKEND_URL` | Public Railway backend URL — baked into each pet's SKILL.md at creation so OpenClaw containers on Hetzner can curl `/internal/tools/*` (e.g. `https://backend.up.railway.app`) |
-| `PORT` | HTTP port, defaults to `3000` (Railway sets this automatically) |
 | `JWT_SECRET` | Secret for signing JWT tokens |
+| `BACKEND_URL` | Public URL of this backend service (used in generated SKILL.md files) |
+| `OKX_API_KEY` | OKX Onchain OS API key — forwarded to per-pet OpenClaw containers |
+| `OKX_SECRET_KEY` | OKX Onchain OS API secret — forwarded to per-pet OpenClaw containers |
+| `OKX_PASSPHRASE` | OKX Onchain OS passphrase — forwarded to per-pet OpenClaw containers |
+| `PAYMENT_TOKEN_ADDRESS` | ERC-3009 token contract address on X Layer (eip155:196) |
+| `PAYMENT_TOKEN_NAME` | Token name, e.g. `OKB` |
+| `PAYMENT_TOKEN_SYMBOL` | Token symbol, e.g. `OKB` |
+| `BACKEND_RELAYER_PRIVATE_KEY` | Private key of the backend relayer wallet that submits `transferWithAuthorization` txs |
+| `PORT` | HTTP port, defaults to `3000` (Railway sets this automatically) |
+| `OPENCLAW_WEBHOOK_TOKEN` | (Optional) Bearer token the backend validates on all `/internal/openclaw/*` callbacks from OpenClaw containers |
+| `HETZNER_HOST` | (Optional) Hostname or IP of the Hetzner VPS running pet containers |
+| `HETZNER_USER` | (Optional) SSH username on the Hetzner VPS, e.g. `deploy` |
+| `HETZNER_SSH_KEY` | (Optional) PEM-encoded ed25519 private key for SSH access to Hetzner (used by `dockerode` SSH transport) |
+| `HETZNER_HOST_DATA_DIR` | (Optional) Host directory for per-pet bind mounts, defaults to `/data/pets` |
 | `TELEGRAM_BOT_TOKEN` | (Optional) Telegram bot token |
-| `DOCKER_HOST` | (Optional) Remote Docker daemon for Hetzner pet containers |
-| `DOCKER_TLS_CERT` | (Optional) Docker TLS client cert |
-| `DOCKER_TLS_KEY` | (Optional) Docker TLS client key |
-| `DOCKER_TLS_CA` | (Optional) Docker TLS CA cert |
-| `HETZNER_HOST_DATA_DIR` | (Optional) Host directory for per-pet bind mounts |
 
 Via CLI:
 
