@@ -61,7 +61,19 @@ authBtn.addEventListener('click', async () => {
       return;
     }
 
-    // Show pet creation form
+    // Check for existing pets — skip creation form if already has one
+    const petsRes = await fetch(`${BACKEND_URL}/api/pets`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (petsRes.ok) {
+      const pets = await petsRes.json() as Array<{ id: string }>;
+      if (pets.length > 0) {
+        window.location.href = `/?token=${encodeURIComponent(accessToken)}&pet_id=${encodeURIComponent(pets[0].id)}`;
+        return;
+      }
+    }
+
+    // No pets yet — show creation form
     authSection.style.display = 'none';
     petSection.style.display = 'block';
   } finally {
