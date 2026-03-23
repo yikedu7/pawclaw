@@ -32,7 +32,7 @@ export function initUI(mount: HTMLElement): void {
   });
 
   eventBus.on('social.gift', (e) => {
-    toasts.gift(e.data.from_pet_id, e.data.to_pet_id, e.data.amount, e.data.token);
+    toasts.gift(e.data.from_pet_id, e.data.to_pet_id, e.data.amount, e.data.token, e.data.tx_hash);
   });
 
   eventBus.on('friend.unlocked', (e) => {
