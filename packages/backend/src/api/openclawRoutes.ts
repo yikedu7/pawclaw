@@ -3,11 +3,15 @@ import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import type { WsEvent } from '@x-pet/shared';
 import { db } from '../db/client.js';
-import { pets } from '../db/schema.js';
+import { pets, transactions } from '../db/schema.js';
 import { executeVisit } from '../social/visit.js';
+import { send402, decodePaymentSignature, type PaymentAuthorization } from '../payment/x402.js';
+import { verifyEIP3009Signature, submitTransferWithAuthorization } from '../payment/verify.js';
 
 export type OpenclawRouteDeps = {
   emitOwnerEvent: (ownerId: string, event: WsEvent) => void;
+  /** Override blockchain submission for testing. Defaults to real X Layer submission. */
+  submitPaymentTx?: (authorization: PaymentAuthorization, signature: string) => Promise<string>;
 };
 
 function checkBearerToken(authHeader: string | undefined): boolean {
@@ -169,6 +173,9 @@ export async function registerOpenclawRoutes(
   });
 
   // ── POST /internal/tools/send_gift ────────────────────────────────────────
+  // x402 payment flow:
+  //   First call  (no PAYMENT-SIGNATURE)  → HTTP 402 with base64-encoded requirements
+  //   Replay call (PAYMENT-SIGNATURE set) → verify EIP-3009 sig, submit tx, record, emit WS
   fastify.post('/internal/tools/send_gift', async (request, reply) => {
     if (!checkBearerToken(request.headers.authorization)) {
       return reply.code(401).send({ error: 'Unauthorized', code: 'UNAUTHORIZED' });
@@ -181,13 +188,74 @@ export async function registerOpenclawRoutes(
     if (!parsed.success) {
       return reply.code(400).send({ error: parsed.error.message, code: 'VALIDATION_ERROR' });
     }
-    const pet = await db.query.pets.findFirst({ where: eq(pets.id, parsed.data.pet_id) });
+    const { pet_id, target_pet_id, amount } = parsed.data;
+
+    const [pet, targetPet] = await Promise.all([
+      db.query.pets.findFirst({ where: eq(pets.id, pet_id) }),
+      db.query.pets.findFirst({ where: eq(pets.id, target_pet_id) }),
+    ]);
     if (!pet) return reply.code(404).send({ error: 'Pet not found', code: 'NOT_FOUND' });
-    // TODO(#16): X402 payment — call pet wallet via Onchain OS to send OKB on X Layer
+    if (!targetPet) return reply.code(404).send({ error: 'Target pet not found', code: 'NOT_FOUND' });
+
+    const paymentHeader = request.headers['payment-signature'] as string | undefined;
+
+    // ── First call: no payment header → return 402 requirements ──────────────
+    if (!paymentHeader) {
+      if (!targetPet.wallet_address) {
+        return reply.code(422).send({ error: 'Target pet has no wallet address', code: 'NO_WALLET' });
+      }
+      return send402(reply, amount, targetPet.wallet_address);
+    }
+
+    // ── Replay: decode, verify, submit ────────────────────────────────────────
+    let payload: ReturnType<typeof decodePaymentSignature>;
+    try {
+      payload = decodePaymentSignature(paymentHeader);
+    } catch {
+      return reply.code(400).send({ error: 'Invalid PAYMENT-SIGNATURE header', code: 'VALIDATION_ERROR' });
+    }
+
+    const tokenAddress = process.env.PAYMENT_TOKEN_ADDRESS;
+    const tokenName = process.env.PAYMENT_TOKEN_NAME ?? 'OKB';
+    if (!tokenAddress) {
+      return reply.code(500).send({ error: 'PAYMENT_TOKEN_ADDRESS not configured', code: 'CONFIG_ERROR' });
+    }
+
+    let signerAddress: string;
+    try {
+      signerAddress = verifyEIP3009Signature(payload.authorization, payload.signature, tokenAddress, tokenName);
+    } catch {
+      return reply.code(401).send({ error: 'Invalid EIP-3009 signature', code: 'INVALID_SIGNATURE' });
+    }
+
+    if (signerAddress.toLowerCase() !== pet.wallet_address?.toLowerCase()) {
+      return reply.code(401).send({ error: 'Signature does not match pet wallet', code: 'INVALID_SIGNATURE' });
+    }
+
+    let txHash: string;
+    try {
+      const doSubmit = deps.submitPaymentTx
+        ?? ((auth, sig) => submitTransferWithAuthorization(auth, sig, tokenAddress));
+      txHash = await doSubmit(payload.authorization, payload.signature);
+    } catch (err) {
+      return reply.code(502).send({ error: 'Payment submission failed', code: 'PAYMENT_FAILED' });
+    }
+
+    const token = process.env.PAYMENT_TOKEN_SYMBOL ?? tokenName;
+    await db.insert(transactions).values({
+      from_wallet: payload.authorization.from,
+      to_wallet: payload.authorization.to,
+      amount,
+      token,
+      tx_hash: txHash,
+      x_layer_confirmed: true,
+    });
+
     deps.emitOwnerEvent(pet.owner_id, {
       type: 'social.gift',
-      data: { from_pet_id: parsed.data.pet_id, to_pet_id: parsed.data.target_pet_id, token: 'OKB', amount: parsed.data.amount, tx_hash: '' },
+      data: { from_pet_id: pet_id, to_pet_id: target_pet_id, token, amount, tx_hash: txHash },
     });
-    return reply.send({ ok: true });
+
+    return reply.send({ ok: true, tx_hash: txHash });
   });
 }
