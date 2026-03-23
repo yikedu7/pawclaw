@@ -1,6 +1,24 @@
 const MAX_ENTRIES = 50;
 const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string | undefined) ?? 'http://localhost:3001';
 
+// petId → display name, populated lazily from GET /api/pets/:id
+const petNames = new Map<string, string>();
+
+async function resolvePetName(petId: string, token: string | null): Promise<string> {
+  if (petNames.has(petId)) return petNames.get(petId)!;
+  if (!token) return petId;
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/pets/${petId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      const data = await res.json() as { name?: string };
+      if (data.name) { petNames.set(petId, data.name); return data.name; }
+    }
+  } catch { /* ignore */ }
+  return petId;
+}
+
 interface ChatEntry {
   speaker: string;
   text: string;
@@ -114,7 +132,11 @@ export class ChatLog {
   }
 
   addSpeak(petId: string, message: string): void {
-    this.add({ speaker: petId, text: message, time: new Date() });
+    const token = new URLSearchParams(location.search).get('token');
+    const time = new Date();
+    resolvePetName(petId, token).then((name) => {
+      this.add({ speaker: name, text: message, time });
+    });
   }
 
   addVisit(fromPetId: string, turns: { speaker_pet_id: string; line: string }[]): void {
