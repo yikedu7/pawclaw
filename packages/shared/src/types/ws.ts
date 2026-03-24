@@ -46,6 +46,18 @@ export type WsEvent =
       };
     }
   | {
+      type: 'pet.died';
+      data: {
+        pet_id: string;
+      };
+    }
+  | {
+      type: 'pet.revived';
+      data: {
+        pet_id: string;
+      };
+    }
+  | {
       type: 'error';
       data: {
         pet_id: string;

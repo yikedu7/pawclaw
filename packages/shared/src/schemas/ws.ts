@@ -44,6 +44,18 @@ export const WsEventSchema = z.discriminatedUnion('type', [
     }),
   }),
   z.object({
+    type: z.literal('pet.died'),
+    data: z.object({
+      pet_id: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal('pet.revived'),
+    data: z.object({
+      pet_id: z.string(),
+    }),
+  }),
+  z.object({
     type: z.literal('error'),
     data: z.object({
       pet_id: z.string(),
