@@ -136,4 +136,12 @@ One issue → one branch → one PR. Address feedback, then merge. Technical deb
 When creating a GitHub issue for a backend feature, always include in the Tasks checklist:
 - `[ ] Integration tests using fastify.inject() against real DB (auth, validation, response shape, DB side effects)`
 
-Use vitest (configured in `packages/backend/vitest.config.ts`). Always run `git rebase origin/main` first to pick up the vitest setup. Test DB: `supabase db reset` for a clean slate. Do not mock the DB — integration tests must hit a real database.
+Use vitest (configured in `packages/backend/vitest.config.ts`). Always run `git rebase origin/main` first to pick up the vitest setup. Do not mock the DB — integration tests must hit a real database.
+
+**Local test DB setup (run once, no credentials needed from the user):**
+```bash
+supabase start                              # spins up Postgres on localhost:54322
+pnpm --filter @x-pet/backend db:migrate    # applies migrations
+supabase db reset                          # clean slate before tests
+```
+`DATABASE_URL` defaults to `postgresql://postgres:postgres@localhost:54322/postgres` — already set in `.env.example`. Copy it to `.env` if not present. Full local dev guide: `docs/local-dev.md`.
