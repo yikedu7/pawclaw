@@ -37,6 +37,9 @@ export const pets = pgTable('pets', {
   created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   diary_text: text('diary_text'),
 
+  // Economic model: initial PAW grant at registration (for hunger % calc: wallet_balance / initial_credits)
+  initial_credits: integer('initial_credits').notNull().default(200),
+
   // Container columns — denormalized from port_allocations for O(1) tick loop access
   container_id: text('container_id'),
   container_host: text('container_host'),

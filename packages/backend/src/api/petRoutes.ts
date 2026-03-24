@@ -4,6 +4,7 @@ import { PetCreateSchema, PetIdParamSchema } from '@x-pet/shared';
 import { db } from '../db/client.js';
 import { pets } from '../db/schema.js';
 import { authHook } from './authHook.js';
+import { grantRegistrationCredits } from '../onchain/credits.js';
 
 export type PetRouteDeps = {
   generateSoulMd: (input: { name: string; mood: number; soul_prompt: string }) => string;
@@ -81,6 +82,13 @@ export async function registerPetRoutes(
 
     // Spin up the OpenClaw container (non-blocking — errors are logged but don't fail the response)
     deps.launchContainer?.(row.id, soul_md, skill_md);
+
+    // Grant registration credits (non-blocking — log errors but don't fail the response)
+    if (updated.wallet_address) {
+      grantRegistrationCredits(updated.wallet_address).catch((err: unknown) => {
+        fastify.log.error({ err, petId: updated.id }, '[credits] Failed to grant registration credits');
+      });
+    }
 
     return reply.code(201).send(toPetSummary(updated));
   });

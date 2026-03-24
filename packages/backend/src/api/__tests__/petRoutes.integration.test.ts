@@ -1,8 +1,17 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { vi, describe, it, expect, beforeAll, afterAll } from 'vitest';
 import jwt from 'jsonwebtoken';
 import pg from 'pg';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { registerPetRoutes } from '../petRoutes.js';
+
+// Mock the credits module — real on-chain calls are not part of integration tests.
+// wallet_address is null at pet creation time (Onchain OS sets it asynchronously),
+// so grantRegistrationCredits is never triggered via POST /api/pets in tests.
+// The credits code path (wallet_address non-null) is covered in petRoutes.credits.test.ts.
+const mockGrantCredits = vi.fn<(wallet: string) => Promise<void>>();
+vi.mock('../../onchain/credits.js', () => ({
+  grantRegistrationCredits: mockGrantCredits,
+}));
 
 const { Pool } = pg;
 
@@ -35,6 +44,8 @@ beforeAll(async () => {
 
   // Clean pets from previous runs
   await pool.query('DELETE FROM pets WHERE owner_id IN ($1, $2)', [OWNER_A, OWNER_B]);
+
+  mockGrantCredits.mockResolvedValue(undefined);
 
   process.env.JWT_SECRET = SECRET;
   app = Fastify();
@@ -116,6 +127,29 @@ describe('pet CRUD integration', () => {
     expect(rows[0].owner_id).toBe(OWNER_A);
     expect(rows[0].soul_md).toBe('# SOUL smoke');
     expect(rows[0].skill_md).toBe('# SKILL smoke');
+    expect(rows[0].initial_credits).toBe(200);
+  });
+
+  it('DB side effect: initial_credits defaults to 200 on creation', async () => {
+    const { rows } = await pool.query(
+      'SELECT initial_credits FROM pets WHERE id = $1',
+      [createdPetId],
+    );
+    expect(rows[0].initial_credits).toBe(200);
+  });
+
+  it('POST /api/pets does not call grantRegistrationCredits when wallet_address is null', async () => {
+    // wallet_address is null at insert time (Onchain OS assigns it asynchronously after
+    // container start), so grantRegistrationCredits must not be called at creation.
+    mockGrantCredits.mockClear();
+    const res = await app.inject({
+      method: 'POST', url: '/api/pets',
+      headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
+      payload: { name: 'CreditsPet', soul_prompt: 'a rich cat' },
+    });
+    expect(res.statusCode).toBe(201);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(mockGrantCredits).not.toHaveBeenCalled();
   });
 
   it('GET /api/pets/:id returns 200 with owner_id for owner', async () => {
