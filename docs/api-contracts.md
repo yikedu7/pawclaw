@@ -15,7 +15,7 @@ Defines the full contract between backend and frontend for x-pet.
 | GET | `/api/pets` | List all pets for the current user |
 | GET | `/api/pets/:id` | Get pet state |
 | GET | `/api/pets/:id/events` | Get social events for a pet — **deferred, not yet implemented** |
-| GET | `/api/pets/:id/diary` | Get AI-generated diary summary |
+| GET | `/api/pets/:id/diary` | Get latest diary entry from DB |
 | POST | `/api/pets/:id/topup` | Read on-chain PAW balance; revive pet if stopped |
 | POST | `/api/pets/:id/feed` | Feed the pet to restore hunger — **deferred, not yet implemented** |
 | POST | `/api/pets/:id/chat` | Send a message to the pet, get its reply |
@@ -351,7 +351,7 @@ Force an immediate tick for this pet. Triggers the full tick loop: read pet stat
 
 ### GET /api/pets/:id/diary
 
-Fetch the AI-generated daily summary for a pet. Requires auth.
+Fetch the latest diary entry for a pet from the `diary_entries` table. Returns `null` when no entry has been written yet. Requires auth.
 
 **Path params:** `id` — pet uuid
 
@@ -359,16 +359,19 @@ Fetch the AI-generated daily summary for a pet. Requires auth.
 
 ```typescript
 {
-  summary: string; // LLM-generated narrative of the pet's recent activity
+  diary: string | null;  // latest diary entry content, or null if none exists
+  created_at?: string;   // ISO 8601 timestamp of the entry (omitted when diary is null)
 }
 ```
 
 **Error codes**
 
-| Status | code           | Condition                |
-|--------|----------------|--------------------------|
-| 401    | `UNAUTHORIZED` | Missing or invalid token |
-| 404    | `NOT_FOUND`    | Pet id does not exist    |
+| Status | code               | Condition                        |
+|--------|--------------------|----------------------------------|
+| 400    | `VALIDATION_ERROR` | `id` is not a valid UUID         |
+| 401    | `UNAUTHORIZED`     | Missing or invalid token         |
+| 403    | `FORBIDDEN`        | Pet belongs to a different owner |
+| 404    | `NOT_FOUND`        | Pet id does not exist            |
 
 ---
 
