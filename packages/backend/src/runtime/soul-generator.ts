@@ -1,4 +1,4 @@
-import type { Pet } from '@x-pet/shared';
+import type { Pet } from '@pawclaw/shared';
 
 type SoulInput = Pick<Pet, 'name' | 'mood'> & { soul_prompt: string };
 

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**x-pet** is an XLayer Hackathon project — an AI digital pet social network where each pet has its own on-chain wallet (OKX Onchain OS), runs an LLM-driven personality, and autonomously socializes, sends gifts, and triggers X402 micropayments on X Layer (zkEVM L2).
+**PawClaw** is an XLayer Hackathon project — an AI digital pet social network where each pet has its own on-chain wallet (OKX Onchain OS), runs an LLM-driven personality, and autonomously socializes, sends gifts, and triggers X402 micropayments on X Layer (zkEVM L2).
 
 Full architecture: `docs/architecture.md`. MVP scope and demo script: `docs/mvp-spec.md`. Open unknowns: `docs/risks.md`.
 
@@ -81,13 +81,13 @@ DOM UI elements (stat bars, chat log, toasts) can be verified by reading HTML/CS
 Canvas content (sprites, tilesets, animations, scene layout) is WebGL pixels — invisible to DOM parsers. Use the visual verification loop:
 
 1. Change canvas code
-2. Take a Playwright screenshot → `/tmp/x-pet-render.png`
-3. `Read /tmp/x-pet-render.png` — Claude's multimodal vision reviews the render
+2. Take a Playwright screenshot → `/tmp/pawclaw-render.png`
+3. `Read /tmp/pawclaw-render.png` — Claude's multimodal vision reviews the render
 4. Fix issues → repeat from 1
 
 Setup (once per worktree):
 ```bash
-pnpm --filter @x-pet/frontend add -D playwright
+pnpm --filter @pawclaw/frontend add -D playwright
 npx playwright install chromium
 # start dev server in background, then:
 tsx packages/frontend/scripts/screenshot.ts
@@ -141,7 +141,7 @@ Use vitest (configured in `packages/backend/vitest.config.ts`). Always run `git 
 **Local test DB setup (run once, no credentials needed from the user):**
 ```bash
 supabase start                              # spins up Postgres on localhost:54322
-pnpm --filter @x-pet/backend db:migrate    # applies migrations
+pnpm --filter @pawclaw/backend db:migrate    # applies migrations
 supabase db reset                          # clean slate before tests
 ```
 `DATABASE_URL` defaults to `postgresql://postgres:postgres@localhost:54322/postgres` — already set in `.env.example`. Copy it to `.env` if not present. Full local dev guide: `docs/local-dev.md`.

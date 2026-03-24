@@ -1,6 +1,6 @@
 # API Contracts
 
-Defines the full contract between backend and frontend for x-pet.
+Defines the full contract between backend and frontend for PawClaw.
 
 ---
 

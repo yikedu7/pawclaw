@@ -108,7 +108,7 @@ async function main() {
       `${dataDir}/${PET_ID}/config/openclaw.json`,
       `${dataDir}/${PET_ID}/workspace/SOUL.md`,
       `${dataDir}/${PET_ID}/workspace/HEARTBEAT.md`,
-      `${dataDir}/${PET_ID}/workspace/skills/x-pet/SKILL.md`,
+      `${dataDir}/${PET_ID}/workspace/skills/pawclaw/SKILL.md`,
     ];
     const sshKeyFile = process.env.HETZNER_SSH_KEY_FILE ?? '/tmp/hetzner-test-key';
     for (const f of files) {

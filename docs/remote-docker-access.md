@@ -8,7 +8,7 @@ Addresses the implementation choice raised in issue #38 for establishing secure 
 
 ## Background
 
-The x-pet backend (running on Railway) needs to remotely manage Docker containers on a Hetzner CX21 VPS — spawning, stopping, and deleting one container per pet. Two options exist for this remote control channel: Docker TCP with TLS client authentication, or SSH tunneling.
+The PawClaw backend (running on Railway) needs to remotely manage Docker containers on a Hetzner CX21 VPS — spawning, stopping, and deleting one container per pet. Two options exist for this remote control channel: Docker TCP with TLS client authentication, or SSH tunneling.
 
 Issue #38 originally recommended the TLS option. This document revises that recommendation to SSH after analyzing the failure modes of both approaches under hackathon time constraints.
 

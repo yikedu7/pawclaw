@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateSkillMd } from './skill-generator.js';
 
-const BASE = 'https://x-pet-backend.railway.app';
+const BASE = 'https://pawclaw-backend.railway.app';
 const PET_ID = '00000000-0000-0000-0000-000000000001';
 const TOKEN = 'test-webhook-token';
 
@@ -13,9 +13,9 @@ describe('generateSkillMd', () => {
     assert.match(out, /\n---\n/);
   });
 
-  it('sets skill name to "x-pet"', () => {
+  it('sets skill name to "pawclaw"', () => {
     const out = generateSkillMd({ id: PET_ID, backendUrl: BASE, webhookToken: TOKEN });
-    assert.match(out, /^name: x-pet$/m);
+    assert.match(out, /^name: pawclaw$/m);
   });
 
   it('embeds pet_id in frontmatter', () => {
@@ -56,6 +56,6 @@ describe('generateSkillMd', () => {
     const custom = 'https://custom.example.com';
     const out = generateSkillMd({ id: PET_ID, backendUrl: custom, webhookToken: TOKEN });
     assert.match(out, /custom\.example\.com\/internal\/tools/);
-    assert.doesNotMatch(out, /railway\.app/);
+    assert.doesNotMatch(out, /pawclaw-backend\.railway\.app/);
   });
 });

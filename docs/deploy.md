@@ -1,6 +1,6 @@
 # Deployment Guide (Railway)
 
-This guide covers deploying x-pet to Railway with a backend service (Fastify) and a frontend service (nginx + static build).
+This guide covers deploying PawClaw to Railway with a backend service (Fastify) and a frontend service (nginx + static build).
 
 ## Prerequisites
 
@@ -13,7 +13,7 @@ This guide covers deploying x-pet to Railway with a backend service (Fastify) an
 
 ```bash
 railway init
-# Select "Create new project" and give it a name, e.g. "x-pet"
+# Select "Create new project" and give it a name, e.g. "pawclaw"
 ```
 
 Or via the [Railway dashboard](https://railway.app/dashboard): click **New Project**.
@@ -23,7 +23,7 @@ Or via the [Railway dashboard](https://railway.app/dashboard): click **New Proje
 In the Railway dashboard:
 
 1. Click **New Service** > **GitHub Repo**.
-2. Select the `x-pet` repository.
+2. Select the `pawclaw` repository.
 3. Under **Source**, set **Root Directory** to `packages/backend`.
 4. Railway will detect the `Dockerfile` automatically.
 5. Rename the service to `backend`.

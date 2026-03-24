@@ -31,7 +31,7 @@ jobs:
 
       - name: Check migrations are committed
         run: |
-          pnpm --filter @x-pet/backend db:generate
+          pnpm --filter @pawclaw/backend db:generate
           git diff --exit-code -- packages/backend/drizzle/
         env:
           DATABASE_URL: postgresql://dummy:dummy@localhost/dummy

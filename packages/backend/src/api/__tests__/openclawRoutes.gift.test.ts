@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm';
 import { registerOpenclawRoutes } from '../openclawRoutes.js';
 import { social_events } from '../../db/schema.js';
 import * as schema from '../../db/schema.js';
-import type { WsEvent } from '@x-pet/shared';
+import type { WsEvent } from '@pawclaw/shared';
 
 const { Pool } = pg;
 

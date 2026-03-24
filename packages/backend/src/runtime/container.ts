@@ -266,7 +266,7 @@ export async function createPetContainer(
     { path: `${dataDir}/${petId}/config/openclaw.json`, content: configJson },
     { path: `${dataDir}/${petId}/workspace/SOUL.md`, content: soulMd },
     { path: `${dataDir}/${petId}/workspace/HEARTBEAT.md`, content: heartbeatMd },
-    { path: `${dataDir}/${petId}/workspace/skills/x-pet/SKILL.md`, content: skillMd },
+    { path: `${dataDir}/${petId}/workspace/skills/pawclaw/SKILL.md`, content: skillMd },
     // All OKX skills — LLM agent reads these to autonomously operate wallet, swap, payments, etc.
     ...okxSkills.map(({ name, content }) => ({
       path: `${dataDir}/${petId}/workspace/skills/${name}/SKILL.md`,

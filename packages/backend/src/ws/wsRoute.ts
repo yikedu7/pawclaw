@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import jwt from 'jsonwebtoken';
-import { WsQuerySchema } from '@x-pet/shared';
+import { WsQuerySchema } from '@pawclaw/shared';
 import { registerOwner, unregisterOwner } from './wsRegistry.js';
 
 export async function registerWsRoute(fastify: FastifyInstance): Promise<void> {
