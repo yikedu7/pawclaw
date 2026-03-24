@@ -1,6 +1,8 @@
 import { Icons } from './icons';
 
-/** Centered modal overlay showing the pet's diary from GET /api/pets/demo/diary. */
+const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string | undefined) ?? 'http://localhost:3001';
+
+/** Centered modal overlay showing the pet's diary from GET /api/pets/:id/diary. */
 export class DiaryPanel {
   readonly el: HTMLDivElement;
   private visible = false;
@@ -46,20 +48,40 @@ export class DiaryPanel {
     this.el.hidden = false;
     this.body.textContent = 'Loading...';
 
-    fetch('/api/pets/demo/diary')
+    const params = new URLSearchParams(location.search);
+    const petId = params.get('pet_id');
+    const token = params.get('token');
+
+    if (!petId) {
+      this.showEmpty();
+      return;
+    }
+
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    fetch(`${BACKEND_URL}/api/pets/${petId}/diary`, { headers })
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json() as Promise<{ summary?: string }>;
+        return res.json() as Promise<{ diary: string | null; created_at?: string }>;
       })
       .then((data) => {
-        this.body.textContent = data.summary ?? 'No diary entry.';
+        if (data.diary == null) {
+          this.showEmpty();
+        } else {
+          this.body.textContent = data.diary;
+        }
       })
       .catch(() => {
-        const empty = document.createElement('span');
-        empty.className = 'diary-empty';
-        empty.append(Icons.inbox(13), ' No entries yet — come back after your pet has had a big day!');
-        this.body.replaceChildren(empty);
+        this.showEmpty();
       });
+  }
+
+  private showEmpty(): void {
+    const empty = document.createElement('span');
+    empty.className = 'diary-empty';
+    empty.append(Icons.inbox(13), ' No entries yet — come back after your pet has had a big day!');
+    this.body.replaceChildren(empty);
   }
 
   close(): void {

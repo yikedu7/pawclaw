@@ -8,6 +8,7 @@ import {
   boolean,
   jsonb,
   numeric,
+  serial,
   timestamp,
   index,
   uniqueIndex,
@@ -88,6 +89,18 @@ export const transactions = pgTable('transactions', {
   uniqueIndex('transactions_tx_hash_idx').on(t.tx_hash),
   index('transactions_from_wallet_idx').on(t.from_wallet),
   index('transactions_to_wallet_idx').on(t.to_wallet),
+]);
+
+export const diary_entries = pgTable('diary_entries', {
+  id: serial('id').primaryKey(),
+  pet_id: uuid('pet_id')
+    .notNull()
+    .references(() => pets.id, { onDelete: 'cascade' }),
+  content: text('content').notNull(),
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('diary_entries_pet_id_idx').on(t.pet_id),
+  index('diary_entries_created_at_idx').on(t.created_at),
 ]);
 
 export const port_allocations = pgTable('port_allocations', {
