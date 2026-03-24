@@ -6,7 +6,6 @@ import type { WsEvent } from '@x-pet/shared';
 import { db } from '../db/client.js';
 import { pets } from '../db/schema.js';
 import { authHook } from './authHook.js';
-import { containerChat } from '../runtime/container.js';
 
 const anthropic = new Anthropic();
 
@@ -16,6 +15,7 @@ const ChatBodySchema = z.object({
 
 export type ChatRouteDeps = {
   emitOwnerEvent: (ownerId: string, event: WsEvent) => void;
+  containerChat: (containerId: string, gatewayToken: string, message: string, state: object) => Promise<string>;
 };
 
 export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRouteDeps): Promise<void> {
@@ -44,7 +44,7 @@ export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRout
     // capture the reply, emit a WS speak event, and return the reply text.
     if (pet.container_id && pet.gateway_token && pet.container_status === 'running') {
       try {
-        const replyText = await containerChat(
+        const replyText = await deps.containerChat(
           pet.container_id,
           pet.gateway_token,
           parsed.data.message,
