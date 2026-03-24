@@ -3,6 +3,7 @@ import {
   pgSchema,
   uuid,
   text,
+  varchar,
   integer,
   boolean,
   jsonb,
@@ -42,6 +43,8 @@ export const pets = pgTable('pets', {
   initial_credits: integer('initial_credits').notNull().default(200),
   // Current PAW balance in PAW units (not Wei) — null until first poll or topup
   paw_balance: numeric('paw_balance'),
+
+  tint_color: varchar('tint_color', { length: 7 }).notNull().default('#ffffff'),
 
   // Container columns — denormalized from port_allocations for O(1) tick loop access
   container_id: text('container_id'),

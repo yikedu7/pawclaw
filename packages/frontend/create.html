@@ -104,6 +104,35 @@
         min-height: 1rem;
       }
       .pet-fields { display: none; }
+      .color-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 0.4rem;
+        flex-wrap: wrap;
+      }
+      .swatch {
+        width: 28px;
+        height: 28px;
+        border-radius: 4px;
+        border: 2px solid #c8a96e;
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: border-color 0.1s;
+      }
+      .swatch.selected, .swatch:hover {
+        border-color: #5c4033;
+      }
+      #color-custom {
+        width: 28px;
+        height: 28px;
+        border: 2px solid #c8a96e;
+        border-radius: 4px;
+        padding: 0;
+        cursor: pointer;
+        background: none;
+        flex-shrink: 0;
+      }
     </style>
   </head>
   <body>
@@ -133,6 +162,14 @@
 
         <label for="soul-prompt">Soul Prompt</label>
         <textarea id="soul-prompt" placeholder="Describe your pet's personality…"></textarea>
+
+        <label>Pet Color</label>
+        <div class="color-row">
+          <div class="swatch selected" id="swatch-white"  data-color="#ffffff" style="background:#ffffff;" title="Original"></div>
+          <div class="swatch"          id="swatch-lavender" data-color="#ddccff" style="background:#ddccff;" title="Lavender"></div>
+          <div class="swatch"          id="swatch-ash"    data-color="#d0d0d0" style="background:#d0d0d0;" title="Ash"></div>
+          <input type="color" id="color-custom" value="#ffffff" title="Custom color" />
+        </div>
 
         <button class="submit" id="create-btn">Create Pet</button>
         <div id="error-msg-pet"></div>
