@@ -32,7 +32,14 @@ await registerPetRoutes(fastify, {
     ? (petId, soulMd, skillMd) => {
         createPetContainer(petId, soulMd, skillMd)
           .then(async ({ containerId }) => {
-            await startContainer(containerId);
+            try {
+              await startContainer(containerId);
+            } catch (err: unknown) {
+              // Health probe timed out but container may still be running.
+              // Mark running so the tick loop can reach it; continue to wallet write-back.
+              fastify.log.warn({ err, petId, containerId }, '[container] startContainer failed — marking running and continuing');
+              await db.update(pets).set({ container_status: 'running' }).where(eq(pets.container_id, containerId));
+            }
 
             // Wallet address write-back: Onchain OS assigns wallet asynchronously after container start.
             // Retry every 3s up to 30s, then grant 200 PAW registration credits.
