@@ -338,6 +338,40 @@ agent-browser eval "document.querySelector('.wallet-address-text')?.textContent"
 
 ---
 
+## Chain 12 — Friends Panel (PR #100)
+
+**Goal:** click Friends in HUD → panel opens with friend list
+
+```bash
+agent-browser snapshot | grep -i "friend"   # find @eN ref for Friends button
+agent-browser click "@eN"
+sleep 1
+agent-browser eval "document.getElementById('friends-panel')?.hidden"
+# expect: false
+agent-browser eval "document.querySelectorAll('.friend-item').length"
+# expect: >= 1
+```
+
+**Pass:** `friends-panel` not hidden; `.friend-item` count ≥ 1.
+**Note:** currently shows placeholder friends (Mochi, Biscuit, Pepper) — real friends list from DB is future work.
+
+---
+
+## Chain 13 — Topup endpoint validation (PR #113)
+
+**Goal:** `POST /api/pets/:id/topup` returns `NO_WALLET` when wallet not assigned
+
+```bash
+curl -s -X POST "http://localhost:3001/api/pets/$PET_ID/topup" \
+  -H "Authorization: Bearer $TOKEN"
+# expect: {"error":"Wallet not assigned yet","code":"NO_WALLET"}
+```
+
+**Pass:** 400 with `"code":"NO_WALLET"`.
+**Blocked (requires #129):** with real wallet — topup reads on-chain PAW balance, revives stopped container, emits `pet.revived` WS event.
+
+---
+
 ## Token expiry
 
 Supabase tokens expire in 1 hour. If WS tests fail with `closed:4001`:
@@ -363,6 +397,8 @@ TOKEN=$(agent-browser eval "new URLSearchParams(location.search).get('token')" |
 | — | 200 PAW registration credits granted on pet creation |
 | — | `paw_balance` polled → hunger bar shows correct value |
 | — | gift toast tx_hash links to OKX explorer |
+| — | `pet.died` WS event → dead state toast + hunger=0 |
+| — | `pet.revived` via topup → revival toast + container restart |
 
 ---
 
@@ -382,4 +418,6 @@ TOKEN=$(agent-browser eval "new URLSearchParams(location.search).get('token')" |
 | 8 HUD | `hudPresent:true`, SVG count ≥ 3, `.stat-track` count ≥ 2 |
 | 9 Gift name | Toast says "Sent a gift to FriendPet" / "Received a gift from FriendPet" — no UUID |
 | 10 Visitor | Screenshot shows 2 sprites on canvas |
-| 11 WalletPanel | Modal opens; address shown (not placeholder); no errors |
+| 11 WalletPanel | Modal opens; PAW Balance + Token Assets sections visible |
+| 12 Friends | Panel opens; friend items visible |
+| 13 Topup | No-wallet → `{"code":"NO_WALLET"}` 400 |
