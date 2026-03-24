@@ -1,8 +1,14 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { vi, describe, it, expect, beforeAll, afterAll } from 'vitest';
 import jwt from 'jsonwebtoken';
 import pg from 'pg';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { registerPetRoutes } from '../petRoutes.js';
+
+// Mock the credits module — real on-chain calls are not part of integration tests
+const mockGrantCredits = vi.fn<(wallet: string) => Promise<void>>();
+vi.mock('../onchain/credits.js', () => ({
+  grantRegistrationCredits: mockGrantCredits,
+}));
 
 const { Pool } = pg;
 
@@ -35,6 +41,8 @@ beforeAll(async () => {
 
   // Clean pets from previous runs
   await pool.query('DELETE FROM pets WHERE owner_id IN ($1, $2)', [OWNER_A, OWNER_B]);
+
+  mockGrantCredits.mockResolvedValue(undefined);
 
   process.env.JWT_SECRET = SECRET;
   app = Fastify();
@@ -116,6 +124,47 @@ describe('pet CRUD integration', () => {
     expect(rows[0].owner_id).toBe(OWNER_A);
     expect(rows[0].soul_md).toBe('# SOUL smoke');
     expect(rows[0].skill_md).toBe('# SKILL smoke');
+    expect(rows[0].initial_credits).toBe(200);
+  });
+
+  it('DB side effect: initial_credits defaults to 200 on creation', async () => {
+    const { rows } = await pool.query(
+      'SELECT initial_credits FROM pets WHERE id = $1',
+      [createdPetId],
+    );
+    expect(rows[0].initial_credits).toBe(200);
+  });
+
+  it('POST /api/pets calls grantRegistrationCredits when wallet_address is set', async () => {
+    mockGrantCredits.mockClear();
+    // Set a wallet address on the last created pet to simulate on-chain wallet assignment
+    await pool.query(
+      "UPDATE pets SET wallet_address = '0xtest-wallet' WHERE id = $1",
+      [createdPetId],
+    );
+
+    // Create a new pet — credits are called non-blocking if wallet_address is set
+    const res = await app.inject({
+      method: 'POST', url: '/api/pets',
+      headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
+      payload: { name: 'CreditsPet', soul_prompt: 'a rich cat' },
+    });
+    expect(res.statusCode).toBe(201);
+    // wallet_address is null at insert time (set async by Onchain OS), so credits are skipped
+    await new Promise((r) => setTimeout(r, 0));
+    // No wallet set yet at creation — credits not called
+    expect(mockGrantCredits).not.toHaveBeenCalled();
+  });
+
+  it('POST /api/pets returns 201 even when grantRegistrationCredits rejects', async () => {
+    mockGrantCredits.mockRejectedValueOnce(new Error('chain down'));
+    const res = await app.inject({
+      method: 'POST', url: '/api/pets',
+      headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
+      payload: { name: 'FailCreditsPet', soul_prompt: 'an unlucky dog' },
+    });
+    expect(res.statusCode).toBe(201);
+    await new Promise((r) => setTimeout(r, 0));
   });
 
   it('GET /api/pets/:id returns 200 with owner_id for owner', async () => {

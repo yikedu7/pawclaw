@@ -1,9 +1,14 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { generateHeartbeatMd } from './heartbeat-generator.js';
 
 const BASE_PET = { name: 'Mochi', hunger: 70, mood: 65, affection: 50 };
+const WALLET = '0xplatform-wallet-address';
 
 describe('generateHeartbeatMd — PAW payment block', () => {
+  beforeEach(() => {
+    process.env.PLATFORM_WALLET_ADDRESS = WALLET;
+  });
+
   afterEach(() => {
     delete process.env.PLATFORM_WALLET_ADDRESS;
   });
@@ -25,15 +30,13 @@ describe('generateHeartbeatMd — PAW payment block', () => {
   });
 
   it('uses PLATFORM_WALLET_ADDRESS from env when set', () => {
-    process.env.PLATFORM_WALLET_ADDRESS = '0xdeadbeef1234';
     const out = generateHeartbeatMd(BASE_PET);
-    expect(out).toContain('0xdeadbeef1234');
+    expect(out).toContain(WALLET);
   });
 
-  it('falls back to zero address when PLATFORM_WALLET_ADDRESS is not set', () => {
+  it('throws when PLATFORM_WALLET_ADDRESS is not set', () => {
     delete process.env.PLATFORM_WALLET_ADDRESS;
-    const out = generateHeartbeatMd(BASE_PET);
-    expect(out).toContain('0x0000000000000000000000000000000000000000');
+    expect(() => generateHeartbeatMd(BASE_PET)).toThrow('PLATFORM_WALLET_ADDRESS env var is required');
   });
 
   it('instructs pet to respond HEARTBEAT_OK if payment fails', () => {

@@ -14,7 +14,8 @@ type HeartbeatInput = Pick<Pet, 'name' | 'hunger' | 'mood' | 'affection'>;
  * right tool even without an explicit tick from the backend.
  */
 export function generateHeartbeatMd(pet: HeartbeatInput): string {
-  const platformWallet = process.env.PLATFORM_WALLET_ADDRESS ?? '0x0000000000000000000000000000000000000000';
+  const platformWallet = process.env.PLATFORM_WALLET_ADDRESS;
+  if (!platformWallet) throw new Error('PLATFORM_WALLET_ADDRESS env var is required');
   return `# Heartbeat Checklist for ${pet.name}
 
 Check your current state and take exactly one action. If nothing needs doing, respond with \`HEARTBEAT_OK\`.

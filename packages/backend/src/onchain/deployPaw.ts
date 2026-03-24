@@ -5,7 +5,7 @@
  * Run manually:
  *   DEPLOYER_PRIVATE_KEY=0x... tsx packages/backend/src/onchain/deployPaw.ts
  *
- * The deployed contract address must then be set as PAW_TOKEN_ADDRESS in .env /
+ * The deployed contract address must then be set as PAYMENT_TOKEN_ADDRESS in .env /
  * Railway environment variables.
  *
  * Bytecode is compiled from the OpenZeppelin ERC20 source below using:
@@ -34,7 +34,7 @@ const ABI = [
   'function allowance(address owner, address spender) view returns (uint256)',
 ];
 
-const X_LAYER_RPC = 'https://rpc.xlayer.tech';
+const X_LAYER_RPC = process.env.X_LAYER_RPC_URL ?? 'https://rpc.xlayer.tech';
 const INITIAL_SUPPLY = ethers.parseUnits('1000000', 18); // 1 million PAW
 
 async function main(): Promise<void> {
@@ -55,7 +55,7 @@ async function main(): Promise<void> {
 
   const address = await contract.getAddress();
   console.log(`PAW token deployed at: ${address}`);
-  console.log(`Set PAW_TOKEN_ADDRESS=${address} in your environment.`);
+  console.log(`Set PAYMENT_TOKEN_ADDRESS=${address} in your environment.`);
 }
 
 main().catch((err) => {
