@@ -10,8 +10,10 @@ const PET_SPRITE_H = 144; // 48px frame × 3 scale
 const FRIEND_FLASH_MS = 1200;
 // How long (ms) visitor stays inside house during dialogue before exiting
 const VISIT_INSIDE_MS = 4200;
-// How many px the visitor walks up into the door before disappearing
-const DOOR_ENTER_DEPTH = 96;
+// House interior height is 240px (5 tiles × 48px); place trophies at the centre (~2.5 tiles in)
+const TROPHY_Y_OFFSET = -120; // px above petStandY — puts trophies in house interior centre
+const TROPHY_X_START  = -60;  // first trophy: 60px left of door centre
+const TROPHY_X_STEP   =  30;  // spread trophies 30px apart horizontally
 
 type PetStateData = Extract<WsEvent, { type: 'pet.state' }>['data'];
 
@@ -25,11 +27,6 @@ export interface SceneTextures {
   door: Texture;   // Doors.png
   giftItem: Texture; // gift.png trophy sprite
 }
-
-// Horizontal distance from petStandX to first gift trophy spot
-const GIFT_OFFSET_X = 80;
-// Spacing between consecutive gift trophies
-const GIFT_SPACING_X = 60;
 
 export class PetRoom extends Container {
   readonly overlays: Container;
@@ -100,22 +97,15 @@ export class PetRoom extends Container {
     const doorX = this.bg.doorX;
     const doorY = this.bg.doorY;
     const offscreenX = this.app.screen.width + 80;
-    const enterTopY = doorY - DOOR_ENTER_DEPTH;
 
     this.visitor.walkThrough(offscreenX, doorY, [
-      // Phase 1: walk left from offscreen to door
-      { x: doorX, y: doorY, row: 1 },
-      // Phase 2: walk up into door, trigger dialogue, pause inside house
+      // Walk left from offscreen to door; disappear there while dialogue plays
       {
-        x: doorX,
-        y: enterTopY,
-        row: 3,
+        x: doorX, y: doorY, row: 1,
         onArrive: () => { this.bubble.enqueue(`[${fromPetId}] ${message}`); },
         pauseMs: VISIT_INSIDE_MS,
       },
-      // Phase 4: reappear at door top, walk down to floor
-      { x: doorX, y: doorY, row: 0 },
-      // Phase 5: walk right offscreen
+      // Reappear at door facing right, walk back offscreen
       { x: offscreenX, y: doorY, row: 2 },
     ]);
     this.petSprite.flashHappy();
@@ -126,10 +116,11 @@ export class PetRoom extends Container {
 
     const petX = this.bg.petStandX;
     const petY = this.bg.petStandY;
-    const spotX = petX + GIFT_OFFSET_X + this.gift.trophyCount * GIFT_SPACING_X;
+    const spotX = petX + TROPHY_X_START + this.gift.trophyCount * TROPHY_X_STEP;
+    const spotY = petY + TROPHY_Y_OFFSET; // inside house interior
 
-    this.petSprite.walkTo([{ x: spotX, y: petY }], () => {
-      this.gift.placeTrophy(spotX, petY, this.giftTexture);
+    this.petSprite.walkTo([{ x: spotX, y: spotY }], () => {
+      this.gift.placeTrophy(spotX, spotY, this.giftTexture);
       this.petSprite.walkTo([{ x: petX, y: petY }], () => {
         this.petSprite.flashHappy();
       });

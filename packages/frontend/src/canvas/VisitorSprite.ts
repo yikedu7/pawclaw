@@ -3,7 +3,7 @@ import { AnimatedSprite, Container, Rectangle, Texture, Ticker } from 'pixi.js';
 const FRAME_W = 48;
 const FRAME_H = 48;
 const SCALE = 2.5;
-const SPEED_PX_PER_S = 80;
+const SPEED_PX_PER_S = 160;
 
 interface Waypoint {
   x: number;

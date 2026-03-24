@@ -6,7 +6,7 @@ const SCALE = 3;
 const IDLE_SPEED = 0.06;
 const HAPPY_SPEED = 0.18;
 const HAPPY_DURATION_MS = 2500;
-const WALK_SPEED_PX_PER_S = 80;
+const WALK_SPEED_PX_PER_S = 160;
 
 // Spritesheet row mapping
 const ROW_DOWN  = 0;
@@ -81,7 +81,13 @@ export class PetSprite extends Container {
     if (this.walkQueue.length === 0) return;
     const wp = this.walkQueue[0];
     const dx = wp.x - this.x;
-    this.show(dx >= 0 ? this.rightSprite : this.leftSprite);
+    const dy = wp.y - this.y;
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      this.show(dx >= 0 ? this.rightSprite : this.leftSprite);
+    } else {
+      // vertical dominant — use down (row 0) going down, happy/up row going up
+      this.show(dy >= 0 ? this.idleSprite : this.happySprite);
+    }
   }
 
   /** Switch to happy walk animation; no-ops during walking. */
