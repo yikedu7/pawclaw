@@ -35,9 +35,9 @@ export function initUI(mount: HTMLElement, petId?: string, token?: string): void
   const nameplate = new Nameplate('My Pet', '0x1234...5678', 'online');
   const chatLog = new ChatLog();
   const toasts = new Toasts();
-  const hudBar = new HudBar();
+  const hudBar = new HudBar(petId, token);
 
-  overlay.append(nameplate.el, chatLog.el, toasts.el, hudBar.el, hudBar.diaryPanel.el, hudBar.friendsPanel.el);
+  overlay.append(nameplate.el, chatLog.el, toasts.el, hudBar.el, hudBar.diaryPanel.el, hudBar.friendsPanel.el, hudBar.walletPanel.el);
   mount.appendChild(overlay);
 
   // Load initial hunger from PAW balance on page open

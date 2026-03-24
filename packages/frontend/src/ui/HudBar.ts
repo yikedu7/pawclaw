@@ -1,5 +1,6 @@
 import { DiaryPanel } from './DiaryPanel';
 import { FriendsPanel } from './FriendsPanel';
+import { WalletPanel } from './WalletPanel';
 import { Icons } from './icons';
 
 interface StatSlot {
@@ -21,12 +22,14 @@ export class HudBar {
   readonly el: HTMLDivElement;
   readonly diaryPanel: DiaryPanel;
   readonly friendsPanel: FriendsPanel;
+  readonly walletPanel: WalletPanel;
 
   private readonly slots: StatSlot[];
 
-  constructor() {
+  constructor(petId?: string, token?: string) {
     this.diaryPanel = new DiaryPanel();
     this.friendsPanel = new FriendsPanel();
+    this.walletPanel = new WalletPanel(petId, token);
 
     this.el = document.createElement('div');
     this.el.id = 'hud-bar';
@@ -89,17 +92,23 @@ export class HudBar {
 
     centerSection.append(diaryBtn, friendsBadge);
 
-    // ── Right: wallet stub ───────────────────────────────────────────
-    const walletSection = document.createElement('div');
-    walletSection.className = 'hud-wallet';
+    // ── Right: wallet button ─────────────────────────────────────────
+    const walletSection = document.createElement('button');
+    walletSection.className = 'hud-wallet hud-btn';
 
     walletSection.appendChild(Icons.wallet());
 
     const walletBalance = document.createElement('span');
     walletBalance.className = 'hud-wallet-balance';
-    walletBalance.textContent = '0.05 OKB';
+    walletBalance.textContent = 'Wallet';
 
     walletSection.appendChild(walletBalance);
+
+    walletSection.addEventListener('click', () => {
+      this.diaryPanel.close();
+      this.friendsPanel.close();
+      this.walletPanel.toggle();
+    });
 
     this.el.append(statsSection, centerSection, walletSection);
   }

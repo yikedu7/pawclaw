@@ -484,6 +484,282 @@
   font-style: italic;
 }
 
+/* ── Wallet overlay ───────────────────────────────────────────────── */
+#wallet-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(74, 55, 40, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+
+#wallet-overlay[hidden] {
+  display: none;
+}
+
+#wallet-modal {
+  width: min(420px, 92%);
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.wallet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--ui-brown-light);
+  flex-shrink: 0;
+}
+
+.wallet-title {
+  font-family: var(--ui-font-pixel);
+  font-size: 10px;
+  color: var(--ui-brown);
+}
+
+.wallet-close-btn {
+  background: none;
+  border: none;
+  font-size: 14px;
+  color: var(--ui-text-muted);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.wallet-close-btn:hover {
+  color: var(--ui-text);
+}
+
+.wallet-body {
+  padding: 12px 14px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Address bar */
+.wallet-address-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: rgba(139, 111, 71, 0.08);
+  border: 1px solid var(--ui-brown-light);
+  border-radius: 6px;
+}
+
+.wallet-address-text {
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--ui-text);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wallet-copy-btn {
+  background: var(--ui-brown-light);
+  color: var(--ui-text);
+  border: none;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.wallet-copy-btn:hover {
+  background: var(--ui-brown);
+  color: var(--ui-cream);
+}
+
+.wallet-action-row {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+
+.wallet-btn {
+  border: none;
+  border-radius: 5px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-family: var(--ui-font-body);
+  cursor: pointer;
+}
+
+.wallet-btn-deposit {
+  background: #4a8a52;
+  color: #fff;
+  flex: 1;
+}
+
+.wallet-btn-deposit:hover {
+  background: #3d7545;
+}
+
+.wallet-btn-withdraw {
+  background: #b84040;
+  color: #fff;
+  flex: 1;
+}
+
+.wallet-btn-withdraw:hover {
+  background: #9e3535;
+}
+
+.wallet-btn-buy {
+  background: var(--ui-brown);
+  color: var(--ui-cream);
+  flex-shrink: 0;
+}
+
+.wallet-btn-buy:hover {
+  background: var(--ui-brown-light);
+  color: var(--ui-text);
+}
+
+/* PAW balance row */
+.wallet-paw-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(232, 197, 71, 0.12);
+  border: 1px solid rgba(232, 197, 71, 0.4);
+  border-radius: 6px;
+}
+
+.wallet-paw-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ui-text);
+}
+
+.wallet-paw-label {
+  font-weight: 600;
+}
+
+.wallet-paw-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wallet-paw-balance {
+  font-family: var(--ui-font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ui-brown);
+}
+
+/* Token Assets section */
+.wallet-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wallet-section-title {
+  font-family: var(--ui-font-pixel);
+  font-size: 8px;
+  color: var(--ui-brown);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.wallet-chain-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ui-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 4px;
+}
+
+.wallet-token-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  background: rgba(139, 111, 71, 0.06);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.wallet-token-symbol {
+  font-weight: 600;
+  color: var(--ui-text);
+  width: 40px;
+  flex-shrink: 0;
+}
+
+.wallet-token-balance {
+  flex: 1;
+  color: var(--ui-text);
+}
+
+.wallet-token-usd {
+  color: var(--ui-text-muted);
+  flex-shrink: 0;
+}
+
+/* NFT grid */
+.wallet-nft-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.wallet-nft-slot {
+  aspect-ratio: 1;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 2px solid var(--ui-brown-light);
+}
+
+.wallet-nft-slot-filled {
+  background: rgba(163, 197, 133, 0.2);
+}
+
+.wallet-nft-slot-empty {
+  background: rgba(139, 111, 71, 0.06);
+  border-style: dashed;
+  opacity: 0.4;
+}
+
+.wallet-nft-img {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.wallet-nft-caption {
+  font-size: 8px;
+  color: var(--ui-text-muted);
+  text-align: center;
+  padding: 2px 2px 3px;
+  line-height: 1.2;
+}
+
 /* ── Mobile responsive ────────────────────────────────────────────── */
 @media (max-width: 600px) {
   #chat-log {
