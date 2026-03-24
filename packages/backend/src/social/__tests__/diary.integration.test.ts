@@ -49,6 +49,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await pool.query('DELETE FROM diary_entries WHERE pet_id = $1', [petId]);
   await pool.query('DELETE FROM pets WHERE owner_id IN ($1, $2)', [OWNER_A, OWNER_B]);
   await pool.end();
   await app.close();
@@ -91,8 +92,7 @@ describe('GET /api/pets/:id/diary', () => {
     expect(res.json().code).toBe('FORBIDDEN');
   });
 
-  it('returns 200 with static message when no social events exist', async () => {
-    // No social_events seeded for this pet yet
+  it('returns { diary: null } when no diary entries exist', async () => {
     const res = await app.inject({
       method: 'GET',
       url: `/api/pets/${petId}/diary`,
@@ -100,22 +100,14 @@ describe('GET /api/pets/:id/diary', () => {
     });
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body).toHaveProperty('diary');
-    expect(typeof body.diary).toBe('string');
-    expect(body.diary).toContain('DiaryPet');
+    expect(body).toEqual({ diary: null });
   });
 
-  it('returns 200 with LLM diary when social events exist (requires ANTHROPIC_API_KEY)', async () => {
-    if (!process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY.startsWith('sk-ant-placeholder')) {
-      process.stdout.write('Skipping LLM diary test — no real ANTHROPIC_API_KEY set\n');
-      return;
-    }
-
-    // Seed a visit event for this pet
-    await pool.query(`
-      INSERT INTO social_events (from_pet_id, to_pet_id, type, payload)
-      VALUES ($1, $1, 'visit', $2::jsonb)
-    `, [petId, JSON.stringify({ turns: [{ speaker_pet_id: petId, line: 'Hello!' }] })]);
+  it('returns latest diary entry when one exists', async () => {
+    await pool.query(
+      `INSERT INTO diary_entries (pet_id, content) VALUES ($1, 'Today I visited my friend.')`,
+      [petId],
+    );
 
     const res = await app.inject({
       method: 'GET',
@@ -124,8 +116,22 @@ describe('GET /api/pets/:id/diary', () => {
     });
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body).toHaveProperty('diary');
-    expect(typeof body.diary).toBe('string');
-    expect(body.diary.length).toBeGreaterThan(10);
+    expect(body.diary).toBe('Today I visited my friend.');
+    expect(body.created_at).toBeDefined();
+  });
+
+  it('returns the latest entry when multiple entries exist', async () => {
+    await pool.query(
+      `INSERT INTO diary_entries (pet_id, content, created_at) VALUES ($1, 'Older entry.', now() - interval '1 day')`,
+      [petId],
+    );
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/pets/${petId}/diary`,
+      headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().diary).toBe('Today I visited my friend.');
   });
 });
