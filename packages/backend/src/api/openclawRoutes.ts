@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import type { WsEvent } from '@x-pet/shared';
 import { db } from '../db/client.js';
-import { pets, transactions } from '../db/schema.js';
+import { pets, transactions, social_events } from '../db/schema.js';
 import { executeVisit } from '../social/visit.js';
 import { send402, decodePaymentSignature, type PaymentAuthorization } from '../payment/x402.js';
 import { verifyEIP3009Signature, submitTransferWithAuthorization } from '../payment/verify.js';
@@ -25,7 +25,7 @@ const PetIdSchema = z.string().uuid();
 const RuntimeEventSchema = z.discriminatedUnion('event_type', [
   z.object({ event_type: z.literal('speak'), message: z.string() }),
   z.object({ event_type: z.literal('visit'), target_pet_id: z.string().uuid(), greeting: z.string() }),
-  z.object({ event_type: z.literal('gift'), target_pet_id: z.string().uuid(), amount: z.string() }),
+  z.object({ event_type: z.literal('gift'), target_pet_id: z.string().uuid(), amount: z.string(), tx_hash: z.string().optional() }),
   z.object({ event_type: z.literal('rest') }),
   z.object({
     event_type: z.literal('state_update'),
@@ -76,9 +76,15 @@ export async function registerOpenclawRoutes(
 
       case 'gift':
         // TODO(#16): X402 payment — call pet wallet via Onchain OS to send OKB on X Layer
+        await db.insert(social_events).values({
+          from_pet_id: petId,
+          to_pet_id: event.target_pet_id,
+          type: 'gift',
+          payload: { amount: event.amount, token: 'OKB', tx_hash: event.tx_hash ?? '' },
+        });
         deps.emitOwnerEvent(pet.owner_id, {
           type: 'social.gift',
-          data: { from_pet_id: petId, to_pet_id: event.target_pet_id, token: 'OKB', amount: event.amount, tx_hash: '' },
+          data: { from_pet_id: petId, to_pet_id: event.target_pet_id, token: 'OKB', amount: event.amount, tx_hash: event.tx_hash ?? '' },
         });
         break;
 
