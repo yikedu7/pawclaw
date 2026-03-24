@@ -1,3 +1,5 @@
+import { Icons } from './icons';
+
 interface Stat {
   key: string;
   label: string;
@@ -15,10 +17,10 @@ export class StatBars {
     this.el.id = 'stat-bars';
     this.el.classList.add('ui-panel');
 
-    const defs: { key: string; label: string; icon: string }[] = [
-      { key: 'hunger', label: 'Hunger', icon: '🍎' },
-      { key: 'mood', label: 'Mood', icon: '😊' },
-      { key: 'affection', label: 'Love', icon: '💗' },
+    const defs: { key: string; label: string; icon: () => SVGSVGElement }[] = [
+      { key: 'hunger',    label: 'Hunger', icon: Icons.apple },
+      { key: 'mood',      label: 'Mood',   icon: Icons.smile },
+      { key: 'affection', label: 'Love',   icon: Icons.heart },
     ];
 
     this.stats = defs.map((def) => {
@@ -27,7 +29,7 @@ export class StatBars {
 
       const label = document.createElement('span');
       label.className = 'stat-label';
-      label.textContent = `${def.icon} ${def.label}`;
+      label.append(def.icon(), ` ${def.label}`);
 
       const track = document.createElement('div');
       track.className = 'stat-track';

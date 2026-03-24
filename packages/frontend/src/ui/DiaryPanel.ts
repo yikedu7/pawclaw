@@ -1,3 +1,5 @@
+import { Icons } from './icons';
+
 /** Centered modal overlay showing the pet's diary from GET /api/pets/demo/diary. */
 export class DiaryPanel {
   readonly el: HTMLDivElement;
@@ -18,7 +20,7 @@ export class DiaryPanel {
 
     const title = document.createElement('span');
     title.className = 'diary-title';
-    title.textContent = '📖 My Diary';
+    title.append(Icons.bookOpen(12), ' My Diary');
 
     const closeBtn = document.createElement('button');
     closeBtn.className = 'diary-close-btn';
@@ -53,7 +55,10 @@ export class DiaryPanel {
         this.body.textContent = data.summary ?? 'No diary entry.';
       })
       .catch(() => {
-        this.body.innerHTML = '<span class="diary-empty">📭 No entries yet — come back after your pet has had a big day!</span>';
+        const empty = document.createElement('span');
+        empty.className = 'diary-empty';
+        empty.append(Icons.inbox(13), ' No entries yet — come back after your pet has had a big day!');
+        this.body.replaceChildren(empty);
       });
   }
 
