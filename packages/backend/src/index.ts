@@ -10,7 +10,7 @@ import { registerDiaryRoute } from './social/diary.js';
 import { registerOpenclawRoutes } from './api/openclawRoutes.js';
 import { generateSoulMd } from './runtime/soul-generator.js';
 import { generateSkillMd } from './runtime/skill-generator.js';
-import { createPetContainer, startContainer } from './runtime/container.js';
+import { createPetContainer, startContainer, containerChat } from './runtime/container.js';
 import { tickBus } from './runtime/tick-bus.js';
 
 const fastify = Fastify({ logger: true });
@@ -32,6 +32,7 @@ await registerPetRoutes(fastify, {
 });
 await registerChatRoute(fastify, {
   emitOwnerEvent: (ownerId, event) => tickBus.emit('ownerEvent', ownerId, event),
+  containerChat,
 });
 await registerDiaryRoute(fastify);
 await registerOpenclawRoutes(fastify, {

@@ -15,6 +15,7 @@ const ChatBodySchema = z.object({
 
 export type ChatRouteDeps = {
   emitOwnerEvent: (ownerId: string, event: WsEvent) => void;
+  containerChat: (containerId: string, gatewayToken: string, message: string, state: object) => Promise<string>;
 };
 
 export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRouteDeps): Promise<void> {
@@ -39,25 +40,25 @@ export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRout
       return reply.code(403).send({ error: 'Forbidden', code: 'FORBIDDEN' });
     }
 
-    // If a container is registered, forward the message to it asynchronously.
-    // The container will call back /internal/runtime/events/:petId with a speak event.
-    if (pet.container_host && pet.container_port) {
-      const containerUrl = `http://${pet.container_host}:${pet.container_port}/webhook/${id}`;
-      fetch(containerUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(pet.gateway_token ? { Authorization: `Bearer ${pet.gateway_token}` } : {}),
-        },
-        body: JSON.stringify({
-          pet_id: id,
-          user_message: parsed.data.message,
-          state: { hunger: pet.hunger, mood: pet.mood, affection: pet.affection },
-        }),
-      }).catch((err: unknown) => {
-        request.log.error({ err, petId: id }, 'Container chat forward failed');
-      });
-      return reply.send({ reply: null });
+    // If a container is running, send the message via docker exec → /v1/chat/completions,
+    // capture the reply, emit a WS speak event, and return the reply text.
+    if (pet.container_id && pet.gateway_token && pet.container_status === 'running') {
+      try {
+        const replyText = await deps.containerChat(
+          pet.container_id,
+          pet.gateway_token,
+          parsed.data.message,
+          { hunger: pet.hunger, mood: pet.mood, affection: pet.affection },
+        );
+        deps.emitOwnerEvent(pet.owner_id, {
+          type: 'pet.speak',
+          data: { pet_id: id, message: replyText },
+        });
+        return reply.send({ reply: replyText });
+      } catch (err: unknown) {
+        request.log.error({ err, petId: id }, 'Container chat failed');
+        // fall through to direct LLM below
+      }
     }
 
     let reply_text: string;
@@ -66,7 +67,7 @@ export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRout
       reply_text = 'I heard you! (mock chat)';
     } else {
       const response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-6-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 256,
         system: pet.soul_md,
         messages: [{ role: 'user', content: parsed.data.message }],

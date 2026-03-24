@@ -1,6 +1,6 @@
 import type { Pet } from '@x-pet/shared';
 
-type SkillInput = Pick<Pet, 'id'> & { backendUrl: string };
+type SkillInput = Pick<Pet, 'id'> & { backendUrl: string; webhookToken: string };
 
 /**
  * Generate the SKILL.md file content for the x-pet skill set.
@@ -9,11 +9,11 @@ type SkillInput = Pick<Pet, 'id'> & { backendUrl: string };
  * OpenClaw injects this document as a prompt block before each LLM turn.
  * Tools call the x-pet backend via `exec curl`.
  *
- * @param input  Pet id and the backend base URL (no trailing slash).
+ * @param input  Pet id, backend base URL, and the shared webhook token.
  * @returns      Full SKILL.md string ready to be written to the OpenClaw workspace.
  */
 export function generateSkillMd(input: SkillInput): string {
-  const { id: petId, backendUrl } = input;
+  const { id: petId, backendUrl, webhookToken } = input;
   const base = backendUrl.replace(/\/$/, '');
 
   return `---
@@ -35,8 +35,8 @@ Use when mood > 60 and you want to socialise with another pet.
 \`\`\`exec
 curl -s -X POST ${base}/internal/tools/visit_pet \\
   -H "Content-Type: application/json" \\
-  -H "X-Pet-Id: ${petId}" \\
-  -d '{"target_pet_id": "<uuid of pet to visit>"}'
+  -H "Authorization: Bearer ${webhookToken}" \\
+  -d '{"pet_id": "${petId}", "target_pet_id": "<uuid of pet to visit>", "greeting": "<opening line>"}'
 \`\`\`
 
 Response: \`{"ok": true, "dialogue": [{"speaker_pet_id": "...", "line": "..."}]}\`.
@@ -49,8 +49,8 @@ Use when affection with another pet is above 80 and you want to send a small on-
 \`\`\`exec
 curl -s -X POST ${base}/internal/tools/send_gift \\
   -H "Content-Type: application/json" \\
-  -H "X-Pet-Id: ${petId}" \\
-  -d '{"target_pet_id": "<uuid>", "token": "OKB", "amount": "0.01"}'
+  -H "Authorization: Bearer ${webhookToken}" \\
+  -d '{"pet_id": "${petId}", "target_pet_id": "<uuid>", "amount": "0.01"}'
 \`\`\`
 
 Response: \`{"ok": true, "tx_hash": "<hash>"}\`.
@@ -62,8 +62,8 @@ Use to say something without visiting anyone — solo thoughts, reactions, greet
 \`\`\`exec
 curl -s -X POST ${base}/internal/tools/speak \\
   -H "Content-Type: application/json" \\
-  -H "X-Pet-Id: ${petId}" \\
-  -d '{"message": "<your message>"}'
+  -H "Authorization: Bearer ${webhookToken}" \\
+  -d '{"pet_id": "${petId}", "message": "<your message>"}'
 \`\`\`
 
 Response: \`{"ok": true}\`.
@@ -75,8 +75,8 @@ Use when hunger < 40 or mood < 40. Resting recovers both stats.
 \`\`\`exec
 curl -s -X POST ${base}/internal/tools/rest \\
   -H "Content-Type: application/json" \\
-  -H "X-Pet-Id: ${petId}" \\
-  -d '{}'
+  -H "Authorization: Bearer ${webhookToken}" \\
+  -d '{"pet_id": "${petId}"}'
 \`\`\`
 
 Response: \`{"ok": true, "hunger_delta": <number>, "mood_delta": <number>}\`.

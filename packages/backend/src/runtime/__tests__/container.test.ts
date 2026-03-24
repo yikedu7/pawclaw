@@ -10,6 +10,7 @@
  * (requires live Hetzner VPS). See docs/hetzner-setup.md for manual testing.
  */
 
+import { EventEmitter } from 'node:events';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
@@ -31,6 +32,12 @@ const mockContainerStop = vi.fn().mockResolvedValue(undefined);
 const mockContainerRemove = vi.fn().mockResolvedValue(undefined);
 const mockContainerInspect = vi.fn();
 const mockCreateContainer = vi.fn();
+const mockExecStart = vi.fn();
+const mockExecInspect = vi.fn();
+const mockContainerExec = vi.fn().mockResolvedValue({
+  start: mockExecStart,
+  inspect: mockExecInspect,
+});
 
 vi.mock('dockerode', () => ({
   default: vi.fn().mockImplementation(() => ({
@@ -40,6 +47,7 @@ vi.mock('dockerode', () => ({
       stop: mockContainerStop,
       remove: mockContainerRemove,
       inspect: mockContainerInspect,
+      exec: mockContainerExec,
     }),
   })),
 }));
@@ -186,5 +194,67 @@ describe('removeContainer', () => {
     await removeContainer('cid-remove');
     expect(mockContainerRemove).toHaveBeenCalledWith({ force: true });
     expect(petsDb[0].container_status).toBe('deleted');
+  });
+});
+
+describe('deliverTick', () => {
+  const CONTAINER_ID = 'cid-deliver';
+  const GATEWAY_TOKEN = 'test-gateway-token-xyz';
+
+  beforeEach(() => {
+    vi.resetModules();
+    mockContainerExec.mockReset();
+    mockExecStart.mockReset();
+    mockExecInspect.mockReset();
+    setupEnv();
+  });
+
+  it('execs curl to /v1/chat/completions with correct args', async () => {
+    // exec.start calls back with a stream that ends immediately
+    mockExecStart.mockImplementation((_opts: unknown, cb: (err: null, stream: NodeJS.EventEmitter) => void) => {
+      const stream = new EventEmitter() as NodeJS.EventEmitter & { resume: () => void };
+      stream.resume = () => {};
+      cb(null, stream);
+      setImmediate(() => stream.emit('end'));
+    });
+    mockExecInspect.mockResolvedValue({ ExitCode: 0 });
+    mockContainerExec.mockResolvedValue({ start: mockExecStart, inspect: mockExecInspect });
+
+    const { deliverTick } = await import('../container.js');
+    const payload = { pet_id: 'some-pet', tick_at: '2026-01-01T00:00:00.000Z' };
+    await deliverTick(CONTAINER_ID, GATEWAY_TOKEN, payload);
+
+    const expectedBody = JSON.stringify({
+      model: 'openclaw:main',
+      messages: [{ role: 'user', content: `tick: ${JSON.stringify(payload)}` }],
+      stream: false,
+    });
+    expect(mockContainerExec).toHaveBeenCalledWith({
+      Cmd: [
+        'curl', '-s', '-X', 'POST',
+        'http://localhost:18789/v1/chat/completions',
+        '-H', 'Content-Type: application/json',
+        '-H', `Authorization: Bearer ${GATEWAY_TOKEN}`,
+        '-d', expectedBody,
+      ],
+      AttachStdout: true,
+      AttachStderr: true,
+    });
+  });
+
+  it('throws when exec exits with non-zero code', async () => {
+    mockExecStart.mockImplementation((_opts: unknown, cb: (err: null, stream: NodeJS.EventEmitter) => void) => {
+      const stream = new EventEmitter() as NodeJS.EventEmitter & { resume: () => void };
+      stream.resume = () => {};
+      cb(null, stream);
+      setImmediate(() => stream.emit('end'));
+    });
+    mockExecInspect.mockResolvedValue({ ExitCode: 1 });
+    mockContainerExec.mockResolvedValue({ start: mockExecStart, inspect: mockExecInspect });
+
+    const { deliverTick } = await import('../container.js');
+    await expect(deliverTick(CONTAINER_ID, GATEWAY_TOKEN, {})).rejects.toThrow(
+      `deliverTick exec exited 1 for container ${CONTAINER_ID}`,
+    );
   });
 });

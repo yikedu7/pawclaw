@@ -110,9 +110,10 @@ async function main() {
       `${dataDir}/${PET_ID}/workspace/HEARTBEAT.md`,
       `${dataDir}/${PET_ID}/workspace/skills/x-pet/SKILL.md`,
     ];
+    const sshKeyFile = process.env.HETZNER_SSH_KEY_FILE ?? '/tmp/hetzner-test-key';
     for (const f of files) {
       const out = execSync(
-        `ssh -i /tmp/hetzner-test-key -o StrictHostKeyChecking=no deploy@${process.env.HETZNER_HOST} "test -f '${f}' && echo exists"`,
+        `ssh -i ${sshKeyFile} -o StrictHostKeyChecking=no deploy@${process.env.HETZNER_HOST} "test -f '${f}' && echo exists"`,
       ).toString().trim();
       if (out !== 'exists') throw new Error(`File not found on VM: ${f}`);
       ok(`${f.split('/').slice(-1)[0]} written ✓`);
