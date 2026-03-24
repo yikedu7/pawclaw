@@ -71,7 +71,9 @@ async function main(): Promise<void> {
     const lines = e.data.turns.map((t: { line: string }) => t.line).join(' / ');
     room.showVisit(e.data.from_pet_id, lines);
   });
-  eventBus.on('social.gift',    (e) => room.showGift(e.data.from_pet_id));
+  eventBus.on('social.gift',    (e) => {
+    if (petId && e.data.to_pet_id === petId) room.showGift(e.data.from_pet_id);
+  });
   eventBus.on('friend.unlocked',(e) => room.showFriendUnlocked(e.data.pet_id));
   eventBus.on('error',          (e) => room.showDialogue(`Error: ${e.data.message}`));
 
@@ -95,6 +97,7 @@ async function main(): Promise<void> {
   } else {
     new MockEvents().start();
   }
+
 }
 
 main();

@@ -147,7 +147,7 @@ Fetch current state of a single pet. Requires auth.
 
 **Path params:** `id` — pet uuid
 
-**Response — 200 OK**
+**Response — 200 OK (own pet)**
 
 ```typescript
 {
@@ -166,12 +166,19 @@ Fetch current state of a single pet. Requires auth.
 
 Frontend hunger computation: `hunger = Math.round(parseFloat(paw_balance) / initial_credits * 100)`
 
+**Response — 200 OK (cross-owner read)**
+
+Authenticated users may read the public name of a pet they do not own (used for chat log name resolution):
+
+```typescript
+{ name: string }
+```
+
 **Error codes**
 
 | Status | code           | Condition                |
 |--------|----------------|--------------------------|
 | 401    | `UNAUTHORIZED` | Missing or invalid token |
-| 403    | `FORBIDDEN`    | Pet belongs to another user |
 | 404    | `NOT_FOUND`    | Pet id does not exist    |
 
 ---

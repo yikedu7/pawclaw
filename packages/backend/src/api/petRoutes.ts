@@ -133,8 +133,9 @@ export async function registerPetRoutes(
       return reply.code(404).send({ error: 'Pet not found', code: 'NOT_FOUND' });
     }
 
+    // Other authenticated users can read the pet's public name (for chat resolution)
     if (row.owner_id !== request.owner_id) {
-      return reply.code(403).send({ error: 'Forbidden', code: 'FORBIDDEN' });
+      return reply.send({ name: row.name });
     }
 
     return reply.send(toPetDetail(row));
