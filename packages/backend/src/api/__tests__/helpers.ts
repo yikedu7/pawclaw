@@ -22,6 +22,7 @@ export type PetRow = {
   hunger: number;
   mood: number;
   affection: number;
+  initial_credits: number;
   llm_history: unknown;
   last_tick_at: Date | null;
   created_at: Date;
@@ -53,6 +54,7 @@ export function seedPet(overrides: Partial<PetRow> & { id: string; owner_id: str
     soul_md: '#',
     skill_md: '#',
     wallet_address: null,
+    initial_credits: 200,
     hunger: 100,
     mood: 100,
     affection: 0,
@@ -104,6 +106,7 @@ vi.mock('../../db/client.js', () => {
               soul_md: vals.soul_md ?? '',
               skill_md: vals.skill_md ?? '',
               wallet_address: vals.wallet_address ?? null,
+              initial_credits: vals.initial_credits ?? 200,
               hunger: vals.hunger ?? 100,
               mood: vals.mood ?? 100,
               affection: vals.affection ?? 0,

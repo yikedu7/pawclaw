@@ -2,6 +2,12 @@
 
 ## Open (unresolved)
 
+### R13: PLATFORM_WALLET_ADDRESS misconfiguration — MEDIUM
+- **Risk:** `generateHeartbeatMd` throws at container creation time if `PLATFORM_WALLET_ADDRESS` is unset. Pets will be inserted into the DB but their containers will fail to start, silently leaving them in `container_status = 'starting'` forever.
+- **Impact:** All pet creation succeeds at the API level (201 returned) but no pet actually runs. Symptoms: no WS events, all pets show hunger/mood at defaults.
+- **Mitigation:** `generateHeartbeatMd` now throws rather than falling back to the zero address (which would silently route payments to the burn address). Added to startup validation checklist in `docs/deploy.md`.
+- **Action needed:** Ensure `PLATFORM_WALLET_ADDRESS` is set in Railway env vars before first deploy (matches address derived from `BACKEND_RELAYER_PRIVATE_KEY`).
+
 ### R1: X402 LLM Endpoint — HIGH
 - **Unknown:** Is there a native X402-supporting LLM endpoint in the XLayer ecosystem?
 - **Impact:** Core demo mechanic (pet pays per LLM call via X402)

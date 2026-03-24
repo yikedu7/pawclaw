@@ -1,0 +1,1 @@
+ALTER TABLE "pets" ADD COLUMN "initial_credits" integer DEFAULT 200 NOT NULL;
