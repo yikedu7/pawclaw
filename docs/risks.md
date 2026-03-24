@@ -87,6 +87,13 @@
 - **Implementation:** See `docs/remote-docker-access.md` for full comparison and connection snippet. Issue #38 tracks VPS provisioning and keypair setup.
 - **Remaining concern:** SSH private key leakage gives VPS shell access. Mitigated by storing key only in Railway env vars (not in repo) and using a dedicated deploy keypair.
 
+### R14: `executeVisit` dialogue generation refactor — DEFERRED
+
+- **Problem:** `visit.ts` currently owns both LLM call (pet B's response generation) and persistence/emit. This couples dialogue generation to the social layer and makes it hard to test or swap content.
+- **Desired state:** Callers supply `turns: VisitTurn[]`; `executeVisit` only persists + emits. LLM generation moves to the tick layer.
+- **Blocker:** All call sites (`visit_pet` tool in LLM tick, `openclawRoutes`) would need to generate dialogue before calling `executeVisit`. Not merged to main because non-mock callers would silently emit empty dialogue.
+- **Reference:** PR #126 review; demo-hack already does this correctly for mock mode via `DEMO_TURNS` in `mock-tick.ts`.
+
 ---
 
 ## Monitoring
