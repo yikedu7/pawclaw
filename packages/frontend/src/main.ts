@@ -81,7 +81,7 @@ async function main(): Promise<void> {
     fetch(`${backendUrl}/api/pets/${petId}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((res) => res.ok ? res.json() as Promise<{ tint_color?: string }> : Promise.resolve({}))
+      .then((res) => res.ok ? res.json() as Promise<{ tint_color?: string }> : Promise.resolve({} as { tint_color?: string }))
       .then((data) => {
         if (data.tint_color && data.tint_color !== '#ffffff') {
           room.applyPetTint(data.tint_color);
