@@ -21,6 +21,13 @@
   --ui-font-body: 'Inter', system-ui, sans-serif;
 }
 
+/* ── SVG icon alignment ───────────────────────────────────────────── */
+.ui-icon {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
 /* ── Shared panel styling ─────────────────────────────────────────── */
 .ui-panel {
   background: var(--ui-panel-bg);

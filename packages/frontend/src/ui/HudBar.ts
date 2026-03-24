@@ -1,5 +1,6 @@
 import { DiaryPanel } from './DiaryPanel';
 import { FriendsPanel } from './FriendsPanel';
+import { Icons } from './icons';
 
 interface StatSlot {
   fill: HTMLDivElement;
@@ -7,9 +8,9 @@ interface StatSlot {
 }
 
 const STAT_DEFS = [
-  { key: 'hunger',    icon: '🍎', label: 'Hunger' },
-  { key: 'mood',      icon: '😊', label: 'Mood' },
-  { key: 'affection', icon: '💗', label: 'Love' },
+  { key: 'hunger',    icon: Icons.apple,  label: 'Hunger' },
+  { key: 'mood',      icon: Icons.smile,  label: 'Mood' },
+  { key: 'affection', icon: Icons.heart,  label: 'Love' },
 ];
 
 /**
@@ -41,8 +42,8 @@ export class HudBar {
 
       const label = document.createElement('span');
       label.className = 'hud-stat-label';
-      label.textContent = `${def.icon}`;
       label.title = def.label;
+      label.appendChild(def.icon());
 
       const track = document.createElement('div');
       track.className = 'stat-track';
@@ -68,7 +69,7 @@ export class HudBar {
 
     const diaryBtn = document.createElement('button');
     diaryBtn.className = 'hud-btn hud-diary-btn';
-    diaryBtn.textContent = '📖 Diary';
+    diaryBtn.append(Icons.bookOpen(), ' Diary');
     diaryBtn.addEventListener('click', () => {
       this.friendsPanel.close();
       if (this.diaryPanel.isOpen()) {
@@ -80,7 +81,7 @@ export class HudBar {
 
     const friendsBadge = document.createElement('button');
     friendsBadge.className = 'hud-btn hud-friends-btn';
-    friendsBadge.textContent = '👥 Friends';
+    friendsBadge.append(Icons.users(), ' Friends');
     friendsBadge.addEventListener('click', () => {
       this.diaryPanel.close();
       this.friendsPanel.toggle();
@@ -92,14 +93,13 @@ export class HudBar {
     const walletSection = document.createElement('div');
     walletSection.className = 'hud-wallet';
 
-    const walletIcon = document.createElement('span');
-    walletIcon.textContent = '💰';
+    walletSection.appendChild(Icons.wallet());
 
     const walletBalance = document.createElement('span');
     walletBalance.className = 'hud-wallet-balance';
     walletBalance.textContent = '0.05 OKB';
 
-    walletSection.append(walletIcon, walletBalance);
+    walletSection.appendChild(walletBalance);
 
     this.el.append(statsSection, centerSection, walletSection);
   }
