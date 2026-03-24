@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * One-time deploy script: deploys PawClaw Token (PAW) ERC20 to X Layer (eip155:196).
  *

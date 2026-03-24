@@ -31,8 +31,4 @@ export async function grantRegistrationCredits(petWalletAddress: string): Promis
   const token = new ethers.Contract(tokenAddress, ERC20_TRANSFER_ABI, signer);
   const tx = await token.transfer(petWalletAddress, REGISTRATION_GRANT) as ethers.ContractTransactionResponse;
   await tx.wait();
-
-  console.log(
-    `[credits] Granted 200 PAW to pet wallet ${petWalletAddress} (tx: ${tx.hash})`,
-  );
 }
