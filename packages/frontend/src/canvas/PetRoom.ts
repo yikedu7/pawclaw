@@ -8,7 +8,10 @@ import { VisitorSprite } from './VisitorSprite';
 
 const PET_SPRITE_H = 144; // 48px frame × 3 scale
 const FRIEND_FLASH_MS = 1200;
-const VISIT_SLIDE_OUT_DELAY_MS = 4200;
+// How long (ms) visitor stays inside house during dialogue before exiting
+const VISIT_INSIDE_MS = 4200;
+// How many px the visitor walks up into the door before disappearing
+const DOOR_ENTER_DEPTH = 96;
 
 type PetStateData = Extract<WsEvent, { type: 'pet.state' }>['data'];
 
@@ -31,7 +34,6 @@ export class PetRoom extends Container {
   private readonly gift: GiftAnimation;
   private readonly flash = new Graphics();
   private flashElapsed = -1;
-  private visitSlideOutTimer = -1;
 
   constructor(private readonly app: Application, textures: SceneTextures) {
     super();
@@ -76,13 +78,6 @@ export class PetRoom extends Container {
       if (t >= 1) { this.flash.alpha = 0; this.flashElapsed = -1; }
     }
 
-    if (this.visitSlideOutTimer >= 0) {
-      this.visitSlideOutTimer -= ticker.deltaMS;
-      if (this.visitSlideOutTimer < 0) {
-        this.visitor.slideOut(this.app.screen.width + 80);
-      }
-    }
-
     this.petSprite.update(ticker.deltaMS);
     this.visitor.update(ticker);
   };
@@ -94,15 +89,27 @@ export class PetRoom extends Container {
   showDialogue(message: string): void { this.bubble.enqueue(message); }
 
   showVisit(fromPetId: string, message: string): void {
-    const visitorTargetX = this.bg.petStandX + 100;
-    const visitorY = this.bg.petStandY;
+    const doorX = this.bg.doorX;
+    const doorY = this.bg.doorY;
     const offscreenX = this.app.screen.width + 80;
+    const enterTopY = doorY - DOOR_ENTER_DEPTH;
 
-    this.visitSlideOutTimer = -1;
-    this.visitor.slideIn(offscreenX, visitorTargetX, visitorY, () => {
-      this.bubble.enqueue(`[${fromPetId}] ${message}`);
-      this.visitSlideOutTimer = VISIT_SLIDE_OUT_DELAY_MS;
-    });
+    this.visitor.walkThrough(offscreenX, doorY, [
+      // Phase 1: walk left from offscreen to door
+      { x: doorX, y: doorY, row: 1 },
+      // Phase 2: walk up into door, trigger dialogue, pause inside house
+      {
+        x: doorX,
+        y: enterTopY,
+        row: 3,
+        onArrive: () => { this.bubble.enqueue(`[${fromPetId}] ${message}`); },
+        pauseMs: VISIT_INSIDE_MS,
+      },
+      // Phase 4: reappear at door top, walk down to floor
+      { x: doorX, y: doorY, row: 0 },
+      // Phase 5: walk right offscreen
+      { x: offscreenX, y: doorY, row: 2 },
+    ]);
     this.petSprite.flashHappy();
   }
 

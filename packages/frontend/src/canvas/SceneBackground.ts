@@ -116,6 +116,10 @@ export class SceneBackground extends Container {
 
   petStandX = 0;
   petStandY = 0;
+  /** World-space X of the house door centre (equals petStandX). */
+  doorX = 0;
+  /** World-space Y of the house door bottom (equals petStandY). */
+  doorY = 0;
 
   constructor(
     grassTex: Texture,
@@ -245,6 +249,8 @@ export class SceneBackground extends Container {
     const catPos = this.tileMap.tileCenterBottom(CAT_COL, CAT_ROW);
     this.petStandX = catPos.x;
     this.petStandY = catPos.y;
+    this.doorX = catPos.x;
+    this.doorY = catPos.y;
 
     // House: centre on cat, bottom at cat feet
     this.house.x = catPos.x - DOOR_CENTER_X;
