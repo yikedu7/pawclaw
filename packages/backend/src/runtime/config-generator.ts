@@ -42,7 +42,7 @@ export function generateConfigJson({ gatewayToken, anthropicBaseUrl }: ConfigInp
       defaults: {
         model: anthropicBaseUrl ? 'aihub/claude-sonnet-4-6' : 'anthropic/claude-sonnet-4-6',
         heartbeat: {
-          every: '5m',
+          every: '3h',
         },
       },
     },
