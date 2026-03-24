@@ -59,9 +59,16 @@ export function initUI(mount: HTMLElement, petId?: string, token?: string): void
   });
 
   eventBus.on('social.gift', (e) => {
-    resolvePetName(e.data.from_pet_id, token ?? null).then((fromName) => {
-      toasts.gift(fromName, e.data.to_pet_id, e.data.amount, e.data.token, e.data.tx_hash);
-    });
+    const isSent = petId && e.data.from_pet_id === petId;
+    if (isSent) {
+      resolvePetName(e.data.to_pet_id, token ?? null).then((toName) => {
+        toasts.gift(e.data.from_pet_id, toName, e.data.amount, e.data.token, e.data.tx_hash, 'sent');
+      });
+    } else {
+      resolvePetName(e.data.from_pet_id, token ?? null).then((fromName) => {
+        toasts.gift(fromName, e.data.to_pet_id, e.data.amount, e.data.token, e.data.tx_hash, 'received');
+      });
+    }
   });
 
   eventBus.on('friend.unlocked', (e) => {
