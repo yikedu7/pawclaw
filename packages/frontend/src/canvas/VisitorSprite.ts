@@ -8,20 +8,20 @@ const SPEED_PX_PER_S = 160;
 interface Waypoint {
   x: number;
   y: number;
-  row: number;           // spritesheet row: 0=down 1=left 2=right 3=up
-  onArrive?: () => void; // called when waypoint is reached
-  pauseMs?: number;      // hide sprite for this many ms before next waypoint
+  row: number;            // spritesheet row while moving: 0=down 1=up 2=left 3=right
+  stopRow?: number;       // row to switch to when stopped here (waitMs); defaults to row
+  onArrive?: () => void;  // called when waypoint is reached
+  pauseMs?: number;       // hide sprite for this many ms before next waypoint
+  waitMs?: number;        // stay visible for this many ms before next waypoint
 }
 
-type State = 'hidden' | 'walking' | 'paused';
+type State = 'hidden' | 'walking' | 'paused' | 'waiting';
 
 /**
- * A visiting pet sprite that walks in from the right edge of screen,
- * enters the house door (walk-up), waits inside while dialogue plays,
- * then exits the door (walk-down) and walks off-screen to the right.
+ * A visiting pet sprite that walks in from the right, stops at the door,
+ * then walks back off-screen to the right.
  *
- * Uses a waypoint queue at constant speed (~80 px/s, no easing).
- * Spritesheet rows: row0=walk-down, row1=walk-left, row2=walk-right, row3=walk-up.
+ * Spritesheet rows: row0=down(face cam), row1=up(back to cam), row2=left, row3=right.
  */
 export class VisitorSprite extends Container {
   private readonly rows: AnimatedSprite[];
@@ -83,16 +83,21 @@ export class VisitorSprite extends Container {
   update(ticker: Ticker): void {
     if (this.state === 'hidden') return;
 
-    if (this.state === 'paused') {
+    if (this.state === 'paused' || this.state === 'waiting') {
       this.pauseRemaining -= ticker.deltaMS;
       if (this.pauseRemaining <= 0) {
         if (this.queue.length === 0) {
+          this.visible = false;
           this.state = 'hidden';
           return;
         }
-        // Reappear at current position and resume walking
-        this.visible = true;
         const next = this.queue[0];
+        if (this.state === 'paused') {
+          // Reappear then walk
+          this.visible = true;
+          this.rows[this.activeRow].visible = false;
+          this.activeRow = next.row;
+        }
         this.setRow(next.row);
         this.rows[next.row].visible = true;
         this.state = 'walking';
@@ -125,6 +130,11 @@ export class VisitorSprite extends Container {
         this.rows[this.activeRow].visible = false;
         this.state = 'paused';
         this.pauseRemaining = wp.pauseMs;
+      } else if (wp.waitMs != null && wp.waitMs > 0) {
+        // Stay visible, stop moving; optionally switch to a standing direction
+        if (wp.stopRow != null) this.setRow(wp.stopRow);
+        this.state = 'waiting';
+        this.pauseRemaining = wp.waitMs;
       }
       // else: continue to next waypoint next frame
     } else {

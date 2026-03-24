@@ -8,11 +8,11 @@ const HAPPY_SPEED = 0.18;
 const HAPPY_DURATION_MS = 2500;
 const WALK_SPEED_PX_PER_S = 160;
 
-// Spritesheet row mapping
+// Spritesheet row mapping: row0=down(face cam), row1=up(back to cam), row2=left, row3=right
 const ROW_DOWN  = 0;
-const ROW_LEFT  = 1;
-const ROW_RIGHT = 2;
-const ROW_HAPPY = 3; // walk-up row reused for happy flash (existing behaviour)
+const ROW_LEFT  = 2;
+const ROW_RIGHT = 3;
+const ROW_HAPPY = 3; // walk-right row reused for happy flash
 
 function makeRow(source: Texture['source'], row: number): Texture[] {
   return Array.from({ length: 4 }, (_, col) =>

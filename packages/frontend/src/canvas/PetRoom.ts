@@ -95,18 +95,19 @@ export class PetRoom extends Container {
 
   showVisit(fromPetId: string, message: string): void {
     const doorX = this.bg.doorX;
-    const doorY = this.bg.doorY;
+    const floorY = this.bg.doorY + 48; // one tile below door = grass in front of house
     const offscreenX = this.app.screen.width + 80;
 
-    this.visitor.walkThrough(offscreenX, doorY, [
-      // Walk left from offscreen to door; disappear there while dialogue plays
+    this.visitor.walkThrough(offscreenX, floorY, [
+      // Walk left (row 2) to door; stop facing up/back (row 1) while dialogue plays
       {
-        x: doorX, y: doorY, row: 1,
+        x: doorX, y: floorY, row: 2,
+        stopRow: 1,
         onArrive: () => { this.bubble.enqueue(`[${fromPetId}] ${message}`); },
-        pauseMs: VISIT_INSIDE_MS,
+        waitMs: VISIT_INSIDE_MS,
       },
-      // Reappear at door facing right, walk back offscreen
-      { x: offscreenX, y: doorY, row: 2 },
+      // Walk right (row 3) back offscreen
+      { x: offscreenX, y: floorY, row: 3 },
     ]);
     this.petSprite.flashHappy();
   }
