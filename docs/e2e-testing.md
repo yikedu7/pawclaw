@@ -13,6 +13,22 @@ lsof -i :54322 | grep LISTEN  # Supabase postgres
 
 If SSH tunnel is missing: `ssh -N -L 2375:/var/run/docker.sock deploy@192.168.139.172 &`
 
+**Required `.env` vars** (backend must have all of these for full-chain tests):
+
+```
+X_LAYER_RPC_URL=https://testrpc.xlayer.tech   # X Layer testnet — missing = PAW balance calls hit mainnet and fail
+PAYMENT_TOKEN_ADDRESS=0x03a30dFd83b7932cac2371aC5eaf20E24fe6E7ff
+BACKEND_RELAYER_PRIVATE_KEY=<relayer key>
+OKX_API_KEY / OKX_SECRET_KEY / OKX_PASSPHRASE  # onchainos login inside container
+ANTHROPIC_BASE_URL=https://aihubmix.com        # LLM proxy
+```
+
+After adding env vars, **restart the backend** (tsx watch does not reload on .env changes):
+```bash
+kill $(lsof -ti :3001) && sleep 5
+# or: kill the child node process, tsx watcher respawns it
+```
+
 ## DB + container cleanup
 
 ```bash
@@ -392,12 +408,8 @@ TOKEN=$(agent-browser eval "new URLSearchParams(location.search).get('token')" |
 
 | Chain | Feature |
 |-------|---------|
-| — | `container_status` updates to `running` in DB |
-| — | `wallet_address` written back after container start |
-| — | 200 PAW registration credits granted on pet creation |
-| — | `paw_balance` polled → hunger bar shows correct value |
-| — | gift toast tx_hash links to OKX explorer |
-| — | `pet.died` WS event → dead state toast + hunger=0 |
+| — | gift toast tx_hash links to OKX explorer (needs real on-chain tx) |
+| — | `pet.died` WS event → dead state toast + hunger=0 (needs PAW balance to hit 0) |
 | — | `pet.revived` via topup → revival toast + container restart |
 
 ---
@@ -407,9 +419,10 @@ TOKEN=$(agent-browser eval "new URLSearchParams(location.search).get('token')" |
 | Chain | Signal |
 |-------|--------|
 | 1 Auth | `pet-section` display = `"block"` |
-| 2 Container | `container_status = running` within 60s ⚠️ blocked #129 |
+| 2 Container | `container_status = running` within 60s; `wallet_address` written back |
+| 2 PAW credits | `paw_balance = 200.0` after topup; hunger bar = 100% |
 | 3 Chat | DOM has non-empty pet reply within 25s |
-| 4 Tick | `action: "container"` + DOM has pet message within 20s |
+| 4 Tick | `action: "container"` + DOM has pet message within 25s |
 | 5 Visit | 2-turn dialogue in chat log |
 | 5 Gift | Toast contains gift icon + amount |
 | 5 Friend | Friend unlocked toast with pet name |
