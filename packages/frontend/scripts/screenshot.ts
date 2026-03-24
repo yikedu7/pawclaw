@@ -13,7 +13,6 @@
  *   SCREENSHOT_DELAY_MS  — ms to wait for PixiJS to initialize (default: 2000)
  *   SCREENSHOT_URL       — URL to navigate to (default: http://localhost:5173)
  *   SCREENSHOT_OUTPUT    — output path (default: /tmp/x-pet-render.png)
- *   HEADLESS             — set to "false" to open a visible browser window (default: true)
  */
 
 import { chromium } from "playwright";
@@ -21,9 +20,8 @@ import { chromium } from "playwright";
 const url = process.env.SCREENSHOT_URL ?? "http://localhost:5173";
 const output = process.env.SCREENSHOT_OUTPUT ?? "/tmp/x-pet-render.png";
 const delay = Number(process.env.SCREENSHOT_DELAY_MS ?? 2000);
-const headless = process.env.HEADLESS !== "false";
 
-const browser = await chromium.launch({ headless });
+const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage();
 
 await page.goto(url, { waitUntil: "networkidle" });
