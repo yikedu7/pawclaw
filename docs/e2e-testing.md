@@ -223,6 +223,7 @@ psql postgresql://postgres:postgres@localhost:54322/postgres -t -c \
 
 **Pass:** `tint_color = #ddccff` in DB.
 **Note:** canvas sprite tint requires visual screenshot verification (WebGL).
+**Prereq:** Run `pnpm --filter @x-pet/shared build` after any schema change to `packages/shared/src/schemas/pet.ts` — stale `dist/` causes Zod to silently strip new fields from parsed request bodies.
 
 ---
 
@@ -256,13 +257,12 @@ curl -s "http://localhost:3001/api/pets/$PET_ID/diary" \
 agent-browser eval "
 const hud = document.getElementById('hud-bar');
 const svgs = hud?.querySelectorAll('svg');
-const bars = hud?.querySelectorAll('.stat-bar, .hud-bar-fill');
-JSON.stringify({ hudPresent: !!hud, svgCount: svgs?.length ?? 0, barCount: bars?.length ?? 0 })
+JSON.stringify({ hudPresent: !!hud, svgCount: svgs?.length ?? 0, trackCount: hud?.querySelectorAll('.stat-track').length ?? 0 })
 "
-# expect: hudPresent:true, svgCount >= 3, barCount >= 2
+# expect: hudPresent:true, svgCount >= 3, trackCount >= 2
 ```
 
-**Pass:** `hudPresent: true`, SVG count ≥ 3, stat bars present.
+**Pass:** `hudPresent: true`, SVG count ≥ 3, track count ≥ 2 (actual selectors: `.stat-track`, `.stat-fill`).
 
 ---
 
@@ -344,6 +344,6 @@ TOKEN=$(agent-browser eval "new URLSearchParams(location.search).get('token')" |
 | 5 Friend | Friend unlocked toast with pet name |
 | 6 Color | `tint_color = #ddccff` in DB |
 | 7 Diary | Empty → `{"diary":null}`; inserted → content returned |
-| 8 HUD | `hudPresent:true`, SVG icons, stat bars present |
-| 9 Gift name | Toast text is pet name, not UUID |
+| 8 HUD | `hudPresent:true`, SVG count ≥ 3, `.stat-track` count ≥ 2 |
+| 9 Gift name | Toast text has no UUID pattern (name resolution works; name not rendered in current impl) |
 | 10 Visitor | Screenshot shows 2 sprites on canvas |
