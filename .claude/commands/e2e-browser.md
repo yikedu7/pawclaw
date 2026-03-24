@@ -7,7 +7,7 @@ Full-chain test using agent-browser. Tests all 5 chains against a running local 
 Before starting, verify:
 
 ```bash
-lsof -i :3002 | grep LISTEN   # backend
+lsof -i :3001 | grep LISTEN   # backend
 lsof -i :5173 | grep LISTEN   # vite
 lsof -i :2375 | grep LISTEN   # SSH tunnel to OrbStack VM (Docker)
 lsof -i :54322 | grep LISTEN  # Supabase postgres
@@ -146,7 +146,7 @@ new MutationObserver((m) => m.forEach(mut =>
 'ready'
 "
 
-curl -s -X POST "http://localhost:3002/internal/tick/$PET_ID" \
+curl -s -X POST "http://localhost:3001/internal/tick/$PET_ID" \
   -H "Content-Type: application/json" \
   -d '{"trigger":"manual"}'
 sleep 20
@@ -192,7 +192,7 @@ new MutationObserver((m) => m.forEach(mut =>
 'ready'
 "
 
-curl -s -X POST "http://localhost:3002/internal/tools/visit_pet" \
+curl -s -X POST "http://localhost:3001/internal/tools/visit_pet" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer local-dev-webhook-token" \
   -d "{\"pet_id\":\"$PET_ID\",\"target_pet_id\":\"$FRIEND_PET\",\"greeting\":\"Hi there!\"}"
@@ -208,7 +208,7 @@ Gift:
 GATEWAY_TOKEN=$(psql postgresql://postgres:postgres@localhost:54322/postgres -t -c \
   "SELECT gateway_token FROM pets WHERE id = '$PET_ID';" | tr -d ' ')
 
-curl -s -X POST "http://localhost:3002/internal/runtime/events/$PET_ID" \
+curl -s -X POST "http://localhost:3001/internal/runtime/events/$PET_ID" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $GATEWAY_TOKEN" \
   -d "{\"event_type\":\"gift\",\"target_pet_id\":\"$FRIEND_PET\",\"amount\":\"0.001\"}"
@@ -224,7 +224,7 @@ Friend unlocked (boost affection then visit again):
 psql postgresql://postgres:postgres@localhost:54322/postgres -c \
   "UPDATE pets SET affection = 95 WHERE id = '$PET_ID';"
 
-curl -s -X POST "http://localhost:3002/internal/tools/visit_pet" \
+curl -s -X POST "http://localhost:3001/internal/tools/visit_pet" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer local-dev-webhook-token" \
   -d "{\"pet_id\":\"$PET_ID\",\"target_pet_id\":\"$FRIEND_PET\",\"greeting\":\"You're my best friend!\"}"
