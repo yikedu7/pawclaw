@@ -1,6 +1,6 @@
 import { eventBus } from '../ws/eventBus';
 import { Nameplate } from './Nameplate';
-import { ChatLog } from './ChatLog';
+import { ChatLog, resolvePetName } from './ChatLog';
 import { Toasts } from './Toasts';
 import { HudBar } from './HudBar';
 import './styles.css';
@@ -59,7 +59,9 @@ export function initUI(mount: HTMLElement, petId?: string, token?: string): void
   });
 
   eventBus.on('social.gift', (e) => {
-    toasts.gift(e.data.from_pet_id, e.data.to_pet_id, e.data.amount, e.data.token, e.data.tx_hash);
+    resolvePetName(e.data.from_pet_id, token ?? null).then((fromName) => {
+      toasts.gift(fromName, e.data.to_pet_id, e.data.amount, e.data.token, e.data.tx_hash);
+    });
   });
 
   eventBus.on('friend.unlocked', (e) => {
