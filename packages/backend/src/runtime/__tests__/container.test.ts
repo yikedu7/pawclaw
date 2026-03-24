@@ -10,6 +10,7 @@
  * (requires live Hetzner VPS). See docs/hetzner-setup.md for manual testing.
  */
 
+import { EventEmitter } from 'node:events';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
@@ -211,7 +212,6 @@ describe('deliverTick', () => {
   it('execs curl to /v1/chat/completions with correct args', async () => {
     // exec.start calls back with a stream that ends immediately
     mockExecStart.mockImplementation((_opts: unknown, cb: (err: null, stream: NodeJS.EventEmitter) => void) => {
-      const { EventEmitter } = require('events');
       const stream = new EventEmitter() as NodeJS.EventEmitter & { resume: () => void };
       stream.resume = () => {};
       cb(null, stream);
@@ -244,7 +244,6 @@ describe('deliverTick', () => {
 
   it('throws when exec exits with non-zero code', async () => {
     mockExecStart.mockImplementation((_opts: unknown, cb: (err: null, stream: NodeJS.EventEmitter) => void) => {
-      const { EventEmitter } = require('events');
       const stream = new EventEmitter() as NodeJS.EventEmitter & { resume: () => void };
       stream.resume = () => {};
       cb(null, stream);
