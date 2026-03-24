@@ -130,7 +130,7 @@ export async function executeTick(petId: string): Promise<{ action: string }> {
         })),
       },
     };
-    await deliverTick(pet.container_id, petId, payload);
+    await deliverTick(pet.container_id, pet.gateway_token!, payload);
     await db.update(pets).set({ last_tick_at: new Date() }).where(eq(pets.id, petId));
     return { action: 'container' };
   }
@@ -165,7 +165,7 @@ export async function executeTick(petId: string): Promise<{ action: string }> {
 
   // 4. Call Claude API
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6-20250514',
+    model: 'claude-sonnet-4-6',
     max_tokens: 1024,
     system: pet.soul_md,
     messages: [{ role: 'user', content: stateLines.join('\n') }],

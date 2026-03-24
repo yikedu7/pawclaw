@@ -198,7 +198,7 @@ describe('removeContainer', () => {
 
 describe('deliverTick', () => {
   const CONTAINER_ID = 'cid-deliver';
-  const PET_ID_DT = '00000000-1111-4000-a000-000000000099';
+  const GATEWAY_TOKEN = 'test-gateway-token-xyz';
 
   beforeEach(() => {
     vi.resetModules();
@@ -208,7 +208,7 @@ describe('deliverTick', () => {
     setupEnv();
   });
 
-  it('execs curl with correct command and URL', async () => {
+  it('execs curl to /v1/chat/completions with correct args', async () => {
     // exec.start calls back with a stream that ends immediately
     mockExecStart.mockImplementation((_opts: unknown, cb: (err: null, stream: NodeJS.EventEmitter) => void) => {
       const { EventEmitter } = require('events');
@@ -221,15 +221,21 @@ describe('deliverTick', () => {
     mockContainerExec.mockResolvedValue({ start: mockExecStart, inspect: mockExecInspect });
 
     const { deliverTick } = await import('../container.js');
-    const payload = { pet_id: PET_ID_DT, tick_at: '2026-01-01T00:00:00.000Z' };
-    await deliverTick(CONTAINER_ID, PET_ID_DT, payload);
+    const payload = { pet_id: 'some-pet', tick_at: '2026-01-01T00:00:00.000Z' };
+    await deliverTick(CONTAINER_ID, GATEWAY_TOKEN, payload);
 
+    const expectedBody = JSON.stringify({
+      model: 'openclaw:main',
+      messages: [{ role: 'user', content: `tick: ${JSON.stringify(payload)}` }],
+      stream: false,
+    });
     expect(mockContainerExec).toHaveBeenCalledWith({
       Cmd: [
         'curl', '-s', '-X', 'POST',
-        `http://localhost:18789/webhook/${PET_ID_DT}`,
+        'http://localhost:18789/v1/chat/completions',
         '-H', 'Content-Type: application/json',
-        '-d', JSON.stringify(payload),
+        '-H', `Authorization: Bearer ${GATEWAY_TOKEN}`,
+        '-d', expectedBody,
       ],
       AttachStdout: true,
       AttachStderr: true,
@@ -248,7 +254,7 @@ describe('deliverTick', () => {
     mockContainerExec.mockResolvedValue({ start: mockExecStart, inspect: mockExecInspect });
 
     const { deliverTick } = await import('../container.js');
-    await expect(deliverTick(CONTAINER_ID, PET_ID_DT, {})).rejects.toThrow(
+    await expect(deliverTick(CONTAINER_ID, GATEWAY_TOKEN, {})).rejects.toThrow(
       `deliverTick exec exited 1 for container ${CONTAINER_ID}`,
     );
   });
