@@ -74,7 +74,7 @@ export async function registerOpenclawRoutes(
         await executeVisit(petId, event.target_pet_id, event.greeting);
         break;
 
-      case 'gift':
+      case 'gift': {
         // TODO(#16): X402 payment — call pet wallet via Onchain OS to send OKB on X Layer
         await db.insert(social_events).values({
           from_pet_id: petId,
@@ -82,11 +82,17 @@ export async function registerOpenclawRoutes(
           type: 'gift',
           payload: { amount: event.amount, token: 'OKB', tx_hash: event.tx_hash ?? '' },
         });
-        deps.emitOwnerEvent(pet.owner_id, {
+        const giftEventHeartbeat: WsEvent = {
           type: 'social.gift',
           data: { from_pet_id: petId, to_pet_id: event.target_pet_id, token: 'OKB', amount: event.amount, tx_hash: event.tx_hash ?? '' },
-        });
+        };
+        deps.emitOwnerEvent(pet.owner_id, giftEventHeartbeat);
+        const receiverPetHeartbeat = await db.query.pets.findFirst({ where: eq(pets.id, event.target_pet_id) });
+        if (receiverPetHeartbeat && receiverPetHeartbeat.owner_id !== pet.owner_id) {
+          deps.emitOwnerEvent(receiverPetHeartbeat.owner_id, giftEventHeartbeat);
+        }
         break;
+      }
 
       case 'rest': {
         const newHunger = Math.min(100, pet.hunger + 10);
@@ -257,10 +263,14 @@ export async function registerOpenclawRoutes(
       x_layer_confirmed: true,
     });
 
-    deps.emitOwnerEvent(pet.owner_id, {
+    const giftEventSendGift: WsEvent = {
       type: 'social.gift',
       data: { from_pet_id: pet_id, to_pet_id: target_pet_id, token, amount, tx_hash: txHash },
-    });
+    };
+    deps.emitOwnerEvent(pet.owner_id, giftEventSendGift);
+    if (targetPet.owner_id !== pet.owner_id) {
+      deps.emitOwnerEvent(targetPet.owner_id, giftEventSendGift);
+    }
 
     return reply.send({ ok: true, tx_hash: txHash });
   });
