@@ -281,6 +281,10 @@ export async function createPetContainer(
       PortBindings: { '18789/tcp': [{ HostPort: String(containerPort) }] },
       RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 3 },
       Memory: 2048 * 1024 * 1024,
+      // onchainos CLI uses linux-keyutils (add_key syscall) to store session tokens.
+      // Docker's default seccomp profile blocks add_key, causing wallet login to fail.
+      // seccomp=unconfined lifts this restriction so onchainos can run inside the container.
+      SecurityOpt: ['seccomp=unconfined'],
     },
     Env: [
       `OPENCLAW_GATEWAY_TOKEN=${gatewayToken}`,
@@ -590,8 +594,10 @@ export async function fetchWalletAddress(containerId: string): Promise<string | 
   // Step 1 — install onchainos from the latest GitHub release
   await dockerExec(container, [
     'sh', '-c',
+    // Use grep+sed to extract tag_name — avoids node quote-escaping issues inside sh -c.
     'curl -sSL "https://api.github.com/repos/okx/onchainos-skills/releases/latest"' +
-    ' | node -e "process.stdin.resume();let d=\'\';process.stdin.on(\'data\',c=>d+=c);process.stdin.on(\'end\',()=>console.log(JSON.parse(d).tag_name))"' +
+    ' | grep \'"tag_name"\'' +
+    ' | sed \'s/.*"tag_name": *"\\([^"]*\\)".*/\\1/\'' +
     ' | xargs -I TAG sh -c \'curl -sSL "https://raw.githubusercontent.com/okx/onchainos-skills/TAG/install.sh" | sh\'',
   ]);
 
