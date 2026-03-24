@@ -1,16 +1,22 @@
 import type { FastifyInstance } from 'fastify';
 import { eq } from 'drizzle-orm';
 import { PetCreateSchema, PetIdParamSchema } from '@x-pet/shared';
+import type { WsEvent } from '@x-pet/shared';
 import { db } from '../db/client.js';
 import { pets } from '../db/schema.js';
 import { authHook } from './authHook.js';
 import { grantRegistrationCredits } from '../onchain/credits.js';
+import { getPawBalance } from '../onchain/balance.js';
 
 export type PetRouteDeps = {
   generateSoulMd: (input: { name: string; mood: number; soul_prompt: string }) => string;
   generateSkillMd: (input: { id: string; backendUrl: string; webhookToken: string }) => string;
   /** Optional — injected by index.ts when HETZNER_HOST is set; absent in tests */
   launchContainer?: (petId: string, soulMd: string, skillMd: string) => void;
+  /** Optional — injected for topup revival; absent in tests */
+  reviveContainer?: (containerId: string) => Promise<void>;
+  /** Emit a WS event to an owner — injected by index.ts */
+  emitOwnerEvent?: (ownerId: string, event: WsEvent) => void;
 };
 
 /** POST /api/pets (201) and GET /api/pets response shape — no owner_id per contract */
@@ -25,7 +31,7 @@ function toPetSummary(row: typeof pets.$inferSelect) {
   };
 }
 
-/** GET /api/pets/:id response shape — includes owner_id per contract */
+/** GET /api/pets/:id response shape — includes owner_id, paw_balance, initial_credits per contract */
 function toPetDetail(row: typeof pets.$inferSelect) {
   return {
     id: row.id,
@@ -35,6 +41,8 @@ function toPetDetail(row: typeof pets.$inferSelect) {
     hunger: row.hunger,
     mood: row.mood,
     affection: row.affection,
+    paw_balance: row.paw_balance ?? '0',
+    initial_credits: row.initial_credits,
   };
 }
 
@@ -127,5 +135,45 @@ export async function registerPetRoutes(
     }
 
     return reply.send(toPetDetail(row));
+  });
+
+  // POST /api/pets/:id/topup — read on-chain PAW balance, revive pet if stopped
+  fastify.post('/api/pets/:id/topup', { preHandler: auth }, async (request, reply) => {
+    const parsed = PetIdParamSchema.safeParse(request.params);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'Invalid pet id', code: 'VALIDATION_ERROR' });
+    }
+
+    const [row] = await db
+      .select()
+      .from(pets)
+      .where(eq(pets.id, parsed.data.id));
+
+    if (!row) {
+      return reply.code(404).send({ error: 'Pet not found', code: 'NOT_FOUND' });
+    }
+
+    if (row.owner_id !== request.owner_id) {
+      return reply.code(403).send({ error: 'Forbidden', code: 'FORBIDDEN' });
+    }
+
+    if (!row.wallet_address) {
+      return reply.code(400).send({ error: 'Wallet not assigned yet', code: 'NO_WALLET' });
+    }
+
+    const balanceStr = await getPawBalance(row.wallet_address);
+    const balance = parseFloat(balanceStr);
+
+    await db
+      .update(pets)
+      .set({ paw_balance: balanceStr })
+      .where(eq(pets.id, row.id));
+
+    if (balance > 0 && row.container_status === 'stopped' && row.container_id && deps.reviveContainer) {
+      await deps.reviveContainer(row.container_id);
+      deps.emitOwnerEvent?.(row.owner_id, { type: 'pet.revived', data: { pet_id: row.id } });
+    }
+
+    return reply.send({ ok: true, paw_balance: balanceStr });
   });
 }

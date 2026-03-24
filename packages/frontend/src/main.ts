@@ -23,7 +23,11 @@ async function main(): Promise<void> {
   });
 
   mount.appendChild(app.canvas);
-  initUI(mount);
+
+  const params = new URLSearchParams(location.search);
+  const token = params.get('token') ?? import.meta.env.VITE_WS_TOKEN as string | undefined;
+  const petId = params.get('pet_id') ?? undefined;
+  initUI(mount, petId, token ?? undefined);
 
   const loader = new LoadingScreen(mount.clientWidth, mount.clientHeight);
   app.stage.addChild(loader);
@@ -69,7 +73,6 @@ async function main(): Promise<void> {
   eventBus.on('friend.unlocked',(e) => room.showFriendUnlocked(e.data.pet_id));
   eventBus.on('error',          (e) => room.showDialogue(`Error: ${e.data.message}`));
 
-  const token = new URLSearchParams(location.search).get('token') ?? import.meta.env.VITE_WS_TOKEN;
   if (token) {
     new WsClient(buildWsUrl(token)).connect();
   } else {
