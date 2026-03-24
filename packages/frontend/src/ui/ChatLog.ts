@@ -4,7 +4,7 @@ const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string | undefined) ?? 
 // petId → display name, populated lazily from GET /api/pets/:id
 const petNames = new Map<string, string>();
 
-async function resolvePetName(petId: string, token: string | null): Promise<string> {
+export async function resolvePetName(petId: string, token: string | null): Promise<string> {
   if (petNames.has(petId)) return petNames.get(petId)!;
   if (!token) return petId;
   try {

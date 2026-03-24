@@ -31,7 +31,7 @@ export class Toasts {
 
   gift(from: string, to: string, amount: string, token: string, txHash?: string): void {
     const frag = document.createDocumentFragment();
-    frag.append(Icons.gift(13), ` ${from} sent ${amount} ${token} to ${to}`);
+    frag.append(Icons.gift(13), ` Received ${amount} ${token} from ${from}`);
 
     if (txHash) {
       frag.appendChild(document.createTextNode(' '));
