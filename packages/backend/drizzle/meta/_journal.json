@@ -43,6 +43,13 @@
       "when": 1774333828239,
       "tag": "0005_supreme_cable",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1774368340918,
+      "tag": "0006_reflective_titanium_man",
+      "breakpoints": true
     }
   ]
 }

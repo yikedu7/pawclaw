@@ -75,6 +75,21 @@ async function main(): Promise<void> {
   eventBus.on('friend.unlocked',(e) => room.showFriendUnlocked(e.data.pet_id));
   eventBus.on('error',          (e) => room.showDialogue(`Error: ${e.data.message}`));
 
+  // Fetch pet tint_color and apply it to the sprite
+  if (petId && token) {
+    const backendUrl = (import.meta.env.VITE_BACKEND_URL as string | undefined) ?? 'http://localhost:3001';
+    fetch(`${backendUrl}/api/pets/${petId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.ok ? res.json() as Promise<{ tint_color?: string }> : Promise.resolve({} as { tint_color?: string }))
+      .then((data) => {
+        if (data.tint_color && data.tint_color !== '#ffffff') {
+          room.applyPetTint(data.tint_color);
+        }
+      })
+      .catch(() => { /* non-critical — tint defaults to white */ });
+  }
+
   if (token) {
     new WsClient(buildWsUrl(token)).connect();
   } else {

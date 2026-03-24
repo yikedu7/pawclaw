@@ -25,6 +25,7 @@ export type Pet = {
 export type PetCreate = {
   soul_prompt: string; // short personality description, e.g. "an anxious terrier who loves books"
   name: string;
+  tint_color?: string; // hex color, e.g. '#ddccff'; defaults to '#ffffff'
 };
 
 // Pet state as returned by the REST API
@@ -36,6 +37,7 @@ export type PetState = {
   hunger: number;
   mood: number;
   affection: number;
+  tint_color?: string;
 };
 
 // SocialEvent payload — type-specific fields, all optional

@@ -85,8 +85,9 @@ Create a new pet, generate its SOUL.md via LLM, and provision an Onchain OS wall
 
 ```typescript
 {
-  soul_prompt: string; // short personality description, e.g. "an anxious terrier who loves books"
-  name: string;        // pet display name
+  soul_prompt: string;   // short personality description, e.g. "an anxious terrier who loves books"
+  name: string;          // pet display name
+  tint_color?: string;   // hex color, e.g. "#ddccff"; defaults to "#ffffff"
 }
 ```
 
@@ -100,6 +101,7 @@ Create a new pet, generate its SOUL.md via LLM, and provision an Onchain OS wall
   hunger: number;         // 0–100
   mood: number;           // 0–100
   affection: number;      // social score, starts at 0
+  tint_color: string;     // hex color, e.g. "#ddccff"; "#ffffff" = no tint
 }
 ```
 
@@ -127,6 +129,7 @@ Array<{
   hunger: number;
   mood: number;
   affection: number;
+  tint_color: string;     // hex color, e.g. "#ddccff"; "#ffffff" = no tint
 }>
 ```
 
@@ -157,6 +160,7 @@ Fetch current state of a single pet. Requires auth.
   affection: number;
   paw_balance: string;   // PAW units as decimal string, e.g. "150.5"; "0" if not yet polled
   initial_credits: number; // PAW granted at registration (default 200); used to compute hunger %
+  tint_color: string;      // hex color, e.g. "#ddccff"; "#ffffff" = no tint
 }
 ```
 

@@ -128,6 +128,11 @@ export class PetRoom extends Container {
     });
   }
 
+  /** Apply a hex color tint to the player's pet sprite (e.g. '#ddccff'). */
+  applyPetTint(hexColor: string): void {
+    this.petSprite.setTint(hexColor);
+  }
+
   showFriendUnlocked(petId: string): void {
     this.bubble.enqueue(`Friend unlocked: ${petId}!`);
     this.flashElapsed = 0;

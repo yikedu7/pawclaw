@@ -19,6 +19,31 @@ const petNameInput = document.getElementById('pet-name') as HTMLInputElement;
 const soulPromptInput = document.getElementById('soul-prompt') as HTMLTextAreaElement;
 const createBtn = document.getElementById('create-btn') as HTMLButtonElement;
 const errorMsgPet = document.getElementById('error-msg-pet') as HTMLElement;
+const colorCustomInput = document.getElementById('color-custom') as HTMLInputElement;
+const swatches = document.querySelectorAll<HTMLElement>('.swatch');
+
+// --- Color picker logic ---
+let selectedColor = '#ffffff';
+
+function selectColor(color: string): void {
+  selectedColor = color;
+  colorCustomInput.value = color;
+  swatches.forEach((s) => {
+    s.classList.toggle('selected', s.dataset['color'] === color);
+  });
+}
+
+swatches.forEach((swatch) => {
+  swatch.addEventListener('click', () => {
+    const color = swatch.dataset['color'] ?? '#ffffff';
+    selectColor(color);
+  });
+});
+
+colorCustomInput.addEventListener('input', () => {
+  selectedColor = colorCustomInput.value;
+  swatches.forEach((s) => s.classList.remove('selected'));
+});
 
 let isSignUp = false;
 let accessToken = '';
@@ -105,7 +130,7 @@ createBtn.addEventListener('click', async () => {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${accessToken}`,
       },
-      body: JSON.stringify({ name, soul_prompt }),
+      body: JSON.stringify({ name, soul_prompt, tint_color: selectedColor }),
     });
 
     const data = await res.json().catch(() => ({})) as { id?: string; error?: string };

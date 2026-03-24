@@ -1,0 +1,1 @@
+ALTER TABLE "pets" ADD COLUMN "tint_color" varchar(7) DEFAULT '#ffffff' NOT NULL;
