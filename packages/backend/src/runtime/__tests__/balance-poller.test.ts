@@ -34,6 +34,9 @@ const { Pool } = pg;
 
 const OWNER_A = '00000000-aaaa-4002-a000-000000000001';
 
+// Minimal structured logger stub
+const mockLog = { error: vi.fn() };
+
 let pool: InstanceType<typeof Pool>;
 let runningPetId: string;
 
@@ -75,7 +78,7 @@ describe('pollBalances', () => {
   it('updates paw_balance in DB and emits pet.state when balance > 0', async () => {
     mockGetPawBalance.mockResolvedValue('150.0');
 
-    await pollBalances();
+    await pollBalances(mockLog);
 
     // DB: paw_balance updated
     const { rows } = await pool.query('SELECT paw_balance FROM pets WHERE id = $1', [runningPetId]);
@@ -94,7 +97,7 @@ describe('pollBalances', () => {
   it('stops container and emits pet.died when balance hits 0', async () => {
     mockGetPawBalance.mockResolvedValue('0.0');
 
-    await pollBalances();
+    await pollBalances(mockLog);
 
     // DB: paw_balance = 0
     const { rows } = await pool.query('SELECT paw_balance, container_status FROM pets WHERE id = $1', [runningPetId]);
@@ -125,7 +128,7 @@ describe('pollBalances', () => {
     const noWalletId = rows[0].id;
 
     mockGetPawBalance.mockResolvedValue('100.0');
-    await pollBalances();
+    await pollBalances(mockLog);
 
     // getPawBalance only called for pets with wallet_address (i.e., runningPetId, not noWalletId)
     expect(mockGetPawBalance).toHaveBeenCalledTimes(1);

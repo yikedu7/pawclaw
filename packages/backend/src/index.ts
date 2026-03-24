@@ -65,7 +65,7 @@ await registerOpenclawRoutes(fastify, {
 
 // Start PAW balance polling (every 1h) when on-chain config is present
 if (process.env.PAYMENT_TOKEN_ADDRESS) {
-  startBalancePoller();
+  startBalancePoller(fastify.log);
 }
 
 const port = Number(process.env.PORT ?? 3001);

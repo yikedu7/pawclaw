@@ -7,11 +7,16 @@ import { tickBus } from './tick-bus.js';
 
 const POLL_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
+/** Minimal structured logger interface (compatible with fastify.log). */
+export type PollerLogger = {
+  error(obj: object, msg: string): void;
+};
+
 /**
  * Polls PAW balance for all running pets, updates paw_balance in DB,
  * and detects death (paw_balance hits 0 → stop container, emit pet.died).
  */
-export async function pollBalances(): Promise<void> {
+export async function pollBalances(log: PollerLogger): Promise<void> {
   const runningPets = await db
     .select()
     .from(pets)
@@ -32,7 +37,9 @@ export async function pollBalances(): Promise<void> {
       if (balance <= 0) {
         // Pet is out of PAW — stop container and emit pet.died
         if (pet.container_id) {
-          await stopContainer(pet.container_id).catch(() => {});
+          await stopContainer(pet.container_id).catch((err: unknown) => {
+            log.error({ err, petId: pet.id, containerId: pet.container_id }, '[balance-poller] stopContainer failed');
+          });
         }
         tickBus.emit('ownerEvent', pet.owner_id, {
           type: 'pet.died',
@@ -52,21 +59,22 @@ export async function pollBalances(): Promise<void> {
         });
       }
     } catch (err: unknown) {
-      console.error(`[balance-poller] Failed to poll balance for pet ${pet.id}:`, err);
+      log.error({ err, petId: pet.id }, '[balance-poller] Failed to poll balance for pet');
     }
   }
 }
 
 /**
  * Starts the balance polling loop. Runs once immediately, then every 1h.
+ * Accepts a structured logger (fastify.log or compatible).
  */
-export function startBalancePoller(): void {
-  pollBalances().catch((err: unknown) => {
-    console.error('[balance-poller] Initial poll failed:', err);
+export function startBalancePoller(log: PollerLogger): void {
+  pollBalances(log).catch((err: unknown) => {
+    log.error({ err }, '[balance-poller] Initial poll failed');
   });
   setInterval(() => {
-    pollBalances().catch((err: unknown) => {
-      console.error('[balance-poller] Poll failed:', err);
+    pollBalances(log).catch((err: unknown) => {
+      log.error({ err }, '[balance-poller] Poll failed');
     });
   }, POLL_INTERVAL_MS);
 }
