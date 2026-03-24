@@ -266,20 +266,27 @@ JSON.stringify({ hudPresent: !!hud, svgCount: svgs?.length ?? 0, trackCount: hud
 
 ---
 
-## Chain 9 — Gift toast shows pet name, not UUID (PR #103 + #118)
+## Chain 9 — Gift toast shows pet name, not UUID (PR #125 / #126)
 
-**Goal:** gift toast text uses pet name (`FriendPet`) not raw UUID
+**Goal:** gift toast shows resolved pet name — "Sent a gift to FriendPet" or "Received a gift from FriendPet"
 
-After Chain 5 gift, inspect the last toast:
+Sender side (page is the sender's pet):
 
 ```bash
-agent-browser eval "
-Array.from(document.querySelectorAll('.toast'))
-  .map(el => el.textContent?.trim())
-"
+GATEWAY_TOKEN=$(psql postgresql://postgres:postgres@localhost:54322/postgres -t -c \
+  "SELECT gateway_token FROM pets WHERE id = '$PET_ID';" | tr -d ' ')
+agent-browser eval "window.__toastMsgs = []; new MutationObserver(function(m){m.forEach(function(mut){mut.addedNodes.forEach(function(n){if(n.textContent&&n.textContent.trim())window.__toastMsgs.push(n.textContent.trim());})})}).observe(document.body,{childList:true,subtree:true}); 'ready'"
+curl -s -X POST "http://localhost:3001/internal/runtime/events/$PET_ID" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $GATEWAY_TOKEN" \
+  -d "{\"event_type\":\"gift\",\"target_pet_id\":\"$FRIEND_PET\",\"amount\":\"0.001\"}"
+sleep 3
+agent-browser eval "JSON.stringify(window.__toastMsgs)"
 ```
 
-**Pass:** toast text does NOT match UUID pattern (`/[0-9a-f]{8}-[0-9a-f]{4}/`), contains pet name.
+**Pass (sender):** toast contains `"Sent a gift to FriendPet"` — pet name, not UUID.
+
+**Pass (no UUID):** toast text does NOT match `/[0-9a-f]{8}-[0-9a-f]{4}/`.
 
 ---
 
@@ -300,6 +307,34 @@ npx tsx packages/frontend/scripts/screenshot.ts
 ```
 
 **Pass:** screenshot shows two pet sprites on canvas (resident + visitor).
+
+---
+
+## Chain 11 — WalletPanel modal (PR #128 + #133)
+
+**Goal:** click OKB balance in HUD → wallet modal opens with address and PAW balance
+
+```bash
+agent-browser eval "document.querySelector('#hud-bar .hud-okb-btn, #hud-bar [data-wallet]')?.click(); 'clicked'"
+# if click selector unknown, use snapshot:
+# agent-browser snapshot | grep -i "okb\|wallet\|0\."
+```
+
+Or click via snapshot ref:
+
+```bash
+agent-browser snapshot | grep -i "okb\|0\.0"
+# find @eN ref for OKB balance button, then:
+agent-browser click "@eN"
+sleep 1
+agent-browser eval "document.getElementById('wallet-overlay')?.hidden"
+# expect: false
+agent-browser eval "document.querySelector('.wallet-address-text')?.textContent"
+# expect: truncated address like "0x1234...5678"
+```
+
+**Pass:** `wallet-overlay` not hidden; PAW Balance section and Token Assets section visible.
+**Note:** address shows `"0x——...——"` placeholder if pet has no wallet (blocked by #129); PAW balance shows `0.00 PAW`.
 
 ---
 
@@ -345,5 +380,6 @@ TOKEN=$(agent-browser eval "new URLSearchParams(location.search).get('token')" |
 | 6 Color | `tint_color = #ddccff` in DB |
 | 7 Diary | Empty → `{"diary":null}`; inserted → content returned |
 | 8 HUD | `hudPresent:true`, SVG count ≥ 3, `.stat-track` count ≥ 2 |
-| 9 Gift name | Toast text has no UUID pattern (name resolution works; name not rendered in current impl) |
+| 9 Gift name | Toast says "Sent a gift to FriendPet" / "Received a gift from FriendPet" — no UUID |
 | 10 Visitor | Screenshot shows 2 sprites on canvas |
+| 11 WalletPanel | Modal opens; address shown (not placeholder); no errors |
