@@ -89,10 +89,14 @@ export async function executeTick(petId: string): Promise<{ action: string }> {
           type: 'gift',
           payload: { amount: '0.001', token: 'OKB', tx_hash: txHash },
         });
-        tickBus.emit('ownerEvent', pet.owner_id, {
-          type: 'social.gift',
+        const demoGiftEvent = {
+          type: 'social.gift' as const,
           data: { from_pet_id: petId, to_pet_id: targetId, token: 'OKB', amount: '0.001', tx_hash: txHash },
-        });
+        };
+        tickBus.emit('ownerEvent', pet.owner_id, demoGiftEvent);
+        if (otherPet && otherPet.owner_id !== pet.owner_id) {
+          tickBus.emit('ownerEvent', otherPet.owner_id, demoGiftEvent);
+        }
         break;
       }
     }
@@ -223,8 +227,8 @@ export async function executeTick(petId: string): Promise<{ action: string }> {
         type: 'gift',
         payload: { amount, token: 'OKB', tx_hash: txHash },
       });
-      tickBus.emit('ownerEvent', pet.owner_id, {
-        type: 'social.gift',
+      const llmGiftEvent = {
+        type: 'social.gift' as const,
         data: {
           from_pet_id: petId,
           to_pet_id: target_pet_id,
@@ -232,7 +236,12 @@ export async function executeTick(petId: string): Promise<{ action: string }> {
           amount,
           tx_hash: txHash,
         },
-      });
+      };
+      tickBus.emit('ownerEvent', pet.owner_id, llmGiftEvent);
+      const targetPetForGift = await db.query.pets.findFirst({ where: eq(pets.id, target_pet_id) });
+      if (targetPetForGift && targetPetForGift.owner_id !== pet.owner_id) {
+        tickBus.emit('ownerEvent', targetPetForGift.owner_id, llmGiftEvent);
+      }
       break;
     }
 
