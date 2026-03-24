@@ -44,7 +44,10 @@ beforeAll(async () => {
 
   process.env.JWT_SECRET = SECRET;
   app = Fastify();
-  await registerChatRoute(app, { emitOwnerEvent: () => {} });
+  await registerChatRoute(app, {
+    emitOwnerEvent: () => {},
+    containerChat: async () => { throw new Error('no container in tests'); },
+  });
   await app.ready();
 });
 
