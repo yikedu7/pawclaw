@@ -4,9 +4,12 @@ import pg from 'pg';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { registerPetRoutes } from '../petRoutes.js';
 
-// Mock the credits module — real on-chain calls are not part of integration tests
+// Mock the credits module — real on-chain calls are not part of integration tests.
+// wallet_address is null at pet creation time (Onchain OS sets it asynchronously),
+// so grantRegistrationCredits is never triggered via POST /api/pets in tests.
+// The credits code path (wallet_address non-null) is covered in petRoutes.credits.test.ts.
 const mockGrantCredits = vi.fn<(wallet: string) => Promise<void>>();
-vi.mock('../onchain/credits.js', () => ({
+vi.mock('../../onchain/credits.js', () => ({
   grantRegistrationCredits: mockGrantCredits,
 }));
 
@@ -135,36 +138,18 @@ describe('pet CRUD integration', () => {
     expect(rows[0].initial_credits).toBe(200);
   });
 
-  it('POST /api/pets calls grantRegistrationCredits when wallet_address is set', async () => {
+  it('POST /api/pets does not call grantRegistrationCredits when wallet_address is null', async () => {
+    // wallet_address is null at insert time (Onchain OS assigns it asynchronously after
+    // container start), so grantRegistrationCredits must not be called at creation.
     mockGrantCredits.mockClear();
-    // Set a wallet address on the last created pet to simulate on-chain wallet assignment
-    await pool.query(
-      "UPDATE pets SET wallet_address = '0xtest-wallet' WHERE id = $1",
-      [createdPetId],
-    );
-
-    // Create a new pet — credits are called non-blocking if wallet_address is set
     const res = await app.inject({
       method: 'POST', url: '/api/pets',
       headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
       payload: { name: 'CreditsPet', soul_prompt: 'a rich cat' },
     });
     expect(res.statusCode).toBe(201);
-    // wallet_address is null at insert time (set async by Onchain OS), so credits are skipped
     await new Promise((r) => setTimeout(r, 0));
-    // No wallet set yet at creation — credits not called
     expect(mockGrantCredits).not.toHaveBeenCalled();
-  });
-
-  it('POST /api/pets returns 201 even when grantRegistrationCredits rejects', async () => {
-    mockGrantCredits.mockRejectedValueOnce(new Error('chain down'));
-    const res = await app.inject({
-      method: 'POST', url: '/api/pets',
-      headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
-      payload: { name: 'FailCreditsPet', soul_prompt: 'an unlucky dog' },
-    });
-    expect(res.statusCode).toBe(201);
-    await new Promise((r) => setTimeout(r, 0));
   });
 
   it('GET /api/pets/:id returns 200 with owner_id for owner', async () => {
