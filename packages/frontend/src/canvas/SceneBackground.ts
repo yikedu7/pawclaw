@@ -73,9 +73,8 @@ interface Decor {
 const DECORS: Decor[] = [
   // ── Original corner trees ──────────────────────────────────────────────────
   { col:  6, row: 3, sx: 16, sy:  0, sw: 32, sh: 32 }, // green tree — upper-left
-  { col: 22, row: 3, sx: 48, sy:  0, sw: 32, sh: 32 }, // cherry blossom — upper-right
+  { col: 24, row: 14, sx: 48, sy:  0, sw: 32, sh: 32 }, // cherry blossom — lower-right far
   { col:  6, row: 8, sx: 16, sy:  0, sw: 32, sh: 32 }, // green tree — lower-left
-  { col: 22, row: 8, sx: 48, sy:  0, sw: 32, sh: 32 }, // cherry blossom — lower-right
 
   // ── Bush (1,3) plain dark ─────────────────────────────────────────────────
   { col: 21, row:  4, sx: 16, sy: 48, sw: 16, sh: 16 }, // plain dark bush — right of house
@@ -89,7 +88,7 @@ const DECORS: Decor[] = [
   { col: 10, row: 10, sx:112, sy: 16, sw: 16, sh: 16 }, // grey rock pile — below house left
 
   // ── Flowers (8,2)+(8,3) sunflower 16×32 ─────────────────────────────────
-  { col: 15, row:  8, sx:128, sy: 32, sw: 16, sh: 32 }, // sunflower (full 16×32) — below house
+  { col: 9, row: 11, sx:128, sy: 32, sw: 16, sh: 32 }, // sunflower (full 16×32) — lower-left grass
 
   // ── Grass patches from Grass.png rows 5-6 (ground variation) ─────────────
   // (7,5) dark green blobs · (8,5) tiny yellow flowers · (9,5) yellow cross flower
@@ -116,6 +115,10 @@ export class SceneBackground extends Container {
 
   petStandX = 0;
   petStandY = 0;
+  /** World-space X of the house door centre (equals petStandX). */
+  doorX = 0;
+  /** World-space Y of the house door bottom (equals petStandY). */
+  doorY = 0;
 
   constructor(
     grassTex: Texture,
@@ -245,6 +248,8 @@ export class SceneBackground extends Container {
     const catPos = this.tileMap.tileCenterBottom(CAT_COL, CAT_ROW);
     this.petStandX = catPos.x;
     this.petStandY = catPos.y;
+    this.doorX = catPos.x;
+    this.doorY = catPos.y;
 
     // House: centre on cat, bottom at cat feet
     this.house.x = catPos.x - DOOR_CENTER_X;
