@@ -71,7 +71,7 @@ export async function registerOpenclawRoutes(
         break;
 
       case 'visit':
-        await executeVisit(petId, event.target_pet_id, event.greeting);
+        await executeVisit(petId, event.target_pet_id, []);
         break;
 
       case 'gift': {
@@ -141,7 +141,7 @@ export async function registerOpenclawRoutes(
     if (!parsed.success) {
       return reply.code(400).send({ error: parsed.error.message, code: 'VALIDATION_ERROR' });
     }
-    await executeVisit(parsed.data.pet_id, parsed.data.target_pet_id, parsed.data.greeting);
+    await executeVisit(parsed.data.pet_id, parsed.data.target_pet_id, []);
     return reply.send({ ok: true });
   });
 
