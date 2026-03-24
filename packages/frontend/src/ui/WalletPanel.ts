@@ -80,7 +80,7 @@ export class WalletPanel {
     const pawLeft = document.createElement('div');
     pawLeft.className = 'wallet-paw-left';
 
-    const pawIcon = Icons.gift(14);
+    const pawIcon = Icons.coins(14);
     const pawLabel = document.createElement('span');
     pawLabel.className = 'wallet-paw-label';
     pawLabel.textContent = 'PAW Balance';
