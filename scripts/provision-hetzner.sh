@@ -21,7 +21,7 @@ set -euo pipefail
 DEPLOY_USER="deploy"
 PET_DATA_DIR="/data/pets"
 # Paste the deploy user's public key here before running, or pass via env var:
-# DEPLOY_PUBKEY="ssh-ed25519 AAAA... deploy@x-pet"
+# DEPLOY_PUBKEY="ssh-ed25519 AAAA... deploy@pawclaw"
 DEPLOY_PUBKEY="${DEPLOY_PUBKEY:-}"
 
 echo "==> [1/5] Installing Docker"

@@ -7,15 +7,15 @@ WORKDIR /app
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/backend/package.json ./packages/backend/
-RUN pnpm install --frozen-lockfile --filter @x-pet/backend...
+RUN pnpm install --frozen-lockfile --filter @pawclaw/backend...
 
 # Build
 FROM deps AS builder
 COPY tsconfig.base.json ./
 COPY packages/shared ./packages/shared
 COPY packages/backend ./packages/backend
-RUN pnpm --filter @x-pet/shared build
-RUN pnpm --filter @x-pet/backend build
+RUN pnpm --filter @pawclaw/shared build
+RUN pnpm --filter @pawclaw/backend build
 
 # Runner
 FROM node:22-alpine AS runner
@@ -25,7 +25,7 @@ WORKDIR /app
 COPY pnpm-workspace.yaml package.json ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/backend/package.json ./packages/backend/
-RUN pnpm install --frozen-lockfile --filter @x-pet/backend... --prod
+RUN pnpm install --frozen-lockfile --filter @pawclaw/backend... --prod
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/packages/backend/dist ./packages/backend/dist
 COPY --from=builder /app/packages/backend/drizzle ./packages/backend/drizzle
