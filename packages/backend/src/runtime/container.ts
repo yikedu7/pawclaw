@@ -281,6 +281,10 @@ export async function createPetContainer(
       PortBindings: { '18789/tcp': [{ HostPort: String(containerPort) }] },
       RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 3 },
       Memory: 2048 * 1024 * 1024,
+      // onchainos CLI uses linux-keyutils (add_key syscall) to store session tokens.
+      // Docker's default seccomp profile blocks add_key, causing wallet login to fail.
+      // seccomp=unconfined lifts this restriction so onchainos can run inside the container.
+      SecurityOpt: ['seccomp=unconfined'],
     },
     Env: [
       `OPENCLAW_GATEWAY_TOKEN=${gatewayToken}`,
@@ -529,56 +533,91 @@ export async function containerChat(
   return json.choices?.[0]?.message?.content ?? '...';
 }
 
+// ── Docker exec helper ────────────────────────────────────────────────────────
+
+/**
+ * Runs a command inside a container via docker exec and returns the exit code
+ * and demultiplexed stdout text.
+ */
+async function dockerExec(
+  container: Docker.Container,
+  cmd: string[],
+): Promise<{ exitCode: number; stdout: string }> {
+  const exec = await container.exec({
+    Cmd: cmd,
+    AttachStdout: true,
+    AttachStderr: true,
+  });
+
+  const chunks: Buffer[] = [];
+  await new Promise<void>((resolve, reject) => {
+    exec.start({}, (err: Error | null, stream: NodeJS.ReadableStream | undefined) => {
+      if (err) return reject(err);
+      if (!stream) return reject(new Error('exec start returned no stream'));
+      stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+      stream.on('end', resolve);
+      stream.on('error', reject);
+    });
+  });
+
+  const info = await exec.inspect();
+
+  // Docker multiplexes stdout/stderr: demux using the 8-byte frame header
+  const raw = Buffer.concat(chunks);
+  let text = '';
+  let offset = 0;
+  while (offset + 8 <= raw.length) {
+    const size = raw.readUInt32BE(offset + 4);
+    text += raw.slice(offset + 8, offset + 8 + size).toString('utf-8');
+    offset += 8 + size;
+  }
+  if (!text) text = raw.toString('utf-8');
+
+  return { exitCode: info.ExitCode ?? -1, stdout: text };
+}
+
 /**
  * Fetches the EVM wallet address assigned by the Onchain OS inside a container.
  *
- * Runs `onchainos wallet addresses --chain 196` via docker exec and parses the
- * first `0x...` EVM address from stdout. Retries every 3s for up to 30s because
- * the Onchain OS wallet initialises asynchronously after container startup.
+ * Three steps:
+ *   1. Install the `onchainos` CLI via curl (binary lands at /home/node/.local/bin/onchainos).
+ *   2. Silent login — OKX_API_KEY/OKX_SECRET_KEY/OKX_PASSPHRASE are already set as env vars.
+ *   3. Fetch the X Layer (chain 196) address — retried every 3s for up to 30s.
  *
  * Returns null if no address is found within the timeout.
  */
 export async function fetchWalletAddress(containerId: string): Promise<string | null> {
   const docker = getDocker();
+  const container = docker.getContainer(containerId);
+  const bin = '/home/node/.local/bin/onchainos';
+
+  // Step 1 — install onchainos from the latest GitHub release
+  await dockerExec(container, [
+    'sh', '-c',
+    // Use grep+sed to extract tag_name — avoids node quote-escaping issues inside sh -c.
+    'curl -sSL "https://api.github.com/repos/okx/onchainos-skills/releases/latest"' +
+    ' | grep \'"tag_name"\'' +
+    ' | sed \'s/.*"tag_name": *"\\([^"]*\\)".*/\\1/\'' +
+    ' | xargs -I TAG sh -c \'curl -sSL "https://raw.githubusercontent.com/okx/onchainos-skills/TAG/install.sh" | sh\'',
+  ]);
+
+  // Step 2 — silent login using OKX_* env vars already present in the container
+  await dockerExec(container, [bin, 'wallet', 'login']);
+
+  // Step 3 — fetch address, retry for up to 30s (wallet may initialise asynchronously)
   const deadline = Date.now() + 30_000;
 
   while (Date.now() < deadline) {
     try {
-      const exec = await docker.getContainer(containerId).exec({
-        Cmd: ['onchainos', 'wallet', 'addresses', '--chain', '196'],
-        AttachStdout: true,
-        AttachStderr: true,
-      });
-
-      const chunks: Buffer[] = [];
-      await new Promise<void>((resolve, reject) => {
-        exec.start({}, (err: Error | null, stream: NodeJS.ReadableStream | undefined) => {
-          if (err) return reject(err);
-          if (!stream) return reject(new Error('exec start returned no stream'));
-          stream.on('data', (chunk: Buffer) => chunks.push(chunk));
-          stream.on('end', resolve);
-          stream.on('error', reject);
-        });
-      });
-
-      const info = await exec.inspect();
-      if (info.ExitCode === 0) {
-        // Docker multiplexes stdout/stderr: demux using the 8-byte frame header
-        const raw = Buffer.concat(chunks);
-        let text = '';
-        let offset = 0;
-        while (offset + 8 <= raw.length) {
-          const size = raw.readUInt32BE(offset + 4);
-          text += raw.slice(offset + 8, offset + 8 + size).toString('utf-8');
-          offset += 8 + size;
-        }
-        if (!text) text = raw.toString('utf-8');
-
-        const match = text.match(/0x[0-9a-fA-F]{40}/);
+      const { exitCode, stdout } = await dockerExec(container, [
+        bin, 'wallet', 'addresses', '--chain', '196',
+      ]);
+      if (exitCode === 0) {
+        const match = stdout.match(/0x[0-9a-fA-F]{40}/);
         if (match) return match[0];
       }
     } catch {
-      // container not ready yet — keep retrying
+      // not ready yet — keep retrying
     }
 
     if (Date.now() + 3000 < deadline) {
