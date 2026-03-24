@@ -1,31 +1,31 @@
 import Docker from 'dockerode';
 import { Client as SshClient } from 'ssh2';
+import { readdir, readFile, writeFile, unlink, mkdir } from 'node:fs/promises';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { tmpdir } from 'node:os';
+import { execFile } from 'node:child_process';
 import { db } from '../db/client.js';
 import { pets, port_allocations } from '../db/schema.js';
 import { eq, isNull, sql } from 'drizzle-orm';
 
-const OKX_SKILLS_RAW = 'https://raw.githubusercontent.com/okx/onchainos-skills/main/skills';
-const OKX_SKILLS_API = 'https://api.github.com/repos/okx/onchainos-skills/contents/skills';
-
-type GithubEntry = { name: string; type: string };
+const OKX_SKILLS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'okx-skills');
 
 /**
- * Fetch all SKILL.md files from okx/onchainos-skills via GitHub API.
- * Returns an array of { name, content } for each skill directory found.
+ * Load all OKX skill SKILL.md files from the bundled static directory.
+ * Skills are checked in under src/runtime/okx-skills/ — no GitHub API, no rate limits.
  */
-async function fetchAllOkxSkills(): Promise<Array<{ name: string; content: string }>> {
-  const res = await fetch(OKX_SKILLS_API, {
-    headers: { Accept: 'application/vnd.github+json' },
-  });
-  if (!res.ok) throw new Error(`GitHub API error listing OKX skills: ${res.status}`);
-  const entries = await res.json() as GithubEntry[];
-  const skillDirs = entries.filter((e) => e.type === 'dir');
-
+async function loadOkxSkills(): Promise<Array<{ name: string; content: string }>> {
+  const entries = await readdir(OKX_SKILLS_DIR, { withFileTypes: true });
+  const skillDirs = entries.filter((e) => e.isDirectory());
   const results = await Promise.all(
     skillDirs.map(async ({ name }) => {
-      const r = await fetch(`${OKX_SKILLS_RAW}/${name}/SKILL.md`);
-      if (!r.ok) return null; // skip skills without SKILL.md
-      return { name, content: await r.text() };
+      try {
+        const content = await readFile(join(OKX_SKILLS_DIR, name, 'SKILL.md'), 'utf-8');
+        return { name, content };
+      } catch {
+        return null; // skip if no SKILL.md
+      }
     }),
   );
   return results.filter((s): s is { name: string; content: string } => s !== null);
@@ -33,7 +33,32 @@ async function fetchAllOkxSkills(): Promise<Array<{ name: string; content: strin
 
 // ── Docker client (SSH tunnel to Hetzner) ────────────────────────────────────
 
+/**
+ * Returns a Docker client connected to the Hetzner VPS.
+ *
+ * Two connection modes:
+ * - DOCKER_HOST=http://localhost:<port> — Use a pre-established SSH tunnel
+ *   (e.g. `ssh -N -L 2375:/var/run/docker.sock deploy@<host>`). This avoids
+ *   Node.js TCP limitations on macOS when connecting to virtualised subnets.
+ * - Default — Direct SSH via dockerode (works on Linux/Railway where Node.js
+ *   can TCP-connect to the remote host).
+ */
 function getDocker(): Docker {
+  const dockerHost = process.env.DOCKER_HOST;
+  if (dockerHost) {
+    // Parse http://localhost:PORT or unix socket path
+    if (dockerHost.startsWith('http://') || dockerHost.startsWith('https://')) {
+      const url = new URL(dockerHost);
+      return new Docker({
+        protocol: url.protocol.replace(':', '') as 'http' | 'https',
+        host: url.hostname,
+        port: parseInt(url.port, 10),
+      });
+    }
+    // unix socket
+    return new Docker({ socketPath: dockerHost.replace('unix://', '') });
+  }
+
   return new Docker({
     protocol: 'ssh',
     host: process.env.HETZNER_HOST,
@@ -47,13 +72,64 @@ function getDocker(): Docker {
 
 // ── SSH file helpers ─────────────────────────────────────────────────────────
 
+/**
+ * Write files to the remote host via SSH.
+ *
+ * When HETZNER_SSH_KEY_FILE is set (a path to a PEM key file), the function
+ * uses the system `ssh` / `scp` binaries via child_process. This is needed on
+ * macOS where Node.js cannot TCP-connect to virtualised subnets (e.g. OrbStack)
+ * but system binaries can. On Linux/Railway, HETZNER_SSH_KEY (inline PEM) is
+ * used directly via the ssh2 library.
+ */
 async function sshWriteFiles(files: Array<{ path: string; content: string }>): Promise<void> {
   const host = process.env.HETZNER_HOST;
   const username = process.env.HETZNER_USER;
+  const keyFile = process.env.HETZNER_SSH_KEY_FILE;
   const privateKey = process.env.HETZNER_SSH_KEY;
 
-  if (!host || !username || !privateKey) {
-    throw new Error('HETZNER_HOST, HETZNER_USER, HETZNER_SSH_KEY must be set');
+  if (!host || !username) {
+    throw new Error('HETZNER_HOST, HETZNER_USER must be set');
+  }
+
+  // ── Path A: system SSH binary (macOS local dev with HETZNER_SSH_KEY_FILE) ──
+  if (keyFile) {
+    const exec = (cmd: string, args: string[]) =>
+      new Promise<void>((resolve, reject) => {
+        execFile(cmd, args, (err) => (err ? reject(err) : resolve()));
+      });
+
+    const sshArgs = [
+      '-i', keyFile,
+      '-o', 'StrictHostKeyChecking=no',
+      '-o', 'BatchMode=yes',
+      `${username}@${host}`,
+    ];
+
+    for (const { path: filePath, content } of files) {
+      const dir = filePath.substring(0, filePath.lastIndexOf('/'));
+      // mkdir -p on remote
+      await exec('ssh', [...sshArgs, `mkdir -p "${dir}"`]);
+      // Write content via temp file + scp
+      const tmp = join(tmpdir(), `openclaw-upload-${Date.now()}.tmp`);
+      await writeFile(tmp, content, 'utf-8');
+      try {
+        await exec('scp', [
+          '-i', keyFile,
+          '-o', 'StrictHostKeyChecking=no',
+          '-o', 'BatchMode=yes',
+          tmp,
+          `${username}@${host}:${filePath}`,
+        ]);
+      } finally {
+        await unlink(tmp).catch(() => {});
+      }
+    }
+    return;
+  }
+
+  // ── Path B: ssh2 library (Linux/Railway with inline HETZNER_SSH_KEY) ────────
+  if (!privateKey) {
+    throw new Error('Either HETZNER_SSH_KEY or HETZNER_SSH_KEY_FILE must be set');
   }
 
   await new Promise<void>((resolve, reject) => {
@@ -172,11 +248,14 @@ export async function createPetContainer(
   const [pet] = await db.select().from(pets).where(eq(pets.id, petId)).limit(1);
   if (!pet) throw new Error(`Pet ${petId} not found`);
 
-  const configJson = generateConfigJson({ gatewayToken });
+  const configJson = generateConfigJson({
+    gatewayToken,
+    anthropicBaseUrl: process.env.ANTHROPIC_BASE_URL,
+  });
   const heartbeatMd = generateHeartbeatMd({ name: pet.name, hunger: pet.hunger, mood: pet.mood, affection: pet.affection });
 
   // 3. Fetch all OKX skills and write everything to Hetzner via SSH
-  const okxSkills = await fetchAllOkxSkills();
+  const okxSkills = await loadOkxSkills();
 
   await sshWriteFiles([
     { path: `${dataDir}/${petId}/config/openclaw.json`, content: configJson },
@@ -206,6 +285,7 @@ export async function createPetContainer(
     Env: [
       `OPENCLAW_GATEWAY_TOKEN=${gatewayToken}`,
       `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY}`,
+      ...(process.env.ANTHROPIC_BASE_URL ? [`ANTHROPIC_BASE_URL=${process.env.ANTHROPIC_BASE_URL}`] : []),
       // OKX Onchain OS credentials — required by the onchainos CLI inside the container
       // for wallet login and x402-pay (see packages/openclaw/src/onchain/wallet.ts)
       `OKX_API_KEY=${process.env.OKX_API_KEY ?? ''}`,
@@ -236,14 +316,12 @@ export async function createPetContainer(
 }
 
 /**
- * Starts a container and polls Docker's built-in health status until
- * `State.Health.Status === 'healthy'` or 60s elapses (the image has a
- * 15s StartPeriod + 3 retries at 180s interval, but in practice the gateway
- * starts within a few seconds).
+ * Starts a container and waits until the OpenClaw gateway is ready.
  *
- * The OpenClaw image health check runs `fetch('http://127.0.0.1:18789/healthz')`
- * inside the container, so we rely on Docker's own monitor rather than an
- * external TCP probe (the gateway only binds to 127.0.0.1 inside the container).
+ * The Docker image healthcheck interval is 180s which is too long to wait.
+ * Instead we directly probe the gateway by running the same healthz fetch
+ * command via `docker exec` every 2s (up to 60s). The gateway binds to
+ * 127.0.0.1:18789 inside the container so exec is the only way to reach it.
  */
 export async function startContainer(containerId: string): Promise<void> {
   const docker = getDocker();
@@ -251,22 +329,47 @@ export async function startContainer(containerId: string): Promise<void> {
 
   const deadline = Date.now() + 60_000;
   while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 2000));
+
     const info = await docker.getContainer(containerId).inspect();
-    const health = info.State.Health?.Status;
-    if (health === 'healthy') {
-      await db
-        .update(pets)
-        .set({ container_status: 'running' })
-        .where(eq(pets.container_id, containerId));
-      return;
-    }
     if (info.State.Status === 'exited') {
       throw new Error(`Container ${containerId} exited unexpectedly (exit code ${info.State.ExitCode})`);
     }
-    await new Promise((r) => setTimeout(r, 2000));
+
+    // If Docker already marked it healthy, we're done.
+    if (info.State.Health?.Status === 'healthy') break;
+
+    // Probe via exec — same command as the image healthcheck.
+    try {
+      const exec = await docker.getContainer(containerId).exec({
+        Cmd: ['curl', '-sf', 'http://127.0.0.1:18789/healthz'],
+        AttachStdout: false,
+        AttachStderr: false,
+      });
+      await new Promise<void>((resolve, reject) => {
+        exec.start({}, (err: Error | null, stream: NodeJS.ReadableStream | undefined) => {
+          if (err) return reject(err);
+          stream?.resume();
+          stream?.on('end', resolve);
+          stream?.on('error', reject);
+          if (!stream) resolve();
+        });
+      });
+      const execInfo = await exec.inspect();
+      if (execInfo.ExitCode === 0) break; // gateway is up
+    } catch {
+      // container not ready yet — keep polling
+    }
   }
 
-  throw new Error(`Container ${containerId} did not become healthy within 60s`);
+  if (Date.now() >= deadline) {
+    throw new Error(`Container ${containerId} did not become healthy within 60s`);
+  }
+
+  await db
+    .update(pets)
+    .set({ container_status: 'running' })
+    .where(eq(pets.container_id, containerId));
 }
 
 /**
@@ -307,6 +410,123 @@ export async function removeContainer(containerId: string): Promise<void> {
       .set({ container_status: 'deleted' })
       .where(eq(pets.id, pet.id));
   }
+}
+
+/**
+ * Delivers a tick to an OpenClaw container via its `/v1/chat/completions`
+ * HTTP endpoint, triggered by running curl inside the container via docker exec.
+ *
+ * Why /v1/chat/completions instead of system event:
+ * - `openclaw system event` enqueues a heartbeat event but the LLM may not
+ *   treat the injected text as a "tick" and returns HEARTBEAT_OK silently.
+ * - /v1/chat/completions sends an explicit user message directly to the agent,
+ *   so the LLM receives the tick payload as a user turn and can call tools.
+ *
+ * The gateway must have `gateway.http.endpoints.chatCompletions.enabled: true`
+ * (set by generateConfigJson). The endpoint binds to loopback so we reach it
+ * via docker exec curl, not from outside the container.
+ *
+ * @param containerId  Docker container id.
+ * @param gatewayToken OpenClaw gateway token (from pets.gateway_token).
+ * @param payload      Tick context (pet state, nearby pets, recent events).
+ */
+export async function deliverTick(
+  containerId: string,
+  gatewayToken: string,
+  payload: object,
+): Promise<void> {
+  const docker = getDocker();
+  const container = docker.getContainer(containerId);
+
+  const body = JSON.stringify({
+    model: 'openclaw:main',
+    messages: [{ role: 'user', content: `tick: ${JSON.stringify(payload)}` }],
+    stream: false,
+  });
+
+  const exec = await container.exec({
+    Cmd: [
+      'curl', '-s', '-X', 'POST',
+      'http://localhost:18789/v1/chat/completions',
+      '-H', 'Content-Type: application/json',
+      '-H', `Authorization: Bearer ${gatewayToken}`,
+      '-d', body,
+    ],
+    AttachStdout: true,
+    AttachStderr: true,
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    exec.start({}, (err: Error | null, stream: NodeJS.ReadableStream | undefined) => {
+      if (err) return reject(err);
+      if (!stream) return reject(new Error('exec start returned no stream'));
+      stream.resume(); // drain so the stream ends
+      stream.on('end', resolve);
+      stream.on('error', reject);
+    });
+  });
+
+  const info = await exec.inspect();
+  if (info.ExitCode !== 0) {
+    throw new Error(`deliverTick exec exited ${info.ExitCode} for container ${containerId}`);
+  }
+}
+
+/**
+ * Sends a user chat message to the container and returns the assistant reply text.
+ * Uses docker exec + curl to /v1/chat/completions and captures stdout.
+ */
+export async function containerChat(
+  containerId: string,
+  gatewayToken: string,
+  message: string,
+  state: object,
+): Promise<string> {
+  const docker = getDocker();
+  const container = docker.getContainer(containerId);
+
+  const body = JSON.stringify({
+    model: 'openclaw:main',
+    messages: [{ role: 'user', content: `user_message: ${message}\nstate: ${JSON.stringify(state)}` }],
+    stream: false,
+  });
+
+  const exec = await container.exec({
+    Cmd: [
+      'curl', '-s', '-X', 'POST',
+      'http://localhost:18789/v1/chat/completions',
+      '-H', 'Content-Type: application/json',
+      '-H', `Authorization: Bearer ${gatewayToken}`,
+      '-d', body,
+    ],
+    AttachStdout: true,
+    AttachStderr: true,
+  });
+
+  const chunks: Buffer[] = [];
+  await new Promise<void>((resolve, reject) => {
+    exec.start({}, (err: Error | null, stream: NodeJS.ReadableStream | undefined) => {
+      if (err) return reject(err);
+      if (!stream) return reject(new Error('exec start returned no stream'));
+      stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+      stream.on('end', resolve);
+      stream.on('error', reject);
+    });
+  });
+
+  // Docker multiplexes stdout/stderr: each frame has an 8-byte header (first byte = stream type, bytes 4-7 = length)
+  const raw = Buffer.concat(chunks);
+  let text = '';
+  let offset = 0;
+  while (offset + 8 <= raw.length) {
+    const size = raw.readUInt32BE(offset + 4);
+    text += raw.slice(offset + 8, offset + 8 + size).toString('utf-8');
+    offset += 8 + size;
+  }
+  if (!text) text = raw.toString('utf-8');
+
+  const json = JSON.parse(text) as { choices?: Array<{ message?: { content?: string } }> };
+  return json.choices?.[0]?.message?.content ?? '...';
 }
 
 /**

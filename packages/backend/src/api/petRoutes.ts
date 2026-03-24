@@ -7,7 +7,7 @@ import { authHook } from './authHook.js';
 
 export type PetRouteDeps = {
   generateSoulMd: (input: { name: string; mood: number; soul_prompt: string }) => string;
-  generateSkillMd: (input: { id: string; backendUrl: string }) => string;
+  generateSkillMd: (input: { id: string; backendUrl: string; webhookToken: string }) => string;
   /** Optional — injected by index.ts when HETZNER_HOST is set; absent in tests */
   launchContainer?: (petId: string, soulMd: string, skillMd: string) => void;
 };
@@ -58,6 +58,7 @@ export async function registerPetRoutes(
 
     const soul_md = deps.generateSoulMd({ name, mood: 100, soul_prompt });
     const backendUrl = process.env.BACKEND_URL ?? 'http://localhost:3001';
+    const webhookToken = process.env.OPENCLAW_WEBHOOK_TOKEN ?? '';
 
     // Insert the pet row first to get the id (skill_md needs it)
     const [row] = await db
@@ -71,7 +72,7 @@ export async function registerPetRoutes(
       .returning();
 
     // Generate skill_md with the real pet id
-    const skill_md = deps.generateSkillMd({ id: row.id, backendUrl });
+    const skill_md = deps.generateSkillMd({ id: row.id, backendUrl, webhookToken });
     const [updated] = await db
       .update(pets)
       .set({ skill_md })

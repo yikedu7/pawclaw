@@ -1,6 +1,13 @@
 type ConfigInput = {
   /** OPENCLAW_GATEWAY_TOKEN — set in config and passed as container env var. */
   gatewayToken: string;
+  /**
+   * Optional custom Anthropic-compatible base URL (e.g. https://aihubmix.com).
+   * When set, a custom provider "aihub" is registered under models.providers so
+   * OpenClaw routes LLM calls through the proxy instead of api.anthropic.com.
+   * Model is pinned to aihub/claude-sonnet-4-6 (cheaper than opus).
+   */
+  anthropicBaseUrl?: string;
 };
 
 /**
@@ -14,27 +21,48 @@ type ConfigInput = {
  *   present when connecting to the WebSocket gateway on port 18789.
  * - Heartbeat every 5 min with lightContext — proactive fallback so pets act
  *   even without an explicit tick from the backend.
- *
- * Note: model, webhooks, isolatedSession, and delivery are NOT valid OpenClaw
- * config keys (confirmed via `openclaw doctor`). The model is set via
- * ANTHROPIC_API_KEY env var; event delivery uses the WebSocket gateway directly.
+ * - When ANTHROPIC_BASE_URL is set, models.providers adds an "aihub" provider
+ *   that proxies to that URL using api: "anthropic-messages". The default model
+ *   is set to aihub/claude-sonnet-4-6 (cheaper than the opus default).
  */
-export function generateConfigJson({ gatewayToken }: ConfigInput): string {
-  const config = {
+export function generateConfigJson({ gatewayToken, anthropicBaseUrl }: ConfigInput): string {
+  const config: Record<string, unknown> = {
     gateway: {
       mode: 'local',
       auth: {
         token: gatewayToken,
       },
-    },
-    agents: {
-      defaults: {
-        heartbeat: {
-          every: '5m',
-          lightContext: true,
+      http: {
+        endpoints: {
+          chatCompletions: { enabled: true },
         },
       },
     },
+    agents: {
+      defaults: {
+        model: anthropicBaseUrl ? 'aihub/claude-sonnet-4-6' : 'anthropic/claude-sonnet-4-6',
+        heartbeat: {
+          every: '5m',
+        },
+      },
+    },
+    ...(anthropicBaseUrl ? {
+      models: {
+        mode: 'merge',
+        providers: {
+          aihub: {
+            baseUrl: anthropicBaseUrl,
+            apiKey: '${ANTHROPIC_API_KEY}',
+            api: 'anthropic-messages',
+            models: [
+              { id: 'claude-opus-4-6', name: 'Claude Opus 4.6' },
+              { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6' },
+              { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5' },
+            ],
+          },
+        },
+      },
+    } : {}),
   };
 
   return JSON.stringify(config, null, 2);
