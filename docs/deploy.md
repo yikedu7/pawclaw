@@ -109,6 +109,15 @@ After both services are running:
 
 In Railway dashboard, select a service > **Settings** > **Domains** > **Add Custom Domain**. Follow the DNS instructions provided.
 
+## Deployed Contracts
+
+| Contract | Network | Address |
+|----------|---------|---------|
+| PAW Token (ERC20) | X Layer testnet (eip155:195) | `0x03a30dFd83b7932cac2371aC5eaf20E24fe6E7ff` |
+
+Deployer wallet: `0x63D7f271Efb88501F7B1E066846257a10cE058fA` (key stored in `packages/backend/.deploy-wallet`, gitignored).
+
+
 ## Troubleshooting
 
 - **Build fails on `pnpm install`**: ensure `pnpm-lock.yaml` is committed and up to date.
