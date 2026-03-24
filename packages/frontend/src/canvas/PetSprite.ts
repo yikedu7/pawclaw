@@ -110,6 +110,17 @@ export class PetSprite extends Container {
     this.updateWalkDirection();
   }
 
+  /**
+   * Apply a hex color tint (e.g. '#ddccff') to all row sprites.
+   * Pass '#ffffff' to remove tint (white = no change).
+   */
+  setTint(hexColor: string): void {
+    const color = parseInt(hexColor.replace('#', ''), 16);
+    for (const spr of [this.idleSprite, this.happySprite, this.leftSprite, this.rightSprite]) {
+      spr.tint = color;
+    }
+  }
+
   /** Call each tick with deltaMS to drive animations and movement. */
   update(deltaMS: number): void {
     if (this.state === 'happy') {

@@ -28,6 +28,7 @@ function toPetSummary(row: typeof pets.$inferSelect) {
     hunger: row.hunger,
     mood: row.mood,
     affection: row.affection,
+    tint_color: row.tint_color,
   };
 }
 
@@ -43,6 +44,7 @@ function toPetDetail(row: typeof pets.$inferSelect) {
     affection: row.affection,
     paw_balance: row.paw_balance ?? '0',
     initial_credits: row.initial_credits,
+    tint_color: row.tint_color,
   };
 }
 
@@ -62,7 +64,7 @@ export async function registerPetRoutes(
       });
     }
 
-    const { name, soul_prompt } = parsed.data;
+    const { name, soul_prompt, tint_color } = parsed.data;
     const ownerId = request.owner_id;
 
     const soul_md = deps.generateSoulMd({ name, mood: 100, soul_prompt });
@@ -77,6 +79,7 @@ export async function registerPetRoutes(
         name,
         soul_md,
         skill_md: '', // placeholder — updated below
+        tint_color,
       })
       .returning();
 
