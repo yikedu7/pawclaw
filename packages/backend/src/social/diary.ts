@@ -1,17 +1,14 @@
 import type { FastifyInstance } from 'fastify';
-import { eq, or, desc } from 'drizzle-orm';
-import Anthropic from '@anthropic-ai/sdk';
+import { eq, desc } from 'drizzle-orm';
 import { PetIdParamSchema } from '@x-pet/shared';
 import { db } from '../db/client.js';
-import { pets, social_events } from '../db/schema.js';
+import { pets, diary_entries } from '../db/schema.js';
 import { authHook } from '../api/authHook.js';
-
-const anthropic = new Anthropic();
 
 export async function registerDiaryRoute(fastify: FastifyInstance): Promise<void> {
   const auth = authHook(fastify);
 
-  // GET /api/pets/:id/diary — generate a diary entry from recent social events
+  // GET /api/pets/:id/diary — return latest diary entry from table
   fastify.get('/api/pets/:id/diary', { preHandler: auth }, async (request, reply) => {
     const parsed = PetIdParamSchema.safeParse(request.params);
     if (!parsed.success) {
@@ -26,43 +23,17 @@ export async function registerDiaryRoute(fastify: FastifyInstance): Promise<void
       return reply.code(403).send({ error: 'Forbidden', code: 'FORBIDDEN' });
     }
 
-    // Fetch last 10 social events involving this pet (as initiator or recipient)
-    const events = await db
+    const [entry] = await db
       .select()
-      .from(social_events)
-      .where(
-        or(
-          eq(social_events.from_pet_id, parsed.data.id),
-          eq(social_events.to_pet_id, parsed.data.id),
-        ),
-      )
-      .orderBy(desc(social_events.created_at))
-      .limit(10);
+      .from(diary_entries)
+      .where(eq(diary_entries.pet_id, parsed.data.id))
+      .orderBy(desc(diary_entries.created_at))
+      .limit(1);
 
-    if (events.length === 0) {
-      return reply.send({ diary: `${petRow.name} had a quiet day with no notable events.` });
+    if (!entry) {
+      return reply.send({ diary: null });
     }
 
-    const eventLines = events
-      .map((ev) => `[${ev.type}] at ${ev.created_at.toISOString()}: ${JSON.stringify(ev.payload)}`)
-      .join('\n');
-
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6-20250514',
-      max_tokens: 512,
-      system: petRow.soul_md,
-      messages: [
-        {
-          role: 'user',
-          content: `Write a short, first-person diary entry (2–4 sentences) summarising ${petRow.name}'s day based on these events:\n\n${eventLines}`,
-        },
-      ],
-    });
-
-    const diary =
-      response.content.find((b): b is Anthropic.TextBlock => b.type === 'text')?.text ??
-      'Today was a normal day.';
-
-    return reply.send({ diary });
+    return reply.send({ diary: entry.content, created_at: entry.created_at });
   });
 }
