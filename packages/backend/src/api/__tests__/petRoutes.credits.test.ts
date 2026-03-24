@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 
 // ── Module mocks (hoisted) ───────────────────────────────────────────────────
 
-const mockGrantCredits = vi.fn<[string], Promise<void>>();
+const mockGrantCredits = vi.fn<(wallet: string) => Promise<void>>();
 
 vi.mock('../../onchain/credits.js', () => ({
   grantRegistrationCredits: mockGrantCredits,
