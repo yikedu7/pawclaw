@@ -16,6 +16,7 @@ Defines the full contract between backend and frontend for x-pet.
 | GET | `/api/pets/:id` | Get pet state |
 | GET | `/api/pets/:id/events` | Get social events for a pet — **deferred, not yet implemented** |
 | GET | `/api/pets/:id/diary` | Get AI-generated diary summary |
+| POST | `/api/pets/:id/topup` | Read on-chain PAW balance; revive pet if stopped |
 | POST | `/api/pets/:id/feed` | Feed the pet to restore hunger — **deferred, not yet implemented** |
 | POST | `/api/pets/:id/chat` | Send a message to the pet, get its reply |
 | POST | `/internal/tick/:petId` | Force an immediate tick (internal, no auth) |
@@ -151,11 +152,15 @@ Fetch current state of a single pet. Requires auth.
   owner_id: string;
   name: string;
   wallet_address: string;
-  hunger: number;   // 0–100
-  mood: number;     // 0–100
+  hunger: number;        // 0–100
+  mood: number;          // 0–100
   affection: number;
+  paw_balance: string;   // PAW units as decimal string, e.g. "150.5"; "0" if not yet polled
+  initial_credits: number; // PAW granted at registration (default 200); used to compute hunger %
 }
 ```
+
+Frontend hunger computation: `hunger = Math.round(parseFloat(paw_balance) / initial_credits * 100)`
 
 **Error codes**
 
@@ -164,6 +169,41 @@ Fetch current state of a single pet. Requires auth.
 | 401    | `UNAUTHORIZED` | Missing or invalid token |
 | 403    | `FORBIDDEN`    | Pet belongs to another user |
 | 404    | `NOT_FOUND`    | Pet id does not exist    |
+
+---
+
+### POST /api/pets/:id/topup
+
+Read the pet's current on-chain PAW balance, update it in the DB, and revive the pet if it was stopped due to a zero balance. Requires auth.
+
+User flow: user sends PAW to `pet.wallet_address` → calls this endpoint → pet restarts if it had died.
+
+**Path params:** `id` — pet uuid
+
+**Request body** — empty
+
+**Response — 200 OK**
+
+```typescript
+{
+  ok: true;
+  paw_balance: string; // updated on-chain balance in PAW units, e.g. "50.0"
+}
+```
+
+**Side effects**
+- `pets.paw_balance` updated to on-chain value
+- If pet was `stopped` and new balance > 0: container restarted, `pet.revived` WS event emitted
+
+**Error codes**
+
+| Status | code              | Condition                            |
+|--------|-------------------|--------------------------------------|
+| 400    | `VALIDATION_ERROR`| Invalid pet id                       |
+| 400    | `NO_WALLET`       | Wallet address not yet assigned      |
+| 401    | `UNAUTHORIZED`    | Missing or invalid token             |
+| 403    | `FORBIDDEN`       | Pet belongs to another user          |
+| 404    | `NOT_FOUND`       | Pet id does not exist                |
 
 ---
 

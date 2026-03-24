@@ -110,6 +110,12 @@ export class HudBar {
       const v = Math.round(Math.max(0, Math.min(100, values[i])));
       this.slots[i].fill.style.width = `${v}%`;
       this.slots[i].valueEl.textContent = String(v);
+
+      // Hunger-specific state classes (warning at <20%, dead at 0%)
+      if (i === 0) {
+        this.slots[i].fill.classList.toggle('stat-warning', v > 0 && v < 20);
+        this.slots[i].fill.classList.toggle('stat-dead', v === 0);
+      }
     }
   }
 }

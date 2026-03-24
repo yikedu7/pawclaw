@@ -36,6 +36,13 @@
       "when": 1774328936140,
       "tag": "0004_powerful_xavin",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1774333828239,
+      "tag": "0005_supreme_cable",
+      "breakpoints": true
     }
   ]
 }

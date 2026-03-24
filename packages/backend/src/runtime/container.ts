@@ -530,6 +530,68 @@ export async function containerChat(
 }
 
 /**
+ * Fetches the EVM wallet address assigned by the Onchain OS inside a container.
+ *
+ * Runs `onchainos wallet addresses --chain 196` via docker exec and parses the
+ * first `0x...` EVM address from stdout. Retries every 3s for up to 30s because
+ * the Onchain OS wallet initialises asynchronously after container startup.
+ *
+ * Returns null if no address is found within the timeout.
+ */
+export async function fetchWalletAddress(containerId: string): Promise<string | null> {
+  const docker = getDocker();
+  const deadline = Date.now() + 30_000;
+
+  while (Date.now() < deadline) {
+    try {
+      const exec = await docker.getContainer(containerId).exec({
+        Cmd: ['onchainos', 'wallet', 'addresses', '--chain', '196'],
+        AttachStdout: true,
+        AttachStderr: true,
+      });
+
+      const chunks: Buffer[] = [];
+      await new Promise<void>((resolve, reject) => {
+        exec.start({}, (err: Error | null, stream: NodeJS.ReadableStream | undefined) => {
+          if (err) return reject(err);
+          if (!stream) return reject(new Error('exec start returned no stream'));
+          stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+          stream.on('end', resolve);
+          stream.on('error', reject);
+        });
+      });
+
+      const info = await exec.inspect();
+      if (info.ExitCode === 0) {
+        // Docker multiplexes stdout/stderr: demux using the 8-byte frame header
+        const raw = Buffer.concat(chunks);
+        let text = '';
+        let offset = 0;
+        while (offset + 8 <= raw.length) {
+          const size = raw.readUInt32BE(offset + 4);
+          text += raw.slice(offset + 8, offset + 8 + size).toString('utf-8');
+          offset += 8 + size;
+        }
+        if (!text) text = raw.toString('utf-8');
+
+        const match = text.match(/0x[0-9a-fA-F]{40}/);
+        if (match) return match[0];
+      }
+    } catch {
+      // container not ready yet — keep retrying
+    }
+
+    if (Date.now() + 3000 < deadline) {
+      await new Promise((r) => setTimeout(r, 3000));
+    } else {
+      break;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Returns the current status of a container: running, stopped, or missing.
  */
 export async function getContainerStatus(

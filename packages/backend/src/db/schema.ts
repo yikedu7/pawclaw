@@ -6,6 +6,7 @@ import {
   integer,
   boolean,
   jsonb,
+  numeric,
   timestamp,
   index,
   uniqueIndex,
@@ -39,6 +40,8 @@ export const pets = pgTable('pets', {
 
   // Economic model: initial PAW grant at registration (for hunger % calc: wallet_balance / initial_credits)
   initial_credits: integer('initial_credits').notNull().default(200),
+  // Current PAW balance in PAW units (not Wei) — null until first poll or topup
+  paw_balance: numeric('paw_balance'),
 
   // Container columns — denormalized from port_allocations for O(1) tick loop access
   container_id: text('container_id'),

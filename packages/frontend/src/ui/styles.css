@@ -315,6 +315,11 @@
 .stat-fill.mood       { background: linear-gradient(90deg, #6b8f4e, #a3c585); }
 .stat-fill.affection  { background: linear-gradient(90deg, #e8a0b4, #f0c8d8); }
 
+/* Hunger warning state (<20%) — orange */
+.stat-fill.hunger.stat-warning { background: linear-gradient(90deg, #e87a20, #f5b060); }
+/* Hunger dead state (0%) — grey */
+.stat-fill.hunger.stat-dead    { background: #555; }
+
 .stat-value {
   font-size: 10px;
   color: var(--ui-text-muted);
