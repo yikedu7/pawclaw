@@ -23,7 +23,13 @@ export interface SceneTextures {
   house: Texture;  // Wooden House.png
   walls: Texture;  // Wooden_House_Walls_Tilset.png
   door: Texture;   // Doors.png
+  giftItem: Texture; // gift.png trophy sprite
 }
+
+// Horizontal distance from petStandX to first gift trophy spot
+const GIFT_OFFSET_X = 80;
+// Spacing between consecutive gift trophies
+const GIFT_SPACING_X = 60;
 
 export class PetRoom extends Container {
   readonly overlays: Container;
@@ -33,20 +39,22 @@ export class PetRoom extends Container {
   private readonly bubble: DialogueBubble;
   private readonly gift: GiftAnimation;
   private readonly flash = new Graphics();
+  private readonly giftTexture: Texture;
   private flashElapsed = -1;
 
   constructor(private readonly app: Application, textures: SceneTextures) {
     super();
     this.overlays = new Container();
+    this.giftTexture = textures.giftItem;
 
     this.bg = new SceneBackground(textures.grass, textures.water, textures.biom, textures.house, textures.walls, textures.door);
     this.petSprite = new PetSprite(textures.spritesheet);
     this.visitor = new VisitorSprite(textures.spritesheet);
-
-    this.addChild(this.bg, this.visitor, this.petSprite);
-
     this.bubble = new DialogueBubble(app);
     this.gift = new GiftAnimation(app);
+
+    this.addChild(this.bg, this.visitor, this.gift.trophyLayer, this.petSprite);
+
     this.flash.alpha = 0;
     this.overlays.addChild(this.bubble, this.gift, this.flash);
 
@@ -115,7 +123,17 @@ export class PetRoom extends Container {
 
   showGift(from: string): void {
     this.gift.spawn(from);
-    this.petSprite.flashHappy();
+
+    const petX = this.bg.petStandX;
+    const petY = this.bg.petStandY;
+    const spotX = petX + GIFT_OFFSET_X + this.gift.trophyCount * GIFT_SPACING_X;
+
+    this.petSprite.walkTo([{ x: spotX, y: petY }], () => {
+      this.gift.placeTrophy(spotX, petY, this.giftTexture);
+      this.petSprite.walkTo([{ x: petX, y: petY }], () => {
+        this.petSprite.flashHappy();
+      });
+    });
   }
 
   showFriendUnlocked(petId: string): void {

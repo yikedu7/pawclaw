@@ -44,6 +44,7 @@ export class VisitorSprite extends Container {
       spr.animationSpeed = 0.1;
       spr.anchor.set(0.5, 1);
       spr.scale.set(SCALE);
+      spr.tint = 0xaa88ff; // purple tint to distinguish visitor from host pet
       spr.visible = false;
       spr.play();
       this.addChild(spr);

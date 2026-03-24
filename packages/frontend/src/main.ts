@@ -39,9 +39,10 @@ async function main(): Promise<void> {
   Assets.add({ alias: 'house',       src: '/assets/tilesets/Wooden House.png' });
   Assets.add({ alias: 'walls',       src: '/assets/tilesets/Wooden_House_Walls_Tilset.png' });
   Assets.add({ alias: 'door',        src: '/assets/tilesets/Doors.png' });
+  Assets.add({ alias: 'giftItem',    src: '/assets/objects/gift.png' });
 
   const textures = await Assets.load<Texture>(
-    ['spritesheet', 'grass', 'water', 'biom', 'house', 'walls', 'door'],
+    ['spritesheet', 'grass', 'water', 'biom', 'house', 'walls', 'door', 'giftItem'],
     (p: number) => loader.setProgress(p),
   ) as Record<string, Texture>;
 
@@ -56,6 +57,7 @@ async function main(): Promise<void> {
     house:       textures['house'],
     walls:       textures['walls'],
     door:        textures['door'],
+    giftItem:    textures['giftItem'],
   });
   app.stage.addChild(room, room.overlays);
 
