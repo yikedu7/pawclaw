@@ -2,7 +2,15 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateHeartbeatMd } from './heartbeat-generator.js';
 
-const BASE_PET = { name: 'Mochi', hunger: 70, mood: 65, affection: 50 };
+const BASE_PET = {
+  name: 'Mochi',
+  hunger: 70,
+  mood: 65,
+  affection: 50,
+  petId: '00000000-0000-0000-0000-000000000001',
+  gatewayToken: 'test-gateway-token',
+  backendUrl: 'http://localhost:3001',
+};
 
 describe('generateHeartbeatMd', () => {
   it('includes pet name in heading', () => {
@@ -46,7 +54,7 @@ describe('generateHeartbeatMd', () => {
   });
 
   it('includes pet name in stay-in-character note', () => {
-    const out = generateHeartbeatMd({ ...BASE_PET, name: 'Rex' });
+    const out = generateHeartbeatMd({ ...BASE_PET, name: 'Rex', petId: BASE_PET.petId, gatewayToken: BASE_PET.gatewayToken, backendUrl: BASE_PET.backendUrl });
     assert.match(out, /Stay in character as Rex/);
   });
 });

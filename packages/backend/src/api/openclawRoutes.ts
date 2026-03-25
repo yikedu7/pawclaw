@@ -12,6 +12,8 @@ export type OpenclawRouteDeps = {
   emitOwnerEvent: (ownerId: string, event: WsEvent) => void;
   /** Override blockchain submission for testing. Defaults to real X Layer submission. */
   submitPaymentTx?: (authorization: PaymentAuthorization, signature: string) => Promise<string>;
+  /** Override heartbeat payment submission for testing. Defaults to real X Layer submission. */
+  submitHeartbeatPaymentTx?: (authorization: PaymentAuthorization, signature: string) => Promise<string>;
 };
 
 function checkBearerToken(authHeader: string | undefined): boolean {
@@ -271,6 +273,88 @@ export async function registerOpenclawRoutes(
     if (targetPet.owner_id !== pet.owner_id) {
       deps.emitOwnerEvent(targetPet.owner_id, giftEventSendGift);
     }
+
+    return reply.send({ ok: true, tx_hash: txHash });
+  });
+
+  // ── POST /internal/x402-settle ────────────────────────────────────────────
+  // Called by the pet container after running `onchainos payment x402-pay`
+  // to record the on-chain heartbeat payment and deduct paw_balance.
+  // Auth: per-pet gateway_token (same pattern as /internal/runtime/events/:petId).
+  fastify.post('/internal/x402-settle', async (request, reply) => {
+    const X402SettleSchema = z.object({
+      pet_id: z.string().uuid(),
+      signature: z.string(),
+      authorization: z.object({
+        from: z.string(),
+        to: z.string(),
+        value: z.string(),
+        validAfter: z.string(),
+        validBefore: z.string(),
+        nonce: z.string(),
+      }),
+    });
+
+    const bodyParsed = X402SettleSchema.safeParse(request.body);
+    if (!bodyParsed.success) {
+      return reply.code(400).send({ error: bodyParsed.error.message, code: 'VALIDATION_ERROR' });
+    }
+
+    const { pet_id, signature, authorization } = bodyParsed.data;
+
+    const pet = await db.query.pets.findFirst({ where: eq(pets.id, pet_id) });
+    if (!pet) return reply.code(404).send({ error: 'Pet not found', code: 'NOT_FOUND' });
+
+    if (!pet.gateway_token || request.headers.authorization !== `Bearer ${pet.gateway_token}`) {
+      return reply.code(401).send({ error: 'Unauthorized', code: 'UNAUTHORIZED' });
+    }
+
+    const tokenAddress = process.env.PAYMENT_TOKEN_ADDRESS;
+    const tokenName = process.env.PAYMENT_TOKEN_NAME ?? 'PAW';
+    if (!tokenAddress) {
+      return reply.code(500).send({ error: 'PAYMENT_TOKEN_ADDRESS not configured', code: 'CONFIG_ERROR' });
+    }
+
+    let signerAddress: string;
+    try {
+      signerAddress = verifyEIP3009Signature(authorization, signature, tokenAddress, tokenName);
+    } catch {
+      return reply.code(401).send({ error: 'Invalid EIP-3009 signature', code: 'INVALID_SIGNATURE' });
+    }
+
+    if (signerAddress.toLowerCase() !== pet.wallet_address?.toLowerCase()) {
+      return reply.code(401).send({ error: 'Signature does not match pet wallet', code: 'INVALID_SIGNATURE' });
+    }
+
+    const platformWallet = process.env.PLATFORM_WALLET_ADDRESS;
+    if (!platformWallet || authorization.to.toLowerCase() !== platformWallet.toLowerCase()) {
+      return reply.code(401).send({ error: 'Payment destination does not match platform wallet', code: 'INVALID_DESTINATION' });
+    }
+
+    let txHash: string;
+    try {
+      const doSubmit = deps.submitHeartbeatPaymentTx
+        ?? ((auth, sig) => submitTransferWithAuthorization(auth, sig, tokenAddress));
+      txHash = await doSubmit(authorization, signature);
+    } catch {
+      return reply.code(502).send({ error: 'Payment submission failed', code: 'PAYMENT_FAILED' });
+    }
+
+    const token = process.env.PAYMENT_TOKEN_SYMBOL ?? tokenName;
+    await db.insert(transactions).values({
+      from_wallet: authorization.from,
+      to_wallet: authorization.to,
+      amount: authorization.value,
+      token,
+      tx_hash: txHash,
+      x_layer_confirmed: true,
+    });
+
+    const decimals = parseInt(process.env.PAYMENT_TOKEN_DECIMALS ?? '18', 10);
+    const deductAmount = Number(authorization.value) / Math.pow(10, decimals);
+    const newBalance = parseFloat(pet.paw_balance ?? '0') - deductAmount;
+
+    await db.update(pets).set({ paw_balance: newBalance.toString() }).where(eq(pets.id, pet_id));
 
     return reply.send({ ok: true, tx_hash: txHash });
   });
