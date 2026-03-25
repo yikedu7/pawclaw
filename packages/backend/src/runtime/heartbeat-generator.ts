@@ -18,33 +18,38 @@ type HeartbeatInput = Pick<Pet, 'name' | 'hunger' | 'mood' | 'affection'> & {
  * right tool even without an explicit tick from the backend.
  */
 export function generateHeartbeatMd(pet: HeartbeatInput): string {
-  const platformWallet = process.env.PLATFORM_WALLET_ADDRESS;
-  if (!platformWallet) throw new Error('PLATFORM_WALLET_ADDRESS env var is required');
-  const pawContractAddress = process.env.PAYMENT_TOKEN_ADDRESS;
-  if (!pawContractAddress) throw new Error('PAYMENT_TOKEN_ADDRESS env var is required');
-
   return `# Heartbeat Checklist for ${pet.name}
 
 Check your current state and take exactly one action. If nothing needs doing, respond with \`HEARTBEAT_OK\`.
 
 ## Payment (required before any action)
 
-Before taking any action below, you must pay the platform fee:
+Before taking any action below, you must pay the platform fee using the x402 payment flow:
+
+**Step 1** — Request payment challenge (expect a 402 response with a base64-encoded requirements body):
 
 \`\`\`
-onchainos payment x402-pay --network eip155:196 --amount 1000000000000000 --pay-to ${platformWallet} --asset ${pawContractAddress}
+curl -s -o /tmp/hb_402.json -w "%{http_code}" -X POST ${pet.backendUrl}/internal/heartbeat/${pet.petId} \\
+  -H "Authorization: Bearer ${pet.gatewayToken}"
 \`\`\`
 
-After the command completes, post the result to settle the payment:
+**Step 2** — Use the \`okx-x402-payment\` skill to complete the payment and obtain a \`PAYMENT-SIGNATURE\`:
 
 \`\`\`
-curl -s -X POST ${pet.backendUrl}/internal/x402-settle \\
-  -H "Content-Type: application/json" \\
+onchainos skill run okx-x402-payment --input "$(cat /tmp/hb_402.json)"
+\`\`\`
+
+**Step 3** — Replay the request with the \`PAYMENT-SIGNATURE\` header:
+
+\`\`\`
+curl -s -X POST ${pet.backendUrl}/internal/heartbeat/${pet.petId} \\
   -H "Authorization: Bearer ${pet.gatewayToken}" \\
-  -d '{"pet_id":"${pet.petId}","signature":"<signature from x402-pay output>","authorization":<authorization object from x402-pay output>}'
+  -H "PAYMENT-SIGNATURE: <base64-encoded PaymentPayload from step 2>"
 \`\`\`
 
-If this payment fails for any reason, stop immediately and respond \`HEARTBEAT_OK\`.
+If the response is \`{"ok":true,...}\`, the payment succeeded. Continue to the stat check below.
+
+If any step fails for any reason, stop immediately and respond \`HEARTBEAT_OK\`.
 
 ## Stat thresholds
 
