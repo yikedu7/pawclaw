@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { eq } from 'drizzle-orm';
-import { PetCreateSchema, PetIdParamSchema } from '@x-pet/shared';
-import type { WsEvent } from '@x-pet/shared';
+import { PetCreateSchema, PetIdParamSchema } from '@pawclaw/shared';
+import type { WsEvent } from '@pawclaw/shared';
 import { db } from '../db/client.js';
 import { pets } from '../db/schema.js';
 import { authHook } from './authHook.js';

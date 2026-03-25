@@ -1,5 +1,5 @@
 {
-  "name": "@x-pet/frontend",
+  "name": "@pawclaw/frontend",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.3",
-    "@x-pet/shared": "workspace:*",
+    "@pawclaw/shared": "workspace:*",
     "pixi.js": "^8.9.0"
   },
   "devDependencies": {

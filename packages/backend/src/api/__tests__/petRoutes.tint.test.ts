@@ -4,7 +4,7 @@
  *
  * Prerequisites:
  *   supabase start
- *   pnpm --filter @x-pet/backend db:migrate
+ *   pnpm --filter @pawclaw/backend db:migrate
  *   supabase db reset
  */
 import { vi, describe, it, expect, beforeAll, afterAll } from 'vitest';

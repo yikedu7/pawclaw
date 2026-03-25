@@ -43,7 +43,7 @@ Route D as designed is viable. This document uses `ghcr.io/openclaw/openclaw:lat
 Rationale:
 - Hetzner is $6/month flat vs Railway Pro ($20/month minimum) required for private networking between 20 services.
 - Container isolation per pet is preserved (satisfies the product requirement documented in risks.md R4).
-- OpenClaw's webhook ingress/egress and heartbeat mechanism wire cleanly into the x-pet tick loop (confirmed, see issue #37).
+- OpenClaw's webhook ingress/egress and heartbeat mechanism wire cleanly into the PawClaw tick loop (confirmed, see issue #37).
 - Railway backend continues to run on Railway (unchanged). Only the pet runtime containers run on Hetzner.
 
 **If Hetzner VPS fails at demo time:** activate Route B — pre-provision 2 demo pets as Railway services using the OpenClaw image with hardcoded ports. This is the fallback documented in architecture.md.

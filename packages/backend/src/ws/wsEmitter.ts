@@ -1,4 +1,4 @@
-import type { WsEvent } from '@x-pet/shared';
+import type { WsEvent } from '@pawclaw/shared';
 import { tickBus } from '../runtime/tick-bus.js';
 import { getOwnerSocket } from './wsRegistry.js';
 

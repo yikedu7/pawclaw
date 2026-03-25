@@ -1,4 +1,4 @@
-# x-pet E2E Browser Test
+# PawClaw E2E Browser Test
 
 Full-chain test using agent-browser. Tests all 5 chains against a running local dev environment.
 
@@ -29,7 +29,7 @@ psql postgresql://postgres:postgres@localhost:54322/postgres -c "
 "
 ```
 
-Use `e2e-test@xpet.local` as the test email. Also stop/remove any leftover containers:
+Use `e2e-test@pawclaw.local` as the test email. Also stop/remove any leftover containers:
 
 ```bash
 curl -s "http://localhost:2375/containers/json?all=true" | python3 -c "
@@ -50,7 +50,7 @@ for c in json.load(sys.stdin):
 ```bash
 agent-browser open "http://localhost:5173/create.html"
 agent-browser click "#toggle-btn"          # switch to Sign Up mode
-agent-browser fill "#email" "e2e-test@xpet.local"
+agent-browser fill "#email" "e2e-test@pawclaw.local"
 agent-browser fill "#password" "Test123456!"
 agent-browser click "#auth-btn"
 sleep 4
@@ -167,7 +167,7 @@ First create a second pet in DB (no container needed):
 ```bash
 psql postgresql://postgres:postgres@localhost:54322/postgres -c "
 INSERT INTO auth.users (id, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, aud, role)
-VALUES ('aaaaaaaa-bbbb-4000-cccc-dddddddddddd','friend@xpet.local',
+VALUES ('aaaaaaaa-bbbb-4000-cccc-dddddddddddd','friend@pawclaw.local',
   crypt('Test123456!',gen_salt('bf')), now(),now(),now(),
   '{\"provider\":\"email\"}','{}','authenticated','authenticated')
 ON CONFLICT (id) DO NOTHING;
@@ -243,7 +243,7 @@ Supabase access tokens expire in **1 hour**. If any WS test fails with `closed:4
 ```bash
 agent-browser open "http://localhost:5173/create.html"
 # sign in again (not sign up)
-agent-browser fill "#email" "e2e-test@xpet.local"
+agent-browser fill "#email" "e2e-test@pawclaw.local"
 agent-browser fill "#password" "Test123456!"
 agent-browser click "#auth-btn"
 sleep 4

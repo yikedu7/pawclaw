@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import pg from 'pg';
 import { applyVisitAffection } from '../affection.js';
 import { tickBus } from '../../runtime/tick-bus.js';
-import type { WsEvent } from '@x-pet/shared';
+import type { WsEvent } from '@pawclaw/shared';
 
 const { Pool } = pg;
 

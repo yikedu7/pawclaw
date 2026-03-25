@@ -7,15 +7,15 @@ WORKDIR /app
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/frontend/package.json ./packages/frontend/
-RUN pnpm install --frozen-lockfile --filter @x-pet/frontend...
+RUN pnpm install --frozen-lockfile --filter @pawclaw/frontend...
 
 # Build
 FROM deps AS builder
 COPY tsconfig.base.json ./
 COPY packages/shared ./packages/shared
 COPY packages/frontend ./packages/frontend
-RUN pnpm --filter @x-pet/shared build
-RUN pnpm --filter @x-pet/frontend build
+RUN pnpm --filter @pawclaw/shared build
+RUN pnpm --filter @pawclaw/frontend build
 
 # Serve
 FROM nginx:alpine AS runner

@@ -53,9 +53,9 @@
 - **Action needed:** Track remaining scope in separate issues.
 
 **R6 — Frontend WsEvent schema alignment (FE2 prerequisite)**
-- **Risk:** The frontend canvas (issue #10) subscribes to `eventBus` using the canonical `WsEvent` type from `@x-pet/shared`. The real WS client (issue FE2) must emit events using the same field names (`from_pet_id`, `to_pet_id`, `turns`, `token`, `amount`).
+- **Risk:** The frontend canvas (issue #10) subscribes to `eventBus` using the canonical `WsEvent` type from `@pawclaw/shared`. The real WS client (issue FE2) must emit events using the same field names (`from_pet_id`, `to_pet_id`, `turns`, `token`, `amount`).
 - **Impact:** Silent runtime breakage — `e.data.from_pet_id` returns `undefined` if the WS client sends `from` instead.
-- **Mitigation:** `eventBus.ts` is typed against `@x-pet/shared#WsEvent`; TypeScript catches mismatches at compile time when the real WS client calls `eventBus.emit()`.
+- **Mitigation:** `eventBus.ts` is typed against `@pawclaw/shared#WsEvent`; TypeScript catches mismatches at compile time when the real WS client calls `eventBus.emit()`.
 
 ---
 
@@ -70,10 +70,10 @@
 - **Previously re-opened as critical blocker** based on incomplete research that concluded OpenClaw had no event output mechanism and no proactive mode.
 - **Corrected research (issue #37, 2026-03-21) confirms both blockers are resolved:**
   1. **Event output (webhook egress) — CONFIRMED:** OpenClaw cron/heartbeat jobs with `delivery.mode: "webhook"` POST LLM results to an external backend URL. Auth via `cron.webhookToken` (bearer token). Our backend can receive OpenClaw output without polling.
-  2. **Webhook ingress — CONFIRMED:** POST to `http://localhost:18789/webhook/<id>` triggers an LLM turn. The x-pet tick loop can drive OpenClaw turns via HTTP.
+  2. **Webhook ingress — CONFIRMED:** POST to `http://localhost:18789/webhook/<id>` triggers an LLM turn. The PawClaw tick loop can drive OpenClaw turns via HTTP.
   3. **Proactive mode — CONFIRMED:** Heartbeat (periodic background LLM turns, configurable interval, reads `HEARTBEAT.md`) and full Cron job support are both implemented and working.
   4. **Image — CONFIRMED:** `ghcr.io/openclaw/openclaw:latest` (GHCR, not Docker Hub). Config dir `/home/node/.openclaw`, workspace `/home/node/.openclaw/workspace/`.
-- **Route D is viable.** The tick loop integration pattern (ingress via `/webhook/<id>`, egress via `delivery.mode: webhook`) wires OpenClaw into the x-pet backend cleanly.
+- **Route D is viable.** The tick loop integration pattern (ingress via `/webhook/<id>`, egress via `delivery.mode: webhook`) wires OpenClaw into the PawClaw backend cleanly.
 - **Remaining open risk:** R8 (GHCR auth on Hetzner host) — see above.
 
 ### R5: Frontend Framework — RESOLVED ✅

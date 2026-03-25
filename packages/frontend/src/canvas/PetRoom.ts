@@ -1,5 +1,5 @@
 import { Application, Container, Graphics, Ticker, Texture } from 'pixi.js';
-import type { WsEvent } from '@x-pet/shared';
+import type { WsEvent } from '@pawclaw/shared';
 import { DialogueBubble } from './DialogueBubble';
 import { GiftAnimation } from './GiftAnimation';
 import { SceneBackground } from './SceneBackground';

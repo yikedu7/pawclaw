@@ -36,7 +36,7 @@ psql postgresql://postgres:postgres@localhost:54322/postgres -c "
   DELETE FROM port_allocations;
   DELETE FROM social_events;
   DELETE FROM pets;
-  DELETE FROM auth.users WHERE email LIKE '%xpet.local%';
+  DELETE FROM auth.users WHERE email LIKE '%pawclaw.local%';
 "
 curl -s "http://localhost:2375/containers/json?all=true" | python3 -c "
 import sys,json
@@ -54,7 +54,7 @@ for c in json.load(sys.stdin): print(c['Id'][:12], c['State'], c['Names'])
 ```bash
 agent-browser open "http://localhost:5173/create.html"
 agent-browser click "#toggle-btn"
-agent-browser fill "#email" "e2e-test@xpet.local"
+agent-browser fill "#email" "e2e-test@pawclaw.local"
 agent-browser fill "#password" "Test123456!"
 agent-browser click "#auth-btn"
 sleep 4
@@ -147,7 +147,7 @@ Create friend pet (no container needed):
 ```bash
 psql postgresql://postgres:postgres@localhost:54322/postgres -c "
 INSERT INTO auth.users (id,email,encrypted_password,email_confirmed_at,created_at,updated_at,raw_app_meta_data,raw_user_meta_data,aud,role)
-VALUES ('aaaaaaaa-bbbb-4000-cccc-dddddddddddd','friend@xpet.local',
+VALUES ('aaaaaaaa-bbbb-4000-cccc-dddddddddddd','friend@pawclaw.local',
   crypt('Test123456!',gen_salt('bf')),now(),now(),now(),
   '{\"provider\":\"email\"}','{}','authenticated','authenticated')
 ON CONFLICT (id) DO NOTHING;
@@ -239,7 +239,7 @@ psql postgresql://postgres:postgres@localhost:54322/postgres -t -c \
 
 **Pass:** `tint_color = #ddccff` in DB.
 **Note:** canvas sprite tint requires visual screenshot verification (WebGL).
-**Prereq:** Run `pnpm --filter @x-pet/shared build` after any schema change to `packages/shared/src/schemas/pet.ts` — stale `dist/` causes Zod to silently strip new fields from parsed request bodies.
+**Prereq:** Run `pnpm --filter @pawclaw/shared build` after any schema change to `packages/shared/src/schemas/pet.ts` — stale `dist/` causes Zod to silently strip new fields from parsed request bodies.
 
 ---
 
@@ -319,7 +319,7 @@ sleep 2
 SCREENSHOT_URL="http://localhost:5173/?token=$TOKEN&pet_id=$PET_ID" \
 SCREENSHOT_DELAY_MS=500 \
 npx tsx packages/frontend/scripts/screenshot.ts
-# Read /tmp/x-pet-render.png — verify two sprites visible
+# Read /tmp/pawclaw-render.png — verify two sprites visible
 ```
 
 **Pass:** screenshot shows two pet sprites on canvas (resident + visitor).
@@ -394,7 +394,7 @@ Supabase tokens expire in 1 hour. If WS tests fail with `closed:4001`:
 
 ```bash
 agent-browser open "http://localhost:5173/create.html"
-agent-browser fill "#email" "e2e-test@xpet.local"
+agent-browser fill "#email" "e2e-test@pawclaw.local"
 agent-browser fill "#password" "Test123456!"
 agent-browser click "#auth-btn"
 sleep 4

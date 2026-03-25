@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import Anthropic from '@anthropic-ai/sdk';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
-import type { WsEvent } from '@x-pet/shared';
+import type { WsEvent } from '@pawclaw/shared';
 import { db } from '../db/client.js';
 import { pets } from '../db/schema.js';
 import { authHook } from './authHook.js';

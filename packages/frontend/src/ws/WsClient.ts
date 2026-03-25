@@ -1,4 +1,4 @@
-import { WsEventSchema } from '@x-pet/shared';
+import { WsEventSchema } from '@pawclaw/shared';
 import { eventBus } from './eventBus';
 
 const BACKOFF_BASE_MS = 1_000;

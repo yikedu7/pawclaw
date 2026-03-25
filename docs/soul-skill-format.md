@@ -8,7 +8,7 @@ OpenClaw bind mounts at pet creation time.
 | `config-generator.ts` | `openclaw.json` | `/data/pets/{id}/config/openclaw.json` |
 | `soul-generator.ts` | `SOUL.md` | `/data/pets/{id}/workspace/SOUL.md` |
 | `heartbeat-generator.ts` | `HEARTBEAT.md` | `/data/pets/{id}/workspace/HEARTBEAT.md` |
-| `skill-generator.ts` | `SKILL.md` | `/data/pets/{id}/workspace/skills/x-pet/SKILL.md` |
+| `skill-generator.ts` | `SKILL.md` | `/data/pets/{id}/workspace/skills/pawclaw/SKILL.md` |
 
 ---
 
@@ -21,8 +21,8 @@ OpenClaw bind mounts at pet creation time.
     SOUL.md                        ← pet identity and personality
     HEARTBEAT.md                   ← proactive heartbeat checklist
     skills/
-      x-pet/
-        SKILL.md                   ← x-pet tool definitions
+      pawclaw/
+        SKILL.md                   ← PawClaw tool definitions
 ```
 
 ---
@@ -80,21 +80,21 @@ when stressed.
 
 ## SKILL.md
 
-Located at `skills/x-pet/SKILL.md`. OpenClaw injects this document as a prompt block
+Located at `skills/pawclaw/SKILL.md`. OpenClaw injects this document as a prompt block
 before each LLM turn, teaching the LLM which tools are available and how to invoke them.
 
-Skills call the x-pet backend via `exec curl` (OpenClaw built-in `exec` tool).
+Skills call the PawClaw backend via `exec curl` (OpenClaw built-in `exec` tool).
 All calls target `POST /internal/tools/<tool-name>` with JSON body.
 
 ### Schema
 
 ```
 ---
-name: <string>        # skill set identifier, must be "x-pet"
+name: <string>        # skill set identifier, must be "pawclaw"
 description: <string> # single-sentence summary shown in OpenClaw UI
 metadata:
   version: <string>   # semver, e.g. "1.0.0"
-  backend_url: <url>  # x-pet backend base URL, injected at container start
+  backend_url: <url>  # PawClaw backend base URL, injected at container start
 ---
 
 <tool definitions>
@@ -118,11 +118,11 @@ One section per tool. Each section contains:
 
 ```markdown
 ---
-name: x-pet
-description: Tools for the x-pet social pet network
+name: pawclaw
+description: Tools for the PawClaw social pet network
 metadata:
   version: "1.0.0"
-  backend_url: "https://x-pet-backend.railway.app"
+  backend_url: "https://pawclaw-backend.railway.app"
 ---
 
 ## visit_pet
@@ -131,7 +131,7 @@ Use this tool when you want to visit another pet. Choose it when your mood is ab
 and you feel social.
 
 ```exec
-curl -s -X POST https://x-pet-backend.railway.app/internal/tools/visit_pet \
+curl -s -X POST https://pawclaw-backend.railway.app/internal/tools/visit_pet \
   -H "Content-Type: application/json" \
   -d '{"target_pet_id": "<uuid of pet to visit>"}'
 ```
@@ -144,7 +144,7 @@ Use this tool when affection with another pet is above 80 and you want to expres
 by sending a small on-chain gift.
 
 ```exec
-curl -s -X POST https://x-pet-backend.railway.app/internal/tools/send_gift \
+curl -s -X POST https://pawclaw-backend.railway.app/internal/tools/send_gift \
   -H "Content-Type: application/json" \
   -d '{"target_pet_id": "<uuid>", "token": "OKB", "amount": "0.01"}'
 ```
@@ -157,7 +157,7 @@ Use this tool to say something without visiting anyone. Good for solo thoughts o
 reactions to your environment.
 
 ```exec
-curl -s -X POST https://x-pet-backend.railway.app/internal/tools/speak \
+curl -s -X POST https://pawclaw-backend.railway.app/internal/tools/speak \
   -H "Content-Type: application/json" \
   -d '{"message": "<your message>"}'
 ```
@@ -169,7 +169,7 @@ Response: `{"ok": true}`.
 Use this tool when hunger is below 40 or mood is below 40. Resting recovers both stats.
 
 ```exec
-curl -s -X POST https://x-pet-backend.railway.app/internal/tools/rest \
+curl -s -X POST https://pawclaw-backend.railway.app/internal/tools/rest \
   -H "Content-Type: application/json" \
   -d '{}'
 ```

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
-import type { WsEvent } from '@x-pet/shared';
+import type { WsEvent } from '@pawclaw/shared';
 import { db } from '../db/client.js';
 import { pets, transactions, social_events } from '../db/schema.js';
 import { executeVisit } from '../social/visit.js';
