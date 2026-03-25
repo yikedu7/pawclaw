@@ -15,7 +15,7 @@ const ChatBodySchema = z.object({
 
 export type ChatRouteDeps = {
   emitOwnerEvent: (ownerId: string, event: WsEvent) => void;
-  containerChat: (containerId: string, gatewayToken: string, message: string, state: object) => Promise<string>;
+  containerChat: (containerId: string, gatewayToken: string, message: string, state: object, ownerId?: string) => Promise<string>;
 };
 
 export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRouteDeps): Promise<void> {
@@ -49,6 +49,7 @@ export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRout
           pet.gateway_token,
           parsed.data.message,
           { hunger: pet.hunger, mood: pet.mood, affection: pet.affection },
+          request.owner_id,
         );
         deps.emitOwnerEvent(pet.owner_id, {
           type: 'pet.speak',

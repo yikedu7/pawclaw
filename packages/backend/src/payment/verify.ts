@@ -22,10 +22,11 @@ export function verifyEIP3009Signature(
   signature: string,
   tokenAddress: string,
   tokenName: string,
+  tokenVersion = '1',
 ): string {
   const domain = {
     name: tokenName,
-    version: '1',
+    version: tokenVersion,
     chainId: 196n,
     verifyingContract: tokenAddress,
   };

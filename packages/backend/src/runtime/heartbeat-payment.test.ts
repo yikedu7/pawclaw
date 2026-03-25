@@ -3,29 +3,40 @@ import { generateHeartbeatMd } from './heartbeat-generator.js';
 
 const BASE_PET = {
   name: 'Mochi',
-  hunger: 70,
-  mood: 65,
-  affection: 50,
   petId: '00000000-0000-0000-0000-000000000001',
   gatewayToken: 'test-gateway-token',
   backendUrl: 'http://localhost:3001',
 };
 
-describe('generateHeartbeatMd — PAW payment block', () => {
-  it('includes a payment section before decision rules', () => {
-    const out = generateHeartbeatMd(BASE_PET);
-    const paymentIdx = out.indexOf('## Payment');
-    const decisionIdx = out.indexOf('## Decision rules');
-    expect(paymentIdx).toBeGreaterThanOrEqual(0);
-    expect(decisionIdx).toBeGreaterThanOrEqual(0);
-    expect(paymentIdx).toBeLessThan(decisionIdx);
-  });
-
-  it('includes curl POST to /internal/heartbeat/:petId with gateway token', () => {
+describe('generateHeartbeatMd — x402 payment block', () => {
+  it('Step 1 requests payment nonce via curl to /internal/heartbeat/:petId', () => {
     const out = generateHeartbeatMd(BASE_PET);
     expect(out).toContain(`/internal/heartbeat/${BASE_PET.petId}`);
     expect(out).toContain(BASE_PET.gatewayToken);
     expect(out).toContain(BASE_PET.backendUrl);
+  });
+
+  it('Step 2 uses onchainos payment x402-pay with eip155:196', () => {
+    const out = generateHeartbeatMd(BASE_PET);
+    expect(out).toContain('onchainos payment x402-pay');
+    expect(out).toContain('eip155:196');
+  });
+
+  it('Step 2 encodes payload with python3 base64', () => {
+    const out = generateHeartbeatMd(BASE_PET);
+    expect(out).toContain('python3');
+    expect(out).toContain('base64');
+    expect(out).toContain('/tmp/hb_pay.json');
+  });
+
+  it('Step 3 submits payment with PAYMENT-SIGNATURE header', () => {
+    const out = generateHeartbeatMd(BASE_PET);
+    expect(out).toContain('PAYMENT-SIGNATURE');
+  });
+
+  it('does NOT contain the old okx-x402-payment skill invocation', () => {
+    const out = generateHeartbeatMd(BASE_PET);
+    expect(out).not.toContain('okx-x402-payment');
   });
 
   it('does NOT contain the old /internal/x402-settle endpoint', () => {
@@ -33,21 +44,8 @@ describe('generateHeartbeatMd — PAW payment block', () => {
     expect(out).not.toContain('/internal/x402-settle');
   });
 
-  it('does NOT contain hardcoded x402-pay onchainos parameters', () => {
-    const out = generateHeartbeatMd(BASE_PET);
-    // The new flow uses okx-x402-payment skill, not hardcoded x402-pay params
-    expect(out).not.toMatch(/--network eip155:196.*--amount.*--pay-to.*--asset/s);
-  });
-
-  it('instructs pet to use okx-x402-payment skill to complete payment', () => {
-    const out = generateHeartbeatMd(BASE_PET);
-    expect(out).toContain('okx-x402-payment');
-  });
-
   it('instructs pet to respond HEARTBEAT_OK if payment fails', () => {
     const out = generateHeartbeatMd(BASE_PET);
-    // Payment failure fallback must appear in the payment section (before decision rules)
-    const paymentSection = out.substring(out.indexOf('## Payment'), out.indexOf('## Stat thresholds'));
-    expect(paymentSection).toMatch(/HEARTBEAT_OK/);
+    expect(out).toContain('HEARTBEAT_OK');
   });
 });

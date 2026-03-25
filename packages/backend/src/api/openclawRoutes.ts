@@ -306,7 +306,7 @@ export async function registerOpenclawRoutes(
       if (!platformWallet) {
         return reply.code(500).send({ error: 'PLATFORM_WALLET_ADDRESS not configured', code: 'CONFIG_ERROR' });
       }
-      return send402(reply, '0.001', platformWallet);
+      return send402(reply, '0.000001', platformWallet);
     }
 
     // ── Replay: decode, verify, submit ────────────────────────────────────────
@@ -319,13 +319,14 @@ export async function registerOpenclawRoutes(
 
     const tokenAddress = process.env.PAYMENT_TOKEN_ADDRESS;
     const tokenName = process.env.PAYMENT_TOKEN_NAME ?? 'PAW';
+    const tokenVersion = process.env.PAYMENT_TOKEN_VERSION ?? '1';
     if (!tokenAddress) {
       return reply.code(500).send({ error: 'PAYMENT_TOKEN_ADDRESS not configured', code: 'CONFIG_ERROR' });
     }
 
     let signerAddress: string;
     try {
-      signerAddress = verifyEIP3009Signature(payload.authorization, payload.signature, tokenAddress, tokenName);
+      signerAddress = verifyEIP3009Signature(payload.authorization, payload.signature, tokenAddress, tokenName, tokenVersion);
     } catch {
       return reply.code(401).send({ error: 'Invalid EIP-3009 signature', code: 'INVALID_SIGNATURE' });
     }
