@@ -5,5 +5,8 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.test.ts', 'src/**/*.smoke.test.ts'],
     pool: 'forks',
+    env: {
+      DATABASE_URL: process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:54322/postgres',
+    },
   },
 });
