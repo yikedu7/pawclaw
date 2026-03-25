@@ -77,19 +77,22 @@ async function main(): Promise<void> {
   eventBus.on('friend.unlocked',(e) => room.showFriendUnlocked(e.data.pet_id));
   eventBus.on('error',          (e) => room.showDialogue(`Error: ${e.data.message}`));
 
-  // Fetch pet tint_color and apply it to the sprite
+  // Fetch initial pet state and apply tint + stats
   if (petId && token) {
     const backendUrl = (import.meta.env.VITE_BACKEND_URL as string | undefined) ?? 'http://localhost:3001';
     fetch(`${backendUrl}/api/pets/${petId}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((res) => res.ok ? res.json() as Promise<{ tint_color?: string }> : Promise.resolve({} as { tint_color?: string }))
+      .then((res) => res.ok ? res.json() as Promise<{ tint_color?: string; hunger?: number; mood?: number; affection?: number }> : Promise.resolve({} as { tint_color?: string; hunger?: number; mood?: number; affection?: number }))
       .then((data) => {
         if (data.tint_color && data.tint_color !== '#ffffff') {
           room.applyPetTint(data.tint_color);
         }
+        if (data.hunger != null && data.mood != null && data.affection != null) {
+          room.updateStats({ pet_id: petId, hunger: data.hunger, mood: data.mood, affection: data.affection });
+        }
       })
-      .catch(() => { /* non-critical — tint defaults to white */ });
+      .catch(() => { /* non-critical */ });
   }
 
   if (token) {
