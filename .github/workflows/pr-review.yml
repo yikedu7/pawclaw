@@ -30,7 +30,7 @@ jobs:
           display_report: true
           claude_args: --allowedTools "Bash,Edit,Read,Write,Glob,Grep,LS"
           prompt: |
-            You are a PR review team for the x-pet project. Review this PR against the engineering principles in CLAUDE.md.
+            You are a PR review team for the PawClaw project. Review this PR against the engineering principles in CLAUDE.md.
 
             The PR number is ${{ github.event.pull_request.number }}.
             The job details link is: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -51,7 +51,7 @@ jobs:
             ## Reviewer 2 — Architecture & Contracts
             - Do imports follow the layer order: shared → db → api → runtime → ws?
             - Does the implementation match the API contracts in docs/api-contracts.md (if relevant)?
-            - Are all external inputs validated with Zod schemas from @x-pet/shared?
+            - Are all external inputs validated with Zod schemas from @pawclaw/shared?
             - No hand-rolled types that duplicate packages/shared/types/?
 
             ## Reviewer 3 — Engineering Principles

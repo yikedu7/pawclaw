@@ -2,7 +2,7 @@
 
 ## System Overview
 
-x-pet is a multi-tenant AI pet runtime. Each pet is an autonomous agent with its own on-chain wallet, LLM-driven personality, and social behavior loop. The backend runs all pets in a single Node.js process; the frontend renders pet state via WebSocket events.
+PawClaw is a multi-tenant AI pet runtime. Each pet is an autonomous agent with its own on-chain wallet, LLM-driven personality, and social behavior loop. The backend runs all pets in a single Node.js process; the frontend renders pet state via WebSocket events.
 
 ---
 
@@ -78,7 +78,7 @@ OpenClaw (`github.com/openclaw/openclaw`) is a persistent AI agent gateway runti
 
 6. **Tick loop integration — CONFIRMED working patterns:**
    - **Tick → OpenClaw (webhook ingress):** POST to `http://localhost:18789/webhook/<id>` triggers an LLM turn. Configured via `webhooks` array in `openclaw.json`.
-   - **OpenClaw → backend (webhook egress):** A cron or heartbeat job with `delivery.mode: "webhook"` POSTs LLM output back to the x-pet backend URL. Auth via `cron.webhookToken` (bearer token).
+   - **OpenClaw → backend (webhook egress):** A cron or heartbeat job with `delivery.mode: "webhook"` POSTs LLM output back to the PawClaw backend URL. Auth via `cron.webhookToken` (bearer token).
 
 7. **SKILL.md tool call execution:**
    - SKILL.md is a markdown file with YAML frontmatter (`name`, `description`, `metadata`).
@@ -126,7 +126,7 @@ do not work because the gateway only binds to `127.0.0.1` inside the container n
       ├── SOUL.md                  ← pet identity/personality (written at creation)
       ├── HEARTBEAT.md             ← heartbeat checklist (proactive tick)
       └── skills/
-          ├── x-pet/
+          ├── pawclaw/
           │   └── SKILL.md         ← pet tool definitions (written at creation)
           ├── okx-agentic-wallet/
           │   └── SKILL.md         ← fetched from okx/onchainos-skills at container creation
@@ -139,12 +139,12 @@ The LLM agent reads `okx-agentic-wallet/SKILL.md` and `okx-x402-payment/SKILL.md
 
 **Tick loop integration pattern:**
 ```
-x-pet backend tick fires
+PawClaw backend tick fires
   → POST http://<hetzner-host>:<pet-port>/webhook/<id>
   → OpenClaw LLM turn executes (reads SOUL.md, runs skills)
-  → OpenClaw POSTs result to x-pet backend via webhook egress
+  → OpenClaw POSTs result to PawClaw backend via webhook egress
     (delivery.mode: "webhook", auth: Bearer cron.webhookToken)
-  → x-pet backend processes result → emits WebSocket event
+  → PawClaw backend processes result → emits WebSocket event
 ```
 
 **Remote Docker access:** Backend connects to Hetzner dockerd via SSH tunneling (`dockerode` SSH protocol, ed25519 key stored as Railway env var). Port 2376 is not exposed. See `docs/risks.md` R7 and issue #38.

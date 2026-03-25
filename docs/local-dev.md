@@ -16,7 +16,7 @@ supabase start
 This spins up a local Postgres instance on port 54322 and the Supabase Auth service on port 54321. After the first start, run migrations:
 
 ```bash
-pnpm --filter @x-pet/backend db:migrate
+pnpm --filter @pawclaw/backend db:migrate
 ```
 
 ## 2. Configure environment
@@ -47,7 +47,7 @@ VITE_BACKEND_URL=http://localhost:3001
 ## 3. Start the backend
 
 ```bash
-pnpm --filter @x-pet/backend dev
+pnpm --filter @pawclaw/backend dev
 ```
 
 Backend listens on `http://localhost:3001`.
@@ -55,7 +55,7 @@ Backend listens on `http://localhost:3001`.
 ## 4. Start the frontend
 
 ```bash
-pnpm --filter @x-pet/frontend dev
+pnpm --filter @pawclaw/frontend dev
 ```
 
 Frontend dev server listens on `http://localhost:5173`.

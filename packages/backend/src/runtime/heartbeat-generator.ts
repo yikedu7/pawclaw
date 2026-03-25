@@ -11,7 +11,7 @@ type HeartbeatInput = {
  *
  * OpenClaw reads this file as a checklist on every heartbeat turn.
  * Responses that resolve to `HEARTBEAT_OK` are suppressed (not emitted).
- * Non-OK responses trigger a webhook egress event back to the x-pet backend.
+ * Non-OK responses trigger a webhook egress event back to the PawClaw backend.
  *
  * The checklist encodes stat-driven decision rules so the LLM chooses the
  * right tool even without an explicit tick from the backend.

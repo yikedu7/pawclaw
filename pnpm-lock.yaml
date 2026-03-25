@@ -23,7 +23,7 @@ importers:
       '@fastify/websocket':
         specifier: ^11.0.0
         version: 11.2.0
-      '@x-pet/shared':
+      '@pawclaw/shared':
         specifier: workspace:*
         version: link:../shared
       dockerode:
@@ -93,12 +93,12 @@ importers:
 
   packages/frontend:
     dependencies:
+      '@pawclaw/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@supabase/supabase-js':
         specifier: ^2.99.3
         version: 2.99.3
-      '@x-pet/shared':
-        specifier: workspace:*
-        version: link:../shared
       pixi.js:
         specifier: ^8.9.0
         version: 8.17.1

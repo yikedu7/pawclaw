@@ -19,7 +19,7 @@ Remote Docker access decision: **SSH tunneling** (see `docs/remote-docker-access
 Generate a dedicated ed25519 keypair for Railway → Hetzner access. Do not reuse your personal SSH key.
 
 ```bash
-ssh-keygen -t ed25519 -f hetzner_deploy -C "x-pet-railway-deploy" -N ""
+ssh-keygen -t ed25519 -f hetzner_deploy -C "pawclaw-railway-deploy" -N ""
 # Creates: hetzner_deploy (private key) and hetzner_deploy.pub (public key)
 ```
 
@@ -30,14 +30,14 @@ Keep both files. You will need the private key content in Step 4.
 ## Step 2 — Create CX21 in Hetzner Cloud Console
 
 1. Log in to [console.hetzner.cloud](https://console.hetzner.cloud)
-2. Select your project (or create one named `x-pet`)
+2. Select your project (or create one named `pawclaw`)
 3. Click **Add Server**
 4. Configure:
    - **Location:** Any (Nuremberg or Helsinki are cheapest)
    - **Image:** Ubuntu 22.04
    - **Type:** CX21 (~$6/month, 2 vCPU, 4 GB RAM)
    - **SSH keys:** Upload `hetzner_deploy.pub` — paste contents of the file
-   - **Name:** `x-pet-prod`
+   - **Name:** `pawclaw-prod`
 5. Click **Create & Buy**
 6. Note the server's **IPv4 address** — you'll need it in Step 4
 

@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import type { WsEvent } from '@x-pet/shared';
+import type { WsEvent } from '@pawclaw/shared';
 
 interface TickBusEvents {
   ownerEvent: [ownerId: string, event: WsEvent];

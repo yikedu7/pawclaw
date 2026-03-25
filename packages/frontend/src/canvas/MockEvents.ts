@@ -1,4 +1,4 @@
-import type { WsEvent } from '@x-pet/shared';
+import type { WsEvent } from '@pawclaw/shared';
 import { eventBus } from '../ws/eventBus';
 
 const SPEAK_LINES = [

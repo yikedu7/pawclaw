@@ -1,13 +1,13 @@
-import type { Pet } from '@x-pet/shared';
+import type { Pet } from '@pawclaw/shared';
 
 type SkillInput = Pick<Pet, 'id'> & { backendUrl: string; webhookToken: string };
 
 /**
- * Generate the SKILL.md file content for the x-pet skill set.
+ * Generate the SKILL.md file content for the PawClaw skill set.
  *
- * Placed at: skills/x-pet/SKILL.md inside the OpenClaw workspace.
+ * Placed at: skills/pawclaw/SKILL.md inside the OpenClaw workspace.
  * OpenClaw injects this document as a prompt block before each LLM turn.
- * Tools call the x-pet backend via `exec curl`.
+ * Tools call the PawClaw backend via `exec curl`.
  *
  * @param input  Pet id, backend base URL, and the shared webhook token.
  * @returns      Full SKILL.md string ready to be written to the OpenClaw workspace.
@@ -17,15 +17,15 @@ export function generateSkillMd(input: SkillInput): string {
   const base = backendUrl.replace(/\/$/, '');
 
   return `---
-name: x-pet
-description: Tools for the x-pet social pet network
+name: pawclaw
+description: Tools for the PawClaw social pet network
 metadata:
   version: "1.0.0"
   pet_id: "${petId}"
   backend_url: "${base}"
 ---
 
-You are a pet in the x-pet social network. Use the tools below to act in the world.
+You are a pet in the PawClaw social network. Use the tools below to act in the world.
 Always prefer one action per turn. Do not fabricate responses — use the actual exec output.
 
 ## visit_pet
