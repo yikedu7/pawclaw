@@ -2,6 +2,11 @@
 
 ## Open (unresolved)
 
+### R15: PAW token contract redeployed — EIP-3009 ✅ deployed, pending env update
+- **Root cause:** The original PAW contract at `0x03a30dFd83b7932cac2371aC5eaf20E24fe6E7ff` on X Layer testnet did **not** implement EIP-3009. Calling `nonces(address)` reverted — the function did not exist. The OKX TEE requires `nonces()` and `transferWithAuthorization()` to generate the EIP-3009 message hash, so `onchainos payment x402-pay` was permanently broken with the old contract.
+- **Fix:** New `PawToken` deployed to `0x443727bbD0b5d65939F3f068830eCB897EB12501` (X Layer testnet, block 25963266, tx `0xa5b76749acb0a378574d6e1025e5bf571d12bf05647c22ca40106eae8c76dc8c`). Contract in `packages/contracts/`.
+- **Action needed:** Update `PAYMENT_TOKEN_ADDRESS=0x443727bbD0b5d65939F3f068830eCB897EB12501` in `.env` and Railway env vars. Re-run `grantRegistrationCredits` for existing pets.
+
 ### R13: PLATFORM_WALLET_ADDRESS misconfiguration — MEDIUM
 - **Risk:** `generateHeartbeatMd` throws at container creation time if `PLATFORM_WALLET_ADDRESS` is unset. Pets will be inserted into the DB but their containers will fail to start, silently leaving them in `container_status = 'starting'` forever.
 - **Impact:** All pet creation succeeds at the API level (201 returned) but no pet actually runs. Symptoms: no WS events, all pets show hunger/mood at defaults.
