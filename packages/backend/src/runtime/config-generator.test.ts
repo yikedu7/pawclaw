@@ -1,43 +1,61 @@
-import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it, expect } from 'vitest';
 import { generateConfigJson } from './config-generator.js';
 
 const GATEWAY_TOKEN = 'gw-token-xyz';
 
-function parsed() {
-  return JSON.parse(generateConfigJson({ gatewayToken: GATEWAY_TOKEN })) as Record<string, unknown>;
+function parsed(opts?: { anthropicBaseUrl?: string }) {
+  return JSON.parse(generateConfigJson({ gatewayToken: GATEWAY_TOKEN, ...opts })) as Record<string, unknown>;
 }
 
 describe('generateConfigJson', () => {
   it('produces valid JSON', () => {
-    assert.doesNotThrow(() => JSON.parse(generateConfigJson({ gatewayToken: GATEWAY_TOKEN })));
+    expect(() => JSON.parse(generateConfigJson({ gatewayToken: GATEWAY_TOKEN }))).not.toThrow();
   });
 
   it('sets gateway.mode to local', () => {
     const cfg = parsed() as { gateway: { mode: string } };
-    assert.equal(cfg.gateway.mode, 'local');
+    expect(cfg.gateway.mode).toBe('local');
   });
 
   it('embeds gatewayToken under gateway.auth.token', () => {
     const cfg = parsed() as { gateway: { auth: { token: string } } };
-    assert.equal(cfg.gateway.auth.token, GATEWAY_TOKEN);
+    expect(cfg.gateway.auth.token).toBe(GATEWAY_TOKEN);
   });
 
-  it('sets heartbeat every 5m', () => {
+  it('enables chatCompletions endpoint', () => {
+    const cfg = parsed() as { gateway: { http: { endpoints: { chatCompletions: { enabled: boolean } } } } };
+    expect(cfg.gateway.http.endpoints.chatCompletions.enabled).toBe(true);
+  });
+
+  it('sets heartbeat every 3h', () => {
     const cfg = parsed() as { agents: { defaults: { heartbeat: { every: string } } } };
-    assert.equal(cfg.agents.defaults.heartbeat.every, '5m');
+    expect(cfg.agents.defaults.heartbeat.every).toBe('3h');
   });
 
-  it('sets heartbeat lightContext to true', () => {
-    const cfg = parsed() as { agents: { defaults: { heartbeat: { lightContext: boolean } } } };
-    assert.equal(cfg.agents.defaults.heartbeat.lightContext, true);
+  it('uses DeepSeek-V3.1 model', () => {
+    const cfg = parsed() as { agents: { defaults: { model: string } } };
+    expect(cfg.agents.defaults.model).toBe('aihub/DeepSeek-V3.1');
   });
 
-  it('does not include invalid keys (model, webhooks, isolatedSession, delivery)', () => {
+  it('uses openai-completions API type', () => {
+    const cfg = parsed() as { models: { providers: { aihub: { api: string } } } };
+    expect(cfg.models.providers.aihub.api).toBe('openai-completions');
+  });
+
+  it('appends /v1 to base URL when missing', () => {
+    const cfg = parsed({ anthropicBaseUrl: 'https://aihubmix.com' }) as { models: { providers: { aihub: { baseUrl: string } } } };
+    expect(cfg.models.providers.aihub.baseUrl).toBe('https://aihubmix.com/v1');
+  });
+
+  it('does not duplicate /v1 when already present', () => {
+    const cfg = parsed({ anthropicBaseUrl: 'https://aihubmix.com/v1' }) as { models: { providers: { aihub: { baseUrl: string } } } };
+    expect(cfg.models.providers.aihub.baseUrl).toBe('https://aihubmix.com/v1');
+  });
+
+  it('does not include webhooks, isolatedSession, or delivery keys', () => {
     const raw = generateConfigJson({ gatewayToken: GATEWAY_TOKEN });
-    assert.doesNotMatch(raw, /"model"/);
-    assert.doesNotMatch(raw, /"webhooks"/);
-    assert.doesNotMatch(raw, /"isolatedSession"/);
-    assert.doesNotMatch(raw, /"delivery"/);
+    expect(raw).not.toContain('"webhooks"');
+    expect(raw).not.toContain('"isolatedSession"');
+    expect(raw).not.toContain('"delivery"');
   });
 });

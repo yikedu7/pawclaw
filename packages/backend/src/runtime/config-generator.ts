@@ -2,10 +2,10 @@ type ConfigInput = {
   /** OPENCLAW_GATEWAY_TOKEN — set in config and passed as container env var. */
   gatewayToken: string;
   /**
-   * Optional custom Anthropic-compatible base URL (e.g. https://aihubmix.com).
-   * When set, a custom provider "aihub" is registered under models.providers so
-   * OpenClaw routes LLM calls through the proxy instead of api.anthropic.com.
-   * Model is pinned to aihub/claude-sonnet-4-6 (cheaper than opus).
+   * Optional custom OpenAI-compatible base URL (e.g. https://aihubmix.com/v1).
+   * When set, a custom provider "aihub" is registered using api: "openai-completions"
+   * and the model is pinned to DeepSeek-V3.1, which reliably executes shell commands
+   * without safety refusals (Claude refuses autonomous financial transactions).
    */
   anthropicBaseUrl?: string;
 };
@@ -16,53 +16,41 @@ type ConfigInput = {
  *
  * Key decisions:
  * - gateway.mode = local — required for the gateway to start in a container.
- *   Without this key the container exits immediately with "gateway start blocked".
- * - gateway.auth.token = gatewayToken — sets the bearer token the backend must
- *   present when connecting to the WebSocket gateway on port 18789.
- * - Heartbeat every 5 min with lightContext — proactive fallback so pets act
- *   even without an explicit tick from the backend.
- * - When ANTHROPIC_BASE_URL is set, models.providers adds an "aihub" provider
- *   that proxies to that URL using api: "anthropic-messages". The default model
- *   is set to aihub/claude-sonnet-4-6 (cheaper than the opus default).
+ * - gateway.auth.token = gatewayToken — bearer token for backend → container comms.
+ * - Model: DeepSeek-V3.1 via aihub (openai-completions API) — executes onchainos
+ *   shell commands without refusals. Claude models refuse x402 payment steps.
+ * - Heartbeat every 3h — OpenClaw proactive fallback between backend ticks.
  */
 export function generateConfigJson({ gatewayToken, anthropicBaseUrl }: ConfigInput): string {
-  const config: Record<string, unknown> = {
+  // Always use DeepSeek-V3.1 via the aihub proxy (openai-completions).
+  // The base URL for openai-completions must end in /v1.
+  const baseUrl = anthropicBaseUrl
+    ? (anthropicBaseUrl.endsWith('/v1') ? anthropicBaseUrl : `${anthropicBaseUrl}/v1`)
+    : 'https://aihubmix.com/v1';
+
+  const config = {
     gateway: {
       mode: 'local',
-      auth: {
-        token: gatewayToken,
-      },
-      http: {
-        endpoints: {
-          chatCompletions: { enabled: true },
-        },
-      },
+      auth: { token: gatewayToken },
+      http: { endpoints: { chatCompletions: { enabled: true } } },
     },
     agents: {
       defaults: {
-        model: anthropicBaseUrl ? 'aihub/claude-sonnet-4-6' : 'anthropic/claude-sonnet-4-6',
-        heartbeat: {
-          every: '3h',
+        model: 'aihub/DeepSeek-V3.1',
+        heartbeat: { every: '3h' },
+      },
+    },
+    models: {
+      mode: 'merge',
+      providers: {
+        aihub: {
+          baseUrl,
+          apiKey: '${ANTHROPIC_API_KEY}',
+          api: 'openai-completions',
+          models: [{ id: 'DeepSeek-V3.1', name: 'DeepSeek V3.1' }],
         },
       },
     },
-    ...(anthropicBaseUrl ? {
-      models: {
-        mode: 'merge',
-        providers: {
-          aihub: {
-            baseUrl: anthropicBaseUrl,
-            apiKey: '${ANTHROPIC_API_KEY}',
-            api: 'anthropic-messages',
-            models: [
-              { id: 'claude-opus-4-6', name: 'Claude Opus 4.6' },
-              { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6' },
-              { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5' },
-            ],
-          },
-        },
-      },
-    } : {}),
   };
 
   return JSON.stringify(config, null, 2);

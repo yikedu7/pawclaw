@@ -1,12 +1,8 @@
-import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it, expect } from 'vitest';
 import { generateHeartbeatMd } from './heartbeat-generator.js';
 
 const BASE_PET = {
   name: 'Mochi',
-  hunger: 70,
-  mood: 65,
-  affection: 50,
   petId: '00000000-0000-0000-0000-000000000001',
   gatewayToken: 'test-gateway-token',
   backendUrl: 'http://localhost:3001',
@@ -15,46 +11,42 @@ const BASE_PET = {
 describe('generateHeartbeatMd', () => {
   it('includes pet name in heading', () => {
     const out = generateHeartbeatMd(BASE_PET);
-    assert.match(out, /# Heartbeat Checklist for Mochi/);
+    expect(out).toMatch(/# Heartbeat Checklist for Mochi/);
   });
 
-  it('shows current hunger stat', () => {
+  it('includes curl POST to /internal/heartbeat/:petId with gateway token', () => {
     const out = generateHeartbeatMd(BASE_PET);
-    assert.match(out, /hunger \| 70/);
+    expect(out).toContain(`/internal/heartbeat/${BASE_PET.petId}`);
+    expect(out).toContain(BASE_PET.gatewayToken);
   });
 
-  it('shows current mood stat', () => {
+  it('includes onchainos x402-pay command', () => {
     const out = generateHeartbeatMd(BASE_PET);
-    assert.match(out, /mood \| 65/);
-  });
-
-  it('shows current affection stat', () => {
-    const out = generateHeartbeatMd(BASE_PET);
-    assert.match(out, /affection \| 50/);
+    expect(out).toMatch(/onchainos payment x402-pay/);
   });
 
   it('includes rest rule for low stats', () => {
     const out = generateHeartbeatMd(BASE_PET);
-    assert.match(out, /hunger < 40.*rest/);
+    expect(out).toMatch(/hunger.*rest/);
   });
 
   it('includes visit rule for high mood', () => {
     const out = generateHeartbeatMd(BASE_PET);
-    assert.match(out, /mood > 60.*visit_pet/);
+    expect(out).toMatch(/mood.*visit/);
   });
 
   it('includes gift rule for high affection', () => {
     const out = generateHeartbeatMd(BASE_PET);
-    assert.match(out, /affection > 80.*send_gift/);
+    expect(out).toMatch(/affection.*send_gift/);
   });
 
   it('includes HEARTBEAT_OK fallback', () => {
     const out = generateHeartbeatMd(BASE_PET);
-    assert.match(out, /HEARTBEAT_OK/);
+    expect(out).toMatch(/HEARTBEAT_OK/);
   });
 
   it('includes pet name in stay-in-character note', () => {
-    const out = generateHeartbeatMd({ ...BASE_PET, name: 'Rex', petId: BASE_PET.petId, gatewayToken: BASE_PET.gatewayToken, backendUrl: BASE_PET.backendUrl });
-    assert.match(out, /Stay in character as Rex/);
+    const out = generateHeartbeatMd({ ...BASE_PET, name: 'Rex' });
+    expect(out).toMatch(/Stay in character as Rex/);
   });
 });

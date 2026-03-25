@@ -254,9 +254,6 @@ export async function createPetContainer(
   });
   const heartbeatMd = generateHeartbeatMd({
     name: pet.name,
-    hunger: pet.hunger,
-    mood: pet.mood,
-    affection: pet.affection,
     petId,
     gatewayToken,
     backendUrl: process.env.BACKEND_URL ?? 'http://localhost:3001',
@@ -383,6 +380,33 @@ export async function startContainer(containerId: string): Promise<void> {
     .update(pets)
     .set({ container_status: 'running' })
     .where(eq(pets.container_id, containerId));
+
+  // Re-login onchainos after every start — the linux keyring is empty after container restart.
+  // Fire-and-forget: login failure is non-fatal (wallet queries will prompt the LLM to retry).
+  loginWallet(docker.getContainer(containerId)).catch(() => {});
+}
+
+/**
+ * Logs in the onchainos CLI inside a container using OKX_* env vars.
+ * Installs the binary first if not present.
+ * Called after every container start to restore the keyring session.
+ */
+async function loginWallet(container: Docker.Container): Promise<void> {
+  const bin = '/home/node/.local/bin/onchainos';
+
+  // Check if binary exists; install if not
+  const { exitCode } = await dockerExec(container, ['test', '-x', bin]);
+  if (exitCode !== 0) {
+    await dockerExec(container, [
+      'sh', '-c',
+      'curl -sSL "https://api.github.com/repos/okx/onchainos-skills/releases/latest"' +
+      ' | grep \'"tag_name"\'' +
+      ' | sed \'s/.*"tag_name": *"\\([^"]*\\)".*/\\1/\'' +
+      ' | xargs -I TAG sh -c \'curl -sSL "https://raw.githubusercontent.com/okx/onchainos-skills/TAG/install.sh" | sh\'',
+    ]);
+  }
+
+  await dockerExec(container, [bin, 'wallet', 'login']);
 }
 
 /**
@@ -494,6 +518,7 @@ export async function containerChat(
   gatewayToken: string,
   message: string,
   state: object,
+  ownerId?: string,
 ): Promise<string> {
   const docker = getDocker();
   const container = docker.getContainer(containerId);
@@ -502,6 +527,9 @@ export async function containerChat(
     model: 'openclaw:main',
     messages: [{ role: 'user', content: `user_message: ${message}\nstate: ${JSON.stringify(state)}` }],
     stream: false,
+    // Pass ownerId as OpenClaw session key so context accumulates across chat turns.
+    // Each unique user value gets its own stateful session stored in agents/main/sessions/.
+    ...(ownerId ? { user: ownerId } : {}),
   });
 
   const exec = await container.exec({
