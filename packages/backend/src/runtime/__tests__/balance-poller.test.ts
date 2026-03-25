@@ -53,6 +53,11 @@ beforeAll(async () => {
     ON CONFLICT (id) DO NOTHING
   `, [OWNER_A]);
 
+  // Clean up pets from any previous test run
+  await pool.query('DELETE FROM pets WHERE owner_id = $1', [OWNER_A]);
+  // Stop all other running pets to ensure test isolation (pollBalances queries all running pets)
+  await pool.query("UPDATE pets SET container_status = 'stopped' WHERE owner_id != $1 AND container_status = 'running'", [OWNER_A]);
+
   // Insert a running pet with wallet_address + container_id
   const { rows } = await pool.query<{ id: string }>(`
     INSERT INTO pets (owner_id, name, soul_md, skill_md, wallet_address, container_status, container_id, initial_credits, hunger, mood, affection)

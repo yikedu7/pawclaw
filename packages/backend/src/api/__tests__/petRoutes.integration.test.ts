@@ -8,7 +8,7 @@ import { registerPetRoutes } from '../petRoutes.js';
 // wallet_address is null at pet creation time (Onchain OS sets it asynchronously),
 // so grantRegistrationCredits is never triggered via POST /api/pets in tests.
 // The credits code path (wallet_address non-null) is covered in petRoutes.credits.test.ts.
-const mockGrantCredits = vi.fn<(wallet: string) => Promise<void>>();
+const mockGrantCredits = vi.hoisted(() => vi.fn<(wallet: string) => Promise<void>>());
 vi.mock('../../onchain/credits.js', () => ({
   grantRegistrationCredits: mockGrantCredits,
 }));
@@ -173,13 +173,13 @@ describe('pet CRUD integration', () => {
     expect(res.json().code).toBe('NOT_FOUND');
   });
 
-  it('GET /api/pets/:id returns 403 for wrong owner', async () => {
+  it('GET /api/pets/:id returns 200 with only name for wrong owner', async () => {
     const res = await app.inject({
       method: 'GET', url: `/api/pets/${createdPetId}`,
       headers: { authorization: `Bearer ${makeToken(OWNER_B)}` },
     });
-    expect(res.statusCode).toBe(403);
-    expect(res.json().code).toBe('FORBIDDEN');
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ name: 'SmokePet' });
   });
 
   it('GET /api/pets returns only pets for the authenticated owner', async () => {

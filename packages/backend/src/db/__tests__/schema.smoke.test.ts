@@ -16,6 +16,14 @@ beforeAll(async () => {
   db = drizzle(pool, { schema });
   // Verify connection
   await pool.query('SELECT 1');
+  // Seed auth.users required by pets FK
+  await pool.query(`
+    INSERT INTO auth.users (id, email, encrypted_password, aud, role, instance_id, created_at, updated_at, confirmation_token, recovery_token, email_change_token_new)
+    VALUES
+      ('00000000-0000-0000-0000-000000000001', 'smoke-1@test.local', '$2a$10$fake', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now(), now(), '', '', ''),
+      ('00000000-0000-0000-0000-000000000002', 'smoke-2@test.local', '$2a$10$fake', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now(), now(), '', '', '')
+    ON CONFLICT (id) DO NOTHING
+  `);
 });
 
 afterAll(async () => {

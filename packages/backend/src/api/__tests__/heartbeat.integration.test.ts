@@ -60,7 +60,7 @@ function makeAuthorization(overrides: Partial<Record<string, string>> = {}): Rec
   return {
     from: petWallet.address,
     to: PLATFORM_WALLET,
-    value: '1000000000000000',
+    value: '1',  // 1 micro-USDC (6 decimals) = 0.000001 USDC
     validAfter: '0',
     validBefore: String(Math.floor(Date.now() / 1000) + 3600),
     nonce: ethers.hexlify(ethers.randomBytes(32)),
@@ -102,7 +102,7 @@ beforeAll(async () => {
   process.env.PAYMENT_TOKEN_ADDRESS = TOKEN_ADDRESS;
   process.env.PAYMENT_TOKEN_NAME = TOKEN_NAME;
   process.env.PLATFORM_WALLET_ADDRESS = PLATFORM_WALLET;
-  process.env.PAYMENT_TOKEN_DECIMALS = '18';
+  process.env.PAYMENT_TOKEN_DECIMALS = '6';
 
   app = Fastify({ logger: false });
   await registerOpenclawRoutes(app, {
@@ -143,7 +143,7 @@ describe('POST /internal/heartbeat/:petId', () => {
       accepts: expect.arrayContaining([
         expect.objectContaining({
           network: 'eip155:196',
-          amount: '0.001',
+          amount: '0.000001',
           payTo: PLATFORM_WALLET,
           asset: TOKEN_ADDRESS,
         }),
@@ -186,15 +186,15 @@ describe('POST /internal/heartbeat/:petId', () => {
     expect(txRows).toHaveLength(1);
     expect(txRows[0].from_wallet.toLowerCase()).toBe(petWallet.address.toLowerCase());
     expect(txRows[0].to_wallet.toLowerCase()).toBe(PLATFORM_WALLET.toLowerCase());
-    expect(txRows[0].amount).toBe('1000000000000000');
+    expect(txRows[0].amount).toBe('1');
     expect(txRows[0].tx_hash).toBe(FAKE_TX_HASH);
 
-    // DB side effect: paw_balance deducted (10.0 - 0.001 = 9.999)
+    // DB side effect: paw_balance deducted (10.0 - 0.000001 = 9.999999)
     const { rows: petRows } = await pool.query<{ paw_balance: string }>(
       'SELECT paw_balance FROM pets WHERE id = $1',
       [petId],
     );
-    expect(parseFloat(petRows[0].paw_balance)).toBeCloseTo(10.0 - 0.001, 6);
+    expect(parseFloat(petRows[0].paw_balance)).toBeCloseTo(10.0 - 0.000001, 6);
   });
 
   it('returns 401 when EIP-3009 signature is malformed', async () => {
