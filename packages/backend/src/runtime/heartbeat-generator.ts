@@ -1,6 +1,10 @@
 import type { Pet } from '@x-pet/shared';
 
-type HeartbeatInput = Pick<Pet, 'name' | 'hunger' | 'mood' | 'affection'>;
+type HeartbeatInput = Pick<Pet, 'name' | 'hunger' | 'mood' | 'affection'> & {
+  petId: string;
+  gatewayToken: string;
+  backendUrl: string;
+};
 
 /**
  * Generates `HEARTBEAT.md` written to the workspace bind mount at
@@ -16,6 +20,9 @@ type HeartbeatInput = Pick<Pet, 'name' | 'hunger' | 'mood' | 'affection'>;
 export function generateHeartbeatMd(pet: HeartbeatInput): string {
   const platformWallet = process.env.PLATFORM_WALLET_ADDRESS;
   if (!platformWallet) throw new Error('PLATFORM_WALLET_ADDRESS env var is required');
+  const pawContractAddress = process.env.PAYMENT_TOKEN_ADDRESS;
+  if (!pawContractAddress) throw new Error('PAYMENT_TOKEN_ADDRESS env var is required');
+
   return `# Heartbeat Checklist for ${pet.name}
 
 Check your current state and take exactly one action. If nothing needs doing, respond with \`HEARTBEAT_OK\`.
@@ -25,7 +32,16 @@ Check your current state and take exactly one action. If nothing needs doing, re
 Before taking any action below, you must pay the platform fee:
 
 \`\`\`
-onchainos payment x402-pay --to ${platformWallet} --amount 0.001 --token PAW
+onchainos payment x402-pay --network eip155:196 --amount 1000000000000000 --pay-to ${platformWallet} --asset ${pawContractAddress}
+\`\`\`
+
+After the command completes, post the result to settle the payment:
+
+\`\`\`
+curl -s -X POST ${pet.backendUrl}/internal/x402-settle \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer ${pet.gatewayToken}" \\
+  -d '{"pet_id":"${pet.petId}","signature":"<signature from x402-pay output>","authorization":<authorization object from x402-pay output>}'
 \`\`\`
 
 If this payment fails for any reason, stop immediately and respond \`HEARTBEAT_OK\`.

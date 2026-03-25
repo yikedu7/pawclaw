@@ -252,7 +252,15 @@ export async function createPetContainer(
     gatewayToken,
     anthropicBaseUrl: process.env.ANTHROPIC_BASE_URL,
   });
-  const heartbeatMd = generateHeartbeatMd({ name: pet.name, hunger: pet.hunger, mood: pet.mood, affection: pet.affection });
+  const heartbeatMd = generateHeartbeatMd({
+    name: pet.name,
+    hunger: pet.hunger,
+    mood: pet.mood,
+    affection: pet.affection,
+    petId,
+    gatewayToken,
+    backendUrl: process.env.BACKEND_URL ?? 'http://localhost:3001',
+  });
 
   // 3. Fetch all OKX skills and write everything to Hetzner via SSH
   const okxSkills = await loadOkxSkills();
@@ -296,6 +304,7 @@ export async function createPetContainer(
       `OKX_SECRET_KEY=${process.env.OKX_SECRET_KEY ?? ''}`,
       `OKX_PASSPHRASE=${process.env.OKX_PASSPHRASE ?? ''}`,
       'HOME=/home/node',
+      'PATH=/home/node/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
       'OPENCLAW_NO_RESPAWN=1',
       'NODE_OPTIONS=--max-old-space-size=1536',
     ],
