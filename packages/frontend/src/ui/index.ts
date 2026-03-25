@@ -20,9 +20,7 @@ async function loadPetHunger(petId: string, token: string, hudBar: HudBar): Prom
       mood?: number;
       affection?: number;
     };
-    const pawBalance = parseFloat(data.paw_balance ?? '0');
-    const initialCredits = data.initial_credits ?? 200;
-    const hunger = Math.max(0, Math.min(100, Math.round((pawBalance / initialCredits) * 100)));
+    const hunger = 100; // TODO: derive from paw_balance once wallet is funded
     hudBar.updateStats(hunger, data.mood ?? 100, data.affection ?? 0);
   } catch { /* ignore — WS events will update when available */ }
 }
@@ -40,9 +38,16 @@ export function initUI(mount: HTMLElement, petId?: string, token?: string): void
   overlay.append(nameplate.el, chatLog.el, toasts.el, hudBar.el, hudBar.diaryPanel.el, hudBar.friendsPanel.el, hudBar.walletPanel.el);
   mount.appendChild(overlay);
 
-  // Load initial hunger from PAW balance on page open
+  // Load initial pet data on page open
   if (petId && token) {
     loadPetHunger(petId, token, hudBar).catch(() => {});
+    fetch(`${BACKEND_URL}/api/pets/${petId}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.ok ? r.json() as Promise<{ name?: string; wallet_address?: string }> : null)
+      .then((data) => {
+        if (data?.name) nameplate.setName(data.name);
+        if (data?.wallet_address) nameplate.setWallet(data.wallet_address);
+      })
+      .catch(() => {});
   }
 
   // Wire eventBus → UI components

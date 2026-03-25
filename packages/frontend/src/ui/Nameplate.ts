@@ -24,7 +24,17 @@ export class Nameplate {
 
     this.walletEl = document.createElement('span');
     this.walletEl.className = 'pet-wallet';
+    this.walletEl.title = 'Click to copy';
+    this.walletEl.style.cursor = 'pointer';
     this.walletEl.textContent = wallet;
+    this.walletEl.addEventListener('click', () => {
+      const full = this.walletEl.dataset.full ?? this.walletEl.textContent ?? '';
+      navigator.clipboard.writeText(full).then(() => {
+        const prev = this.walletEl.textContent;
+        this.walletEl.textContent = 'Copied!';
+        setTimeout(() => { this.walletEl.textContent = prev; }, 1200);
+      });
+    });
 
     this.el.append(this.statusDot, this.nameEl, this.walletEl);
   }
@@ -34,11 +44,10 @@ export class Nameplate {
   }
 
   setWallet(address: string): void {
-    if (address.length > 14) {
-      this.walletEl.textContent = `${address.slice(0, 6)}...${address.slice(-4)}`;
-    } else {
-      this.walletEl.textContent = address;
-    }
+    this.walletEl.dataset.full = address;
+    this.walletEl.textContent = address.length > 14
+      ? `${address.slice(0, 6)}...${address.slice(-4)}`
+      : address;
   }
 
   setStatus(status: 'online' | 'starting' | 'offline'): void {
