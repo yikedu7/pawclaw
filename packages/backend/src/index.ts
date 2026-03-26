@@ -20,6 +20,8 @@ import { startBalancePoller } from './runtime/balance-poller.js';
 
 const fastify = Fastify({ logger: true });
 
+fastify.get('/health', async () => ({ status: 'ok' }));
+
 await fastify.register(fastifyCors, { origin: true });
 await fastify.register(fastifyWebsocket);
 await registerWsRoute(fastify);
