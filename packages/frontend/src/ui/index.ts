@@ -42,10 +42,11 @@ export function initUI(mount: HTMLElement, petId?: string, token?: string): void
   if (petId && token) {
     loadPetHunger(petId, token, hudBar).catch(() => {});
     fetch(`${BACKEND_URL}/api/pets/${petId}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.ok ? r.json() as Promise<{ name?: string; wallet_address?: string }> : null)
+      .then((r) => r.ok ? r.json() as Promise<{ name?: string; wallet_address?: string | null }> : null)
       .then((data) => {
         if (data?.name) nameplate.setName(data.name);
         if (data?.wallet_address) nameplate.setWallet(data.wallet_address);
+        hudBar.walletPanel.setAddress(data?.wallet_address);
       })
       .catch(() => {});
   }
