@@ -1,6 +1,6 @@
 ---
 name: e2e
-description: Run PawClaw e2e regression tests. Accepts arguments to run specific chains in parallel from a feature agent. Pass `chains=N,M` to run only specific chains, and `pet_id=xxx token=yyy` to skip auth/setup. API-only chains (7,13) can run in parallel with no browser conflicts. Browser chains require sequential execution but each agent instance is isolated via unique email.
+description: Run PawClaw e2e regression tests. Accepts arguments to run specific chains in parallel from a feature agent. Pass `chains=N,M` to run only specific chains, and `pet_id=xxx token=yyy` to skip auth/setup. All chains (including browser) can run fully in parallel across agent instances via --session isolation.
 tools: Bash, Read
 ---
 
@@ -12,36 +12,41 @@ Read the arguments passed to you. Supported args:
 
 - `chains=1,3,7` — comma-separated list of chains to run. Use `chains=all` or omit to run all.
 - `chains=browser` — run only browser-dependent chains (1,2,3,4,5,6,9,11,12)
-- `chains=api` — run only API-only chains (7,8,13) — safe to run in parallel with other e2e instances
+- `chains=api` — run only API-only chains (7,8,13)
 - `pet_id=<uuid>` — skip Chain 1+2 (auth + pet creation), use this existing pet
 - `token=<jwt>` — Supabase JWT for the existing pet owner
 - `email=<addr>` — test user email (default: `e2e-test@pawclaw.local`)
+- `session=<name>` — agent-browser session name (default: auto-generated from chains)
 
-**Example invocations from a feature agent:**
+## Session isolation
+
+Every `agent-browser` command in this agent uses `--session $SESSION` so each agent instance
+gets its own isolated browser (independent cookies, storage, history).
+
+Derive the session name at startup:
+
+```bash
+# Use provided session arg, or derive from chains + timestamp for uniqueness
+SESSION="${session:-e2e-$(echo ${chains:-all} | tr ',' '-')-$$}"
+echo "SESSION=$SESSION"
 ```
-# Run all chains (full regression)
-use e2e agent
 
-# Run only diary chain with existing pet (fast, API-only, parallelizable)
-use e2e agent with args "chains=7 pet_id=abc-123 token=eyJ..."
+This means **all chains — including browser chains — can run in parallel** across multiple
+agent instances. Each instance operates a completely independent browser.
 
-# Run social chains after a social feature change
+**Example invocations from a feature agent (all parallel):**
+```
+# Full regression — spawn all in one message
+use e2e agent with args "chains=1,2 email=e2e-auth@pawclaw.local"
+use e2e agent with args "chains=3,4 pet_id=abc-123 token=eyJ..."
 use e2e agent with args "chains=5,9 pet_id=abc-123 token=eyJ..."
+use e2e agent with args "chains=7,13 pet_id=abc-123 token=eyJ..."
+use e2e agent with args "chains=8,11,12 pet_id=abc-123 token=eyJ..."
 
-# Run API-only chains in parallel with browser chains
-# (parent feature agent spawns both at once in a single message)
-use e2e agent with args "chains=api pet_id=abc-123 token=eyJ..."
-use e2e agent with args "chains=browser email=e2e-parallel@pawclaw.local"
+# Single feature regression
+use e2e agent with args "chains=7 pet_id=abc-123 token=eyJ..."
+use e2e agent with args "chains=5,9 pet_id=abc-123 token=eyJ..."
 ```
-
-## Chain classification
-
-| Type | Chains | Notes |
-|------|--------|-------|
-| **API-only** | 7, 8, 13 | No browser. Safe to run in parallel — no agent-browser conflict. |
-| **Browser** | 1, 2, 3, 4, 5, 6, 9, 11, 12 | Require agent-browser. Run sequentially within each instance. |
-
-When `pet_id` + `token` are provided, **skip Chains 1 and 2** entirely — go straight to the requested chains. This is the normal mode for regression from a feature agent.
 
 ## Step 0 — Prerequisites check
 
@@ -56,37 +61,38 @@ If 3001 or 54322 are not listening, **stop** and report:
 
 Port 2375 (Docker) is only needed for Chain 2. If missing, skip Chain 2.
 
-## Step 1 — Setup (skip if pet_id + token provided)
-
-Use `$EMAIL` (default `e2e-test@pawclaw.local`) as the test user.
+## Step 1 — Session + variable init
 
 ```bash
+SESSION="${session:-e2e-$(echo ${chains:-all} | tr ',' '-')-$$}"
 EMAIL="${email:-e2e-test@pawclaw.local}"
+PET_ID="${pet_id:-}"
+TOKEN="${token:-}"
+FRIEND_PET="ffffffff-0000-4000-0000-000000000001"
+echo "SESSION=$SESSION EMAIL=$EMAIL PET_ID=$PET_ID"
+```
 
+## Step 2 — DB setup (skip if pet_id provided)
+
+If `pet_id` is NOT provided, clean prior state and seed test data:
+
+```bash
 psql postgresql://postgres:postgres@localhost:54322/postgres -c "
   DELETE FROM diary_entries WHERE pet_id IN (
-    SELECT id FROM pets WHERE owner_id = (
-      SELECT id FROM auth.users WHERE email = '$EMAIL'
-    )
+    SELECT id FROM pets WHERE owner_id = (SELECT id FROM auth.users WHERE email = '$EMAIL')
   );
   DELETE FROM social_events WHERE from_pet_id IN (
-    SELECT id FROM pets WHERE owner_id = (
-      SELECT id FROM auth.users WHERE email = '$EMAIL'
-    )
+    SELECT id FROM pets WHERE owner_id = (SELECT id FROM auth.users WHERE email = '$EMAIL')
   );
   DELETE FROM port_allocations WHERE pet_id IN (
-    SELECT id FROM pets WHERE owner_id = (
-      SELECT id FROM auth.users WHERE email = '$EMAIL'
-    )
+    SELECT id FROM pets WHERE owner_id = (SELECT id FROM auth.users WHERE email = '$EMAIL')
   );
-  DELETE FROM pets WHERE owner_id = (
-    SELECT id FROM auth.users WHERE email = '$EMAIL'
-  );
+  DELETE FROM pets WHERE owner_id = (SELECT id FROM auth.users WHERE email = '$EMAIL');
   DELETE FROM auth.users WHERE email = '$EMAIL';
 "
 ```
 
-Seed friend pet (needed for chains 5 and 9):
+Seed friend pet (needed for chains 5 and 9, idempotent):
 
 ```bash
 psql postgresql://postgres:postgres@localhost:54322/postgres -c "
@@ -100,12 +106,11 @@ psql postgresql://postgres:postgres@localhost:54322/postgres -c "
     'FriendPet','A friendly pet.','# skills',80,75,5,'stopped')
   ON CONFLICT (id) DO NOTHING;
 "
-FRIEND_PET="ffffffff-0000-4000-0000-000000000001"
 ```
 
 ## Chain definitions
 
-Only run chains in the requested set. Record PASS/FAIL/SKIP for each.
+Only run chains in the requested set. Prefix every `agent-browser` call with `--session $SESSION`.
 
 ---
 
@@ -114,13 +119,13 @@ Only run chains in the requested set. Record PASS/FAIL/SKIP for each.
 *Skip if `pet_id` provided.*
 
 ```bash
-agent-browser open "http://localhost:5173/create.html"
-agent-browser click "#toggle-btn"
-agent-browser fill "#email" "$EMAIL"
-agent-browser fill "#password" "Test123456!"
-agent-browser click "#auth-btn"
+agent-browser --session $SESSION open "http://localhost:5173/create.html"
+agent-browser --session $SESSION click "#toggle-btn"
+agent-browser --session $SESSION fill "#email" "$EMAIL"
+agent-browser --session $SESSION fill "#password" "Test123456!"
+agent-browser --session $SESSION click "#auth-btn"
 sleep 4
-agent-browser eval "document.getElementById('pet-section')?.style.display"
+agent-browser --session $SESSION eval "document.getElementById('pet-section')?.style.display"
 ```
 
 **Pass:** result is `"block"`
@@ -132,12 +137,12 @@ agent-browser eval "document.getElementById('pet-section')?.style.display"
 *Skip if `pet_id` provided. Skip if Docker (port 2375) not available.*
 
 ```bash
-agent-browser fill "#pet-name" "TestPet"
-agent-browser fill "#soul-prompt" "A cheerful and curious cat who loves exploring."
-agent-browser click "#create-btn"
+agent-browser --session $SESSION fill "#pet-name" "TestPet"
+agent-browser --session $SESSION fill "#soul-prompt" "A cheerful and curious cat who loves exploring."
+agent-browser --session $SESSION click "#create-btn"
 sleep 6
-PET_ID=$(agent-browser eval "(function(){return new URLSearchParams(location.search).get('pet_id')})()" | tr -d '"')
-TOKEN=$(agent-browser eval "(function(){return new URLSearchParams(location.search).get('token')})()" | tr -d '"')
+PET_ID=$(agent-browser --session $SESSION eval "(function(){return new URLSearchParams(location.search).get('pet_id')})()" | tr -d '"')
+TOKEN=$(agent-browser --session $SESSION eval "(function(){return new URLSearchParams(location.search).get('token')})()" | tr -d '"')
 echo "PET_ID=$PET_ID TOKEN=$TOKEN"
 
 for i in $(seq 1 8); do
@@ -156,38 +161,36 @@ echo "FINAL STATUS: $STATUS"
 
 ### Chain 3 — Chat (frontend → container → WS)
 
-*Requires browser + running container.*
-
 ```bash
-agent-browser open "http://localhost:5173/?token=$TOKEN&pet_id=$PET_ID"
+agent-browser --session $SESSION open "http://localhost:5173/?token=$TOKEN&pet_id=$PET_ID"
 sleep 2
-agent-browser eval "
+agent-browser --session $SESSION eval "
 window.__chatMsgs = [];
 new MutationObserver((m) => m.forEach(mut =>
   mut.addedNodes.forEach(n => { if (n.textContent?.trim()) window.__chatMsgs.push(n.textContent.trim()); })
 )).observe(document.body, {childList:true,subtree:true});
 'ready'
 "
-agent-browser snapshot
+agent-browser --session $SESSION snapshot
 ```
 
-Use snapshot refs to fill + submit the chat input:
+Use snapshot refs to fill + submit:
 
 ```bash
-agent-browser fill "@chat-input" "Hello, how are you?"
-agent-browser click "@send-btn"
+agent-browser --session $SESSION fill "@chat-input" "Hello, how are you?"
+agent-browser --session $SESSION click "@send-btn"
 sleep 25
-agent-browser eval "JSON.stringify(window.__chatMsgs)"
+agent-browser --session $SESSION eval "JSON.stringify(window.__chatMsgs)"
 ```
 
-**Pass:** array has ≥ 2 entries, second entry is non-empty and not `"..."`.
+**Pass:** array has ≥ 2 entries, second entry non-empty and not `"..."`.
 
 ---
 
 ### Chain 4 — Tick Loop
 
 ```bash
-agent-browser eval "
+agent-browser --session $SESSION eval "
 window.__tickMsgs = [];
 new MutationObserver((m) => m.forEach(mut =>
   mut.addedNodes.forEach(n => { if (n.textContent?.trim()) window.__tickMsgs.push(n.textContent.trim()); })
@@ -199,7 +202,7 @@ TICK_RESULT=$(curl -s -X POST "http://localhost:3001/internal/tick/$PET_ID" \
   -d '{"trigger":"manual"}')
 echo "tick result: $TICK_RESULT"
 sleep 20
-agent-browser eval "JSON.stringify(window.__tickMsgs)"
+agent-browser --session $SESSION eval "JSON.stringify(window.__tickMsgs)"
 ```
 
 **Pass:** `TICK_RESULT` contains `"action":"container"` AND DOM has new messages.
@@ -209,11 +212,10 @@ agent-browser eval "JSON.stringify(window.__tickMsgs)"
 ### Chain 5 — Social (visit + gift + friend.unlocked)
 
 ```bash
-FRIEND_PET="ffffffff-0000-4000-0000-000000000001"
 GATEWAY_TOKEN=$(psql postgresql://postgres:postgres@localhost:54322/postgres -t -c \
   "SELECT gateway_token FROM pets WHERE id = '$PET_ID';" | tr -d ' \n')
 
-agent-browser eval "
+agent-browser --session $SESSION eval "
 window.__socialMsgs = [];
 new MutationObserver((m) => m.forEach(mut =>
   mut.addedNodes.forEach(n => { if (n.textContent?.trim()) window.__socialMsgs.push(n.textContent.trim()); })
@@ -230,7 +232,7 @@ curl -s -X POST "http://localhost:3001/internal/tools/visit_pet" \
   -H "Authorization: Bearer local-dev-webhook-token" \
   -d "{\"pet_id\":\"$PET_ID\",\"target_pet_id\":\"$FRIEND_PET\",\"greeting\":\"Hi there!\"}"
 sleep 5
-agent-browser eval "JSON.stringify(window.__socialMsgs)"
+agent-browser --session $SESSION eval "JSON.stringify(window.__socialMsgs)"
 ```
 
 **Pass (visit):** array has ≥ 2 entries.
@@ -243,7 +245,7 @@ curl -s -X POST "http://localhost:3001/internal/runtime/events/$PET_ID" \
   -H "Authorization: Bearer $GATEWAY_TOKEN" \
   -d "{\"event_type\":\"gift\",\"target_pet_id\":\"$FRIEND_PET\",\"amount\":\"0.001\"}"
 sleep 3
-agent-browser eval "JSON.stringify(window.__socialMsgs)"
+agent-browser --session $SESSION eval "JSON.stringify(window.__socialMsgs)"
 ```
 
 **Pass (gift):** array contains entry with `🎁` or "gift".
@@ -258,7 +260,7 @@ curl -s -X POST "http://localhost:3001/internal/tools/visit_pet" \
   -H "Authorization: Bearer local-dev-webhook-token" \
   -d "{\"pet_id\":\"$PET_ID\",\"target_pet_id\":\"$FRIEND_PET\",\"greeting\":\"You are my best friend!\"}"
 sleep 5
-agent-browser eval "JSON.stringify(window.__socialMsgs)"
+agent-browser --session $SESSION eval "JSON.stringify(window.__socialMsgs)"
 ```
 
 **Pass (friend.unlocked):** array contains entry with `💛` or "friend" and pet name.
@@ -267,22 +269,19 @@ agent-browser eval "JSON.stringify(window.__socialMsgs)"
 
 ### Chain 6 — Color Picker
 
-*Opens a new page — reload main pet page afterward.*
-
 ```bash
-agent-browser open "http://localhost:5173/create.html"
-agent-browser eval "document.querySelectorAll('.color-swatch').length"
-agent-browser eval "document.querySelectorAll('.color-swatch')[1].click(); document.querySelector('.color-swatch.selected')?.dataset.color"
-agent-browser fill "#pet-name" "TintPet"
-agent-browser fill "#soul-prompt" "A lavender cat."
-agent-browser click "#create-btn"
+agent-browser --session $SESSION open "http://localhost:5173/create.html"
+agent-browser --session $SESSION eval "document.querySelectorAll('.color-swatch').length"
+agent-browser --session $SESSION eval "document.querySelectorAll('.color-swatch')[1].click(); document.querySelector('.color-swatch.selected')?.dataset.color"
+agent-browser --session $SESSION fill "#pet-name" "TintPet"
+agent-browser --session $SESSION fill "#soul-prompt" "A lavender cat."
+agent-browser --session $SESSION click "#create-btn"
 sleep 6
-TINT_PET_ID=$(agent-browser eval "(function(){return new URLSearchParams(location.search).get('pet_id')})()" | tr -d '"')
+TINT_PET_ID=$(agent-browser --session $SESSION eval "(function(){return new URLSearchParams(location.search).get('pet_id')})()" | tr -d '"')
 RESULT=$(psql postgresql://postgres:postgres@localhost:54322/postgres -t -c \
   "SELECT tint_color FROM pets WHERE id = '$TINT_PET_ID';" | tr -d ' ')
 echo "tint_color=$RESULT"
-# Restore main pet page
-agent-browser open "http://localhost:5173/?token=$TOKEN&pet_id=$PET_ID"
+agent-browser --session $SESSION open "http://localhost:5173/?token=$TOKEN&pet_id=$PET_ID"
 sleep 2
 ```
 
@@ -290,7 +289,7 @@ sleep 2
 
 ---
 
-### Chain 7 — Diary Panel *(API-only — parallelizable)*
+### Chain 7 — Diary Panel *(API-only)*
 
 ```bash
 RESULT=$(curl -s "http://localhost:3001/api/pets/$PET_ID/diary" \
@@ -298,7 +297,7 @@ RESULT=$(curl -s "http://localhost:3001/api/pets/$PET_ID/diary" \
 echo "empty diary: $RESULT"
 ```
 
-**Pass (empty):** response is `{"diary":null}`.
+**Pass (empty):** `{"diary":null}`
 
 ```bash
 psql postgresql://postgres:postgres@localhost:54322/postgres -c \
@@ -312,10 +311,10 @@ echo "after insert: $RESULT"
 
 ---
 
-### Chain 8 — HUD Bar + SVG Icons *(read-only browser eval — parallelizable if page already open)*
+### Chain 8 — HUD Bar + SVG Icons
 
 ```bash
-agent-browser eval "
+agent-browser --session $SESSION eval "
 const hud = document.getElementById('hud-bar');
 const svgs = hud?.querySelectorAll('svg');
 JSON.stringify({ hudPresent: !!hud, svgCount: svgs?.length ?? 0, trackCount: hud?.querySelectorAll('.stat-track').length ?? 0 })
@@ -329,36 +328,29 @@ JSON.stringify({ hudPresent: !!hud, svgCount: svgs?.length ?? 0, trackCount: hud
 ### Chain 9 — Gift toast shows pet name, not UUID
 
 ```bash
-FRIEND_PET="ffffffff-0000-4000-0000-000000000001"
 GATEWAY_TOKEN=$(psql postgresql://postgres:postgres@localhost:54322/postgres -t -c \
   "SELECT gateway_token FROM pets WHERE id = '$PET_ID';" | tr -d ' \n')
-
-agent-browser eval "window.__toastMsgs = []; new MutationObserver(function(m){m.forEach(function(mut){mut.addedNodes.forEach(function(n){if(n.textContent&&n.textContent.trim())window.__toastMsgs.push(n.textContent.trim());})})}).observe(document.body,{childList:true,subtree:true}); 'ready'"
+agent-browser --session $SESSION eval "window.__toastMsgs = []; new MutationObserver(function(m){m.forEach(function(mut){mut.addedNodes.forEach(function(n){if(n.textContent&&n.textContent.trim())window.__toastMsgs.push(n.textContent.trim());})})}).observe(document.body,{childList:true,subtree:true}); 'ready'"
 curl -s -X POST "http://localhost:3001/internal/runtime/events/$PET_ID" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $GATEWAY_TOKEN" \
   -d "{\"event_type\":\"gift\",\"target_pet_id\":\"$FRIEND_PET\",\"amount\":\"0.001\"}"
 sleep 3
-agent-browser eval "JSON.stringify(window.__toastMsgs)"
+agent-browser --session $SESSION eval "JSON.stringify(window.__toastMsgs)"
 ```
 
-**Pass:** toast contains `"FriendPet"`. Toast does NOT match UUID pattern `[0-9a-f]{8}-[0-9a-f]{4}`.
+**Pass:** toast contains `"FriendPet"`. No UUID pattern `[0-9a-f]{8}-[0-9a-f]{4}` in toast.
 
 ---
 
 ### Chain 11 — WalletPanel modal
 
 ```bash
-agent-browser snapshot | grep -i "okb\|wallet\|0\."
-```
-
-Find the OKB/wallet button ref from snapshot and click it:
-
-```bash
-agent-browser click "@eN"   # replace N with actual ref from snapshot
+agent-browser --session $SESSION snapshot | grep -i "okb\|wallet\|0\."
+agent-browser --session $SESSION click "@eN"   # replace N with ref from snapshot
 sleep 1
-HIDDEN=$(agent-browser eval "document.getElementById('wallet-overlay')?.hidden")
-ADDR=$(agent-browser eval "document.querySelector('.wallet-address-text')?.textContent")
+HIDDEN=$(agent-browser --session $SESSION eval "document.getElementById('wallet-overlay')?.hidden")
+ADDR=$(agent-browser --session $SESSION eval "document.querySelector('.wallet-address-text')?.textContent")
 echo "hidden=$HIDDEN addr=$ADDR"
 ```
 
@@ -369,11 +361,11 @@ echo "hidden=$HIDDEN addr=$ADDR"
 ### Chain 12 — Friends Panel
 
 ```bash
-agent-browser snapshot | grep -i "friend"
-agent-browser click "@eN"   # replace N with Friends button ref
+agent-browser --session $SESSION snapshot | grep -i "friend"
+agent-browser --session $SESSION click "@eN"   # replace N with Friends button ref
 sleep 1
-HIDDEN=$(agent-browser eval "document.getElementById('friends-panel')?.hidden")
-COUNT=$(agent-browser eval "document.querySelectorAll('.friend-item').length")
+HIDDEN=$(agent-browser --session $SESSION eval "document.getElementById('friends-panel')?.hidden")
+COUNT=$(agent-browser --session $SESSION eval "document.querySelectorAll('.friend-item').length")
 echo "hidden=$HIDDEN count=$COUNT"
 ```
 
@@ -381,51 +373,54 @@ echo "hidden=$HIDDEN count=$COUNT"
 
 ---
 
-### Chain 13 — Topup endpoint *(API-only — parallelizable)*
+### Chain 13 — Topup endpoint *(API-only)*
 
 ```bash
-RESULT=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://localhost:3001/api/pets/$PET_ID/topup" \
+RESULT=$(curl -s -X POST "http://localhost:3001/api/pets/$PET_ID/topup" \
   -H "Authorization: Bearer $TOKEN")
-BODY=$(curl -s -X POST "http://localhost:3001/api/pets/$PET_ID/topup" \
-  -H "Authorization: Bearer $TOKEN")
-echo "status=$RESULT body=$BODY"
+echo "topup: $RESULT"
 ```
 
-**Pass:** status 400 with `"code":"NO_WALLET"` (or 200 `{"ok":true}` if wallet already assigned).
+**Pass:** `{"error":"Wallet not assigned yet","code":"NO_WALLET"}` (or `{"ok":true}` if wallet assigned).
 
 ---
 
 ## Step 3 — Report
 
-Print a summary table with actual observed values:
-
 ```
-## E2E Results
+## E2E Results  [session: $SESSION]
 
-| Chain | Description         | Result | Notes |
-|-------|---------------------|--------|-------|
-| 1     | Auth                | PASS   | |
+| Chain | Description         | Result | Observed |
+|-------|---------------------|--------|----------|
+| 1     | Auth                | PASS   | pet-section display=block |
 | 2     | Container startup   | SKIP   | Docker tunnel not available |
-| 3     | Chat                | PASS   | |
 ...
 ```
 
-For each FAIL include: actual vs expected value, likely cause.
+For each FAIL: actual vs expected, likely cause.
 
-## Parallelism guide for feature agents
+## Parallelism guide
 
-When spawning this agent from a feature agent, maximize parallelism by:
+Each agent instance has its own `--session` → independent browser. Spawn all in a single message:
 
-1. **Pass `pet_id` + `token`** — skips slow Chain 1+2, cuts setup from ~90s to <1s
-2. **Split API vs browser chains** into separate agent calls in one message:
-   ```
-   # Launch both in parallel (single Agent tool message):
-   use e2e agent with args "chains=7,13 pet_id=xxx token=yyy"   # API chains
-   use e2e agent with args "chains=5,9 pet_id=xxx token=yyy"    # browser chains
-   ```
-3. **Scope to changed feature** — don't run full suite every time:
-   - Diary/journal changes → `chains=7`
-   - Social/gift changes → `chains=5,9`
-   - HUD/UI changes → `chains=8,11,12`
-   - Auth/pet creation → `chains=1,2`
-   - Container/tick → `chains=3,4`
+```
+# Full parallel regression (feature agent spawns these all at once)
+use e2e agent with args "chains=1,2 email=e2e-setup@pawclaw.local session=e2e-setup"
+use e2e agent with args "chains=3,4 pet_id=xxx token=yyy session=e2e-chat"
+use e2e agent with args "chains=5,9 pet_id=xxx token=yyy session=e2e-social"
+use e2e agent with args "chains=6 pet_id=xxx token=yyy session=e2e-color"
+use e2e agent with args "chains=7,13 pet_id=xxx token=yyy session=e2e-api"
+use e2e agent with args "chains=8,11,12 pet_id=xxx token=yyy session=e2e-ui"
+```
+
+Feature-scoped regression:
+
+| Changed feature | Chains to run |
+|-----------------|---------------|
+| Diary/journal   | `chains=7` |
+| Social/gift     | `chains=5,9` |
+| HUD/UI          | `chains=8,11,12` |
+| Auth/creation   | `chains=1,2` |
+| Container/tick  | `chains=3,4` |
+| Color picker    | `chains=6` |
+| Topup           | `chains=13` |
