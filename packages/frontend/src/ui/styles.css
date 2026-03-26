@@ -103,6 +103,92 @@
   font-family: var(--ui-font-body);
 }
 
+/* ── Logout button ────────────────────────────────────────────────── */
+.logout-btn {
+  background: none;
+  border: 1px solid var(--ui-brown-light);
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 9px;
+  font-family: var(--ui-font-pixel);
+  color: var(--ui-text-muted);
+  cursor: pointer;
+  margin-left: auto;
+  flex-shrink: 0;
+  pointer-events: auto;
+}
+
+.logout-btn:hover {
+  border-color: var(--ui-brown);
+  color: var(--ui-brown);
+  background: rgba(139, 111, 71, 0.08);
+}
+
+/* ── Logout confirmation dialog ───────────────────────────────────── */
+#logout-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(74, 55, 40, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+#logout-dialog {
+  width: min(320px, 90%);
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.logout-message {
+  margin: 0;
+  font-family: var(--ui-font-body);
+  font-size: 13px;
+  color: var(--ui-text);
+  text-align: center;
+  line-height: 1.5;
+}
+
+.logout-btn-row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.logout-confirm-btn {
+  background: #b84040;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 6px 18px;
+  font-size: 12px;
+  font-family: var(--ui-font-body);
+  cursor: pointer;
+}
+
+.logout-confirm-btn:hover {
+  background: #9e3535;
+}
+
+.logout-cancel-btn {
+  background: var(--ui-brown-light);
+  color: var(--ui-text);
+  border: none;
+  border-radius: 5px;
+  padding: 6px 18px;
+  font-size: 12px;
+  font-family: var(--ui-font-body);
+  cursor: pointer;
+}
+
+.logout-cancel-btn:hover {
+  background: var(--ui-brown);
+  color: var(--ui-cream);
+}
+
 /* ── Chat log ─────────────────────────────────────────────────────── */
 #chat-log {
   position: absolute;
