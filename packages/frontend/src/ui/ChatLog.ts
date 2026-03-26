@@ -1,4 +1,5 @@
 import { getAuth } from '../auth';
+import { renderMarkdown } from './markdown';
 
 const MAX_ENTRIES = 50;
 const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string | undefined) ?? 'http://localhost:3001';
@@ -25,6 +26,8 @@ interface ChatEntry {
   speaker: string;
   text: string;
   time: Date;
+  /** If true, render text as markdown (for LLM/pet messages). */
+  markdown?: boolean;
 }
 
 /** Scrollable chat log panel — auto-scrolls, max 50 entries. */
@@ -117,7 +120,11 @@ export class ChatLog {
 
     const text = document.createElement('span');
     text.className = 'chat-text';
-    text.textContent = entry.text;
+    if (entry.markdown) {
+      text.appendChild(renderMarkdown(entry.text));
+    } else {
+      text.textContent = entry.text;
+    }
 
     row.append(time, speaker, text);
     this.messages.appendChild(row);
@@ -137,7 +144,7 @@ export class ChatLog {
     const token = getAuth()?.token ?? null;
     const time = new Date();
     resolvePetName(petId, token).then((name) => {
-      this.add({ speaker: name, text: message, time });
+      this.add({ speaker: name, text: message, time, markdown: true });
     });
   }
 
@@ -146,7 +153,7 @@ export class ChatLog {
     for (const turn of turns) {
       const time = new Date();
       resolvePetName(turn.speaker_pet_id, token).then((name) => {
-        this.add({ speaker: name, text: turn.line, time });
+        this.add({ speaker: name, text: turn.line, time, markdown: true });
       });
     }
   }
