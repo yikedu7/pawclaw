@@ -82,6 +82,48 @@ function getDocker(): Docker {
  * but system binaries can. On Linux/Railway, HETZNER_SSH_KEY (inline PEM) is
  * used directly via the ssh2 library.
  */
+async function sshRun(command: string): Promise<void> {
+  const host = process.env.HETZNER_HOST;
+  const username = process.env.HETZNER_USER;
+  const keyFile = process.env.HETZNER_SSH_KEY_FILE;
+  const privateKey = process.env.HETZNER_SSH_KEY;
+
+  if (!host || !username) {
+    throw new Error('HETZNER_HOST, HETZNER_USER must be set');
+  }
+
+  if (keyFile) {
+    const exec = (cmd: string, args: string[]) =>
+      new Promise<void>((resolve, reject) => {
+        execFile(cmd, args, (err) => (err ? reject(err) : resolve()));
+      });
+    await exec('ssh', [
+      '-i', keyFile,
+      '-o', 'StrictHostKeyChecking=no',
+      '-o', 'BatchMode=yes',
+      `${username}@${host}`,
+      command,
+    ]);
+    return;
+  }
+
+  if (!privateKey) {
+    throw new Error('Either HETZNER_SSH_KEY or HETZNER_SSH_KEY_FILE must be set');
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const ssh = new SshClient();
+    ssh.on('ready', () => {
+      ssh.exec(command, (err, stream) => {
+        if (err) { ssh.end(); return reject(err); }
+        stream.on('close', () => { ssh.end(); resolve(); }).resume();
+      });
+    });
+    ssh.on('error', reject);
+    ssh.connect({ host, port: 22, username, privateKey });
+  });
+}
+
 async function sshWriteFiles(files: Array<{ path: string; content: string }>): Promise<void> {
   const host = process.env.HETZNER_HOST;
   const username = process.env.HETZNER_USER;
@@ -277,6 +319,10 @@ export async function createPetContainer(
       content,
     })),
   ]);
+
+  // Files are written as root via SSH; the container runs as node (UID 1000).
+  // chown so OpenClaw can create subdirs (agents/, canvas/) and files at runtime.
+  await sshRun(`chown -R 1000:1000 "${dataDir}/${petId}"`);
 
   // 4. Create Docker container
   const docker = getDocker();
