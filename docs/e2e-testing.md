@@ -46,6 +46,7 @@ ANTHROPIC_BASE_URL=https://aihubmix.com
 | 11 | WalletPanel modal | `wallet-overlay` not hidden; address + PAW balance visible |
 | 12 | Friends panel | `friends-panel` not hidden; ≥ 1 `.friend-item` |
 | 13 | Topup validation | 400 `NO_WALLET` (or 200 if wallet assigned) |
+| 14 | Unique wallet per pet | Two pets get distinct non-null `wallet_address` values matching `0x[0-9a-fA-F]{40}` |
 
 ---
 
@@ -63,6 +64,9 @@ Address shows `"0x——...——"` placeholder if wallet not yet assigned (bloc
 
 **Chain 12 — Friends panel**
 Currently shows placeholder friends (Mochi, Biscuit, Pepper). Real friends list from DB is future work.
+
+**Chain 14 — Unique wallet per pet**
+Requires Docker (port 2375). Creates a second pet via the API, waits up to 80s for its container to reach `running`, then queries both pets' `wallet_address` columns and asserts they are non-null, match the EVM address pattern, and differ from each other. This validates the `onchainos wallet add` flow introduced in #140.
 
 ---
 
