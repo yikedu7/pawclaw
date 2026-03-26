@@ -583,7 +583,7 @@ export async function containerChat(
 async function dockerExec(
   container: Docker.Container,
   cmd: string[],
-): Promise<{ exitCode: number; stdout: string }> {
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   const exec = await container.exec({
     Cmd: cmd,
     AttachStdout: true,
@@ -603,18 +603,25 @@ async function dockerExec(
 
   const info = await exec.inspect();
 
-  // Docker multiplexes stdout/stderr: demux using the 8-byte frame header
+  // Docker multiplexes stdout/stderr: demux using the 8-byte frame header.
+  // Frame header: byte 0 = stream type (1=stdout, 2=stderr), bytes 4-7 = payload length.
+  // Only collect stdout frames — stderr mixed into the stdout string would break JSON.parse.
   const raw = Buffer.concat(chunks);
-  let text = '';
+  let stdout = '';
+  let stderr = '';
   let offset = 0;
   while (offset + 8 <= raw.length) {
+    const streamType = raw[offset];
     const size = raw.readUInt32BE(offset + 4);
-    text += raw.slice(offset + 8, offset + 8 + size).toString('utf-8');
+    const payload = raw.slice(offset + 8, offset + 8 + size).toString('utf-8');
+    if (streamType === 1) stdout += payload;
+    else if (streamType === 2) stderr += payload;
     offset += 8 + size;
   }
-  if (!text) text = raw.toString('utf-8');
+  // Fallback for non-multiplexed streams (e.g. TTY mode)
+  if (!stdout && !stderr) stdout = raw.toString('utf-8');
 
-  return { exitCode: info.ExitCode ?? -1, stdout: text };
+  return { exitCode: info.ExitCode ?? -1, stdout, stderr };
 }
 
 /**
@@ -648,7 +655,10 @@ export async function fetchWalletAddress(containerId: string): Promise<string | 
   }
 
   // Step 2 — create a new sub-account; wallet add is synchronous and returns unique address
-  const { exitCode, stdout } = await dockerExec(container, [bin, 'wallet', 'add', '--chain', '196']);
+  const { exitCode, stdout, stderr } = await dockerExec(container, [bin, 'wallet', 'add', '--chain', '196']);
+  console.log(`[fetchWallet] containerId=${containerId} exitCode=${exitCode} stdoutLen=${stdout.length} stderrLen=${stderr.length}`);
+  console.log(`[fetchWallet] stdout=${stdout.slice(0, 500)}`);
+  if (stderr) console.log(`[fetchWallet] stderr=${stderr.slice(0, 200)}`);
   if (exitCode !== 0) return null;
 
   // Parse: { ok: true, data: { accountId: "...", addressList: [{ address: "0x...", chainIndex: "196" }] } }
@@ -660,10 +670,17 @@ export async function fetchWalletAddress(containerId: string): Promise<string | 
     }).optional(),
   });
   let raw: unknown;
-  try { raw = JSON.parse(stdout); } catch { return null; }
+  try { raw = JSON.parse(stdout); } catch (e) {
+    console.log(`[fetchWallet] JSON.parse failed: ${e}`);
+    return null;
+  }
   const parsed = WalletAddSchema.safeParse(raw);
-  if (!parsed.success) return null;
+  if (!parsed.success) {
+    console.log(`[fetchWallet] Zod parse failed: ${JSON.stringify(parsed.error.issues)}`);
+    return null;
+  }
   const entry = parsed.data.data?.addressList.find((a) => a.chainIndex === '196');
+  console.log(`[fetchWallet] result=${entry?.address ?? 'null (no chain 196 entry)'}`);
   return entry?.address ?? null;
 }
 
