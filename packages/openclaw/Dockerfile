@@ -6,15 +6,19 @@ FROM ghcr.io/openclaw/openclaw:latest
 
 USER root
 
-# Install curl + ca-certificates (needed for onchainos installer) then run install.sh
+# Install onchainos v2.1.0 — v2.2+ requires glibc 2.39 but this image's base OS
+# (Debian 12 bookworm) only provides glibc 2.36. v2.1.0 was compiled against
+# glibc 2.34 and works on Debian 12.
+# Re-evaluate when the base image is upgraded to Ubuntu 24.04 (glibc 2.39).
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl ca-certificates \
-    && curl -sSL https://raw.githubusercontent.com/okx/onchainos-skills/main/install.sh | sh \
+    && mkdir -p /home/node/.local/bin \
+    && curl -sSL "https://github.com/okx/onchainos-skills/releases/download/v2.1.0/onchainos-x86_64-unknown-linux-gnu" \
+       -o /home/node/.local/bin/onchainos \
+    && chmod +x /home/node/.local/bin/onchainos \
+    && chown -R node:node /home/node/.local/bin \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
-
-# onchainos installs to /root/.local/bin — expose it for all users
-RUN ln -sf /root/.local/bin/onchainos /usr/local/bin/onchainos
 
 USER node
 
