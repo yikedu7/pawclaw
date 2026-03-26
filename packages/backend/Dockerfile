@@ -34,4 +34,4 @@ USER appuser
 
 ENV PORT=3000
 EXPOSE 3000
-CMD ["sh", "-c", "node packages/backend/dist/db/migrate.js && node packages/backend/dist/index.js"]
+CMD ["sh", "-c", "cd /app/packages/backend && node dist/db/migrate.js && node dist/index.js"]
