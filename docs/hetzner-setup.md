@@ -155,7 +155,7 @@ orb run -m hetzner-test -u root bash < scripts/provision-hetzner.sh
 > ```
 > Pre-pull the OpenClaw image once so subsequent test runs are fast:
 > ```bash
-> ssh deploy@$(orb ip hetzner-test) "docker pull ghcr.io/openclaw/openclaw:latest"
+> ssh deploy@$(orb ip hetzner-test) "docker pull ghcr.io/yikedu7/pawclaw-openclaw:latest"
 > ```
 
 ---
