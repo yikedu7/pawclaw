@@ -29,6 +29,7 @@ RUN pnpm install --frozen-lockfile --filter @pawclaw/backend... --prod
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/packages/backend/dist ./packages/backend/dist
 COPY --from=builder /app/packages/backend/drizzle ./packages/backend/drizzle
+COPY --from=builder /app/packages/backend/src/runtime/okx-skills ./packages/backend/dist/runtime/okx-skills
 RUN chown -R appuser:appgroup /app
 USER appuser
 
