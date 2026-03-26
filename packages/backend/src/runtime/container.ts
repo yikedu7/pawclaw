@@ -280,7 +280,7 @@ export async function createPetContainer(
   // 4. Create Docker container
   const docker = getDocker();
   const container = await docker.createContainer({
-    Image: 'ghcr.io/openclaw/openclaw:latest',
+    Image: 'ghcr.io/yikedu7/pawclaw-openclaw:latest',
     HostConfig: {
       Binds: [
         `${dataDir}/${petId}/config:/home/node/.openclaw`,
