@@ -22,7 +22,7 @@ FROM node:22-alpine AS runner
 RUN npm install -g pnpm
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app
-COPY pnpm-workspace.yaml package.json ./
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/backend/package.json ./packages/backend/
 RUN pnpm install --frozen-lockfile --filter @pawclaw/backend... --prod
