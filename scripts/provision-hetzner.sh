@@ -125,6 +125,10 @@ else
   echo "    '$DEPLOY_USER' added to docker group"
 fi
 
+echo "==> [6/6] Pre-pulling OpenClaw image (amd64)"
+docker pull ghcr.io/yikedu7/pawclaw-openclaw:latest
+echo "    Image pulled: ghcr.io/yikedu7/pawclaw-openclaw:latest"
+
 echo ""
 echo "==> Provisioning complete."
 echo ""
