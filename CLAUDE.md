@@ -98,7 +98,7 @@ Apply this loop for: tile coordinates, sprite frame selection, autotile edges, s
 ### Commit and PR rules
 
 ```bash
-gh issue list --repo yikedu7/x-pet   # check open issues
+gh issue list --repo yikedu7/pawclaw   # check open issues
 # commit with "closes #N" in message
 ```
 
