@@ -26,7 +26,7 @@ async function loadPetHunger(petId: string, token: string, hudBar: HudBar): Prom
 }
 
 /** Initialize the DOM UI overlay and wire it to the WS eventBus. */
-export function initUI(mount: HTMLElement, petId?: string, token?: string): void {
+export function initUI(mount: HTMLElement, petId?: string, token?: string): { chatLog: ChatLog } {
   const overlay = document.createElement('div');
   overlay.id = 'ui-overlay';
 
@@ -93,4 +93,6 @@ export function initUI(mount: HTMLElement, petId?: string, token?: string): void
     }
     toasts.show(`Pet ${e.data.pet_id} has been revived!`, 'friend');
   });
+
+  return { chatLog };
 }

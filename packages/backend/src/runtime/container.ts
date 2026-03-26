@@ -600,6 +600,110 @@ export async function containerChat(
   return json.choices?.[0]?.message?.content ?? '...';
 }
 
+/**
+ * Streaming variant of containerChat.
+ * Sends `stream: true` to OpenClaw and calls `onToken` for each text delta.
+ * Returns the full assembled text when the stream ends.
+ */
+export async function containerChatStream(
+  containerId: string,
+  gatewayToken: string,
+  message: string,
+  state: object,
+  ownerId: string | undefined,
+  onToken: (token: string) => void,
+): Promise<string> {
+  const docker = getDocker();
+  const container = docker.getContainer(containerId);
+
+  const body = JSON.stringify({
+    model: 'openclaw:main',
+    messages: [{ role: 'user', content: `user_message: ${message}\nstate: ${JSON.stringify(state)}` }],
+    stream: true,
+    ...(ownerId ? { user: ownerId } : {}),
+  });
+
+  const exec = await container.exec({
+    Cmd: [
+      'curl', '-s', '-N', '-X', 'POST',
+      'http://localhost:18789/v1/chat/completions',
+      '-H', 'Content-Type: application/json',
+      '-H', `Authorization: Bearer ${gatewayToken}`,
+      '-d', body,
+    ],
+    AttachStdout: true,
+    AttachStderr: true,
+  });
+
+  let fullText = '';
+  let frameBuffer = Buffer.alloc(0);
+  let lineBuffer = '';
+  let isMultiplexed: boolean | null = null;
+
+  const processLine = (line: string): void => {
+    if (!line.startsWith('data: ')) return;
+    const data = line.slice(6).trim();
+    if (data === '[DONE]') return;
+    try {
+      const parsed = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string } }> };
+      const token = parsed.choices?.[0]?.delta?.content ?? '';
+      if (token) {
+        fullText += token;
+        onToken(token);
+      }
+    } catch { /* ignore malformed SSE frames */ }
+  };
+
+  const flushLineBuffer = (): void => {
+    const lines = lineBuffer.split('\n');
+    lineBuffer = lines.pop() ?? '';
+    for (const line of lines) processLine(line);
+  };
+
+  await new Promise<void>((resolve, reject) => {
+    exec.start({}, (err: Error | null, stream: NodeJS.ReadableStream | undefined) => {
+      if (err) return reject(err);
+      if (!stream) return reject(new Error('exec start returned no stream'));
+
+      stream.on('data', (chunk: Buffer) => {
+        frameBuffer = Buffer.concat([frameBuffer, chunk]);
+
+        // Auto-detect Docker multiplexed stream format on first chunk
+        if (isMultiplexed === null && frameBuffer.length >= 1) {
+          isMultiplexed = frameBuffer[0] === 1 || frameBuffer[0] === 2;
+        }
+
+        if (isMultiplexed) {
+          // Process complete Docker frames (8-byte header: byte 0 = type, bytes 4-7 = length)
+          while (frameBuffer.length >= 8) {
+            const streamType = frameBuffer[0];
+            const size = frameBuffer.readUInt32BE(4);
+            if (frameBuffer.length < 8 + size) break;
+            if (streamType === 1) { // stdout only
+              lineBuffer += frameBuffer.slice(8, 8 + size).toString('utf-8');
+              flushLineBuffer();
+            }
+            frameBuffer = frameBuffer.slice(8 + size);
+          }
+        } else {
+          // Non-multiplexed: treat raw bytes as UTF-8 text
+          lineBuffer += frameBuffer.toString('utf-8');
+          frameBuffer = Buffer.alloc(0);
+          flushLineBuffer();
+        }
+      });
+
+      stream.on('end', () => {
+        if (lineBuffer) processLine(lineBuffer);
+        resolve();
+      });
+      stream.on('error', reject);
+    });
+  });
+
+  return fullText || '...';
+}
+
 // ── Docker exec helper ────────────────────────────────────────────────────────
 
 /**

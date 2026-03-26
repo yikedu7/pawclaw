@@ -36,7 +36,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  initUI(mount, petId, token);
+  const { chatLog } = initUI(mount, petId, token);
 
   const loader = new LoadingScreen(mount.clientWidth, mount.clientHeight);
   app.stage.addChild(loader);
@@ -69,6 +69,13 @@ async function main(): Promise<void> {
     giftItem:    textures['giftItem'],
   });
   app.stage.addChild(room, room.overlays);
+
+  chatLog.setDialogueHandlers({
+    startThinking: () => room.startThinking(),
+    stopThinking: () => room.stopThinking(),
+    updateCurrent: (text) => room.updateBubbleCurrent(text),
+    enqueue: (sentence) => room.enqueueBubble(sentence),
+  });
 
   new ResizeObserver(() => {
     room.layout(mount.clientWidth, mount.clientHeight);

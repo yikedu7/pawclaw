@@ -16,6 +16,7 @@ const ChatBodySchema = z.object({
 export type ChatRouteDeps = {
   emitOwnerEvent: (ownerId: string, event: WsEvent) => void;
   containerChat: (containerId: string, gatewayToken: string, message: string, state: object, ownerId?: string) => Promise<string>;
+  containerChatStream: (containerId: string, gatewayToken: string, message: string, state: object, ownerId: string | undefined, onToken: (token: string) => void) => Promise<string>;
 };
 
 export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRouteDeps): Promise<void> {
@@ -40,8 +41,43 @@ export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRout
       return reply.code(403).send({ error: 'Forbidden', code: 'FORBIDDEN' });
     }
 
-    // If a container is running, send the message via docker exec → /v1/chat/completions,
-    // capture the reply, emit a WS speak event, and return the reply text.
+    const wantsStream = request.headers.accept?.includes('text/event-stream') ?? false;
+
+    // ── SSE streaming path ──────────────────────────────────────────────────
+    if (wantsStream && pet.container_id && pet.gateway_token && pet.container_status === 'running') {
+      await reply.hijack();
+      const raw = reply.raw;
+      raw.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'X-Accel-Buffering': 'no',
+        Connection: 'keep-alive',
+      });
+
+      try {
+        const fullText = await deps.containerChatStream(
+          pet.container_id,
+          pet.gateway_token,
+          parsed.data.message,
+          { hunger: pet.hunger, mood: pet.mood, affection: pet.affection },
+          request.owner_id,
+          (token: string) => { raw.write(`data: ${token}\n\n`); },
+        );
+        raw.write('data: [DONE]\n\n');
+        raw.end();
+        deps.emitOwnerEvent(pet.owner_id, {
+          type: 'pet.speak',
+          data: { pet_id: id, message: fullText },
+        });
+      } catch (err: unknown) {
+        request.log.error({ err, petId: id }, 'Container chat stream failed');
+        raw.write('data: [ERROR]\n\n');
+        raw.end();
+      }
+      return;
+    }
+
+    // ── Non-streaming path (unchanged) ──────────────────────────────────────
     if (pet.container_id && pet.gateway_token && pet.container_status === 'running') {
       try {
         const replyText = await deps.containerChat(

@@ -94,6 +94,11 @@ export class PetRoom extends Container {
 
   showDialogue(message: string): void { this.bubble.enqueue(stripMarkdown(message)); }
 
+  startThinking(): void { this.bubble.startThinking(); }
+  stopThinking(): void { this.bubble.stopThinking(); }
+  updateBubbleCurrent(text: string): void { this.bubble.updateCurrent(text); }
+  enqueueBubble(sentence: string): void { this.bubble.enqueue(stripMarkdown(sentence)); }
+
   showVisit(fromPetId: string, message: string): void {
     const doorX = this.bg.doorX;
     const floorY = this.bg.doorY + 48; // one tile below door = grass in front of house
