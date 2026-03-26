@@ -11,6 +11,16 @@ RUN pnpm install --frozen-lockfile --filter @pawclaw/frontend...
 
 # Build
 FROM deps AS builder
+ARG VITE_BACKEND_URL
+ARG VITE_WS_HOST
+ARG VITE_WS_TOKEN
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+ENV VITE_BACKEND_URL=$VITE_BACKEND_URL
+ENV VITE_WS_HOST=$VITE_WS_HOST
+ENV VITE_WS_TOKEN=$VITE_WS_TOKEN
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
 COPY tsconfig.base.json ./
 COPY packages/shared ./packages/shared
 COPY packages/frontend ./packages/frontend
