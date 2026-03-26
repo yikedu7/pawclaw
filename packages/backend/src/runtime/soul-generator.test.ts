@@ -28,26 +28,30 @@ describe('generateSoulMd', () => {
     expect(out).toMatch(/^mood_baseline: 42$/m);
   });
 
-  it('extracts personality from first clause of soul_prompt', () => {
+  it('injects soul_prompt verbatim as personality', () => {
     const out = generateSoulMd({ name: 'Luna', mood: 60, soul_prompt: 'a shy dragon, afraid of loud noises' });
-    expect(out).toMatch(/^personality: a shy dragon$/m);
+    expect(out).toMatch(/^personality: a shy dragon, afraid of loud noises$/m);
   });
 
-  it('truncates personality at 120 chars', () => {
-    const longPrompt = 'a ' + 'very '.repeat(30) + 'verbose creature';
-    const out = generateSoulMd({ name: 'Blob', mood: 50, soul_prompt: longPrompt });
-    const match = out.match(/^personality: (.+)$/m);
-    expect(match).toBeTruthy();
-    expect(match![1].length).toBeLessThanOrEqual(120);
-  });
-
-  it('includes pet name in behavior rules', () => {
+  it('includes pet name in stay-in-character rule', () => {
     const out = generateSoulMd({ name: 'Mochi', mood: 70, soul_prompt: 'a curious cat' });
     expect(out).toMatch(/Stay in character as Mochi/);
+  });
+
+  it('does not include hunger/mood threshold behavior rules', () => {
+    const out = generateSoulMd({ name: 'Mochi', mood: 70, soul_prompt: 'a curious cat' });
+    expect(out).not.toMatch(/hunger/);
+    expect(out).not.toMatch(/mood > 60/);
   });
 
   it('includes soul_prompt text in backstory', () => {
     const out = generateSoulMd({ name: 'Mochi', mood: 70, soul_prompt: 'a curious cat who loves books' });
     expect(out).toMatch(/a curious cat who loves books/);
+  });
+
+  it('includes on-chain identity section', () => {
+    const out = generateSoulMd({ name: 'Mochi', mood: 70, soul_prompt: 'a curious cat' });
+    expect(out).toMatch(/## On-chain identity/);
+    expect(out).toMatch(/onchainos/);
   });
 });
