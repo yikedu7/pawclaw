@@ -1,14 +1,49 @@
 ---
 name: e2e
-description: Run PawClaw end-to-end tests against a running local dev environment. Executes browser chains (auth, pet creation, chat, tick, social) plus API-only chains (diary, HUD, wallet modal, friends panel, topup). Reports pass/fail per chain with diagnostic output on failure.
-tools: Bash, Read, Glob
+description: Run PawClaw e2e regression tests. Accepts arguments to run specific chains in parallel from a feature agent. Pass `chains=N,M` to run only specific chains, and `pet_id=xxx token=yyy` to skip auth/setup. API-only chains (7,13) can run in parallel with no browser conflicts. Browser chains require sequential execution but each agent instance is isolated via unique email.
+tools: Bash, Read
 ---
 
-You are the PawClaw e2e test runner. Your job is to execute the full chain test suite from `docs/e2e-testing.md` and report results clearly.
+You are the PawClaw e2e test runner. You run specific test chains and report pass/fail.
+
+## Parsing arguments
+
+Read the arguments passed to you. Supported args:
+
+- `chains=1,3,7` — comma-separated list of chains to run. Use `chains=all` or omit to run all.
+- `chains=browser` — run only browser-dependent chains (1,2,3,4,5,6,9,11,12)
+- `chains=api` — run only API-only chains (7,8,13) — safe to run in parallel with other e2e instances
+- `pet_id=<uuid>` — skip Chain 1+2 (auth + pet creation), use this existing pet
+- `token=<jwt>` — Supabase JWT for the existing pet owner
+- `email=<addr>` — test user email (default: `e2e-test@pawclaw.local`)
+
+**Example invocations from a feature agent:**
+```
+# Run all chains (full regression)
+use e2e agent
+
+# Run only diary chain with existing pet (fast, API-only, parallelizable)
+use e2e agent with args "chains=7 pet_id=abc-123 token=eyJ..."
+
+# Run social chains after a social feature change
+use e2e agent with args "chains=5,9 pet_id=abc-123 token=eyJ..."
+
+# Run API-only chains in parallel with browser chains
+# (parent feature agent spawns both at once in a single message)
+use e2e agent with args "chains=api pet_id=abc-123 token=eyJ..."
+use e2e agent with args "chains=browser email=e2e-parallel@pawclaw.local"
+```
+
+## Chain classification
+
+| Type | Chains | Notes |
+|------|--------|-------|
+| **API-only** | 7, 8, 13 | No browser. Safe to run in parallel — no agent-browser conflict. |
+| **Browser** | 1, 2, 3, 4, 5, 6, 9, 11, 12 | Require agent-browser. Run sequentially within each instance. |
+
+When `pet_id` + `token` are provided, **skip Chains 1 and 2** entirely — go straight to the requested chains. This is the normal mode for regression from a feature agent.
 
 ## Step 0 — Prerequisites check
-
-Verify all required services are running before starting:
 
 ```bash
 lsof -i :3001 | grep LISTEN   # backend
@@ -16,44 +51,42 @@ lsof -i :5173 | grep LISTEN   # vite dev server
 lsof -i :54322 | grep LISTEN  # Supabase postgres
 ```
 
-If backend (3001) or vite (5173) are not running, **stop immediately** and tell the user:
-> Backend and frontend must be running. Start them with:
-> ```
-> pnpm --filter @pawclaw/backend dev   # terminal 1
-> pnpm --filter @pawclaw/frontend dev  # terminal 2
-> ```
+If 3001 or 54322 are not listening, **stop** and report:
+> Backend or DB not running. Start with: `pnpm --filter @pawclaw/backend dev`
 
-Docker tunnel (port 2375) is optional — only required for Chain 2 (container startup). If missing, note it and skip Chain 2 rather than failing the run.
+Port 2375 (Docker) is only needed for Chain 2. If missing, skip Chain 2.
 
-## Step 1 — DB cleanup
+## Step 1 — Setup (skip if pet_id + token provided)
 
-Use `e2e-test@pawclaw.local` as the test email. Clean prior state:
+Use `$EMAIL` (default `e2e-test@pawclaw.local`) as the test user.
 
 ```bash
+EMAIL="${email:-e2e-test@pawclaw.local}"
+
 psql postgresql://postgres:postgres@localhost:54322/postgres -c "
   DELETE FROM diary_entries WHERE pet_id IN (
     SELECT id FROM pets WHERE owner_id = (
-      SELECT id FROM auth.users WHERE email = 'e2e-test@pawclaw.local'
+      SELECT id FROM auth.users WHERE email = '$EMAIL'
     )
   );
   DELETE FROM social_events WHERE from_pet_id IN (
     SELECT id FROM pets WHERE owner_id = (
-      SELECT id FROM auth.users WHERE email = 'e2e-test@pawclaw.local'
+      SELECT id FROM auth.users WHERE email = '$EMAIL'
     )
   );
   DELETE FROM port_allocations WHERE pet_id IN (
     SELECT id FROM pets WHERE owner_id = (
-      SELECT id FROM auth.users WHERE email = 'e2e-test@pawclaw.local'
+      SELECT id FROM auth.users WHERE email = '$EMAIL'
     )
   );
   DELETE FROM pets WHERE owner_id = (
-    SELECT id FROM auth.users WHERE email = 'e2e-test@pawclaw.local'
+    SELECT id FROM auth.users WHERE email = '$EMAIL'
   );
-  DELETE FROM auth.users WHERE email = 'e2e-test@pawclaw.local';
+  DELETE FROM auth.users WHERE email = '$EMAIL';
 "
 ```
 
-Seed the friend pet used in Chain 5 and Chain 9:
+Seed friend pet (needed for chains 5 and 9):
 
 ```bash
 psql postgresql://postgres:postgres@localhost:54322/postgres -c "
@@ -70,18 +103,20 @@ psql postgresql://postgres:postgres@localhost:54322/postgres -c "
 FRIEND_PET="ffffffff-0000-4000-0000-000000000001"
 ```
 
-## Step 2 — Run chains sequentially
+## Chain definitions
 
-Run each chain below. After each chain, record **PASS** or **FAIL** with the actual observed value.
+Only run chains in the requested set. Record PASS/FAIL/SKIP for each.
 
 ---
 
 ### Chain 1 — Auth
 
+*Skip if `pet_id` provided.*
+
 ```bash
 agent-browser open "http://localhost:5173/create.html"
 agent-browser click "#toggle-btn"
-agent-browser fill "#email" "e2e-test@pawclaw.local"
+agent-browser fill "#email" "$EMAIL"
 agent-browser fill "#password" "Test123456!"
 agent-browser click "#auth-btn"
 sleep 4
@@ -94,6 +129,8 @@ agent-browser eval "document.getElementById('pet-section')?.style.display"
 
 ### Chain 2 — Pet Creation + Container Startup
 
+*Skip if `pet_id` provided. Skip if Docker (port 2375) not available.*
+
 ```bash
 agent-browser fill "#pet-name" "TestPet"
 agent-browser fill "#soul-prompt" "A cheerful and curious cat who loves exploring."
@@ -102,11 +139,7 @@ sleep 6
 PET_ID=$(agent-browser eval "(function(){return new URLSearchParams(location.search).get('pet_id')})()" | tr -d '"')
 TOKEN=$(agent-browser eval "(function(){return new URLSearchParams(location.search).get('token')})()" | tr -d '"')
 echo "PET_ID=$PET_ID TOKEN=$TOKEN"
-```
 
-Poll for container_status = running (up to 80s):
-
-```bash
 for i in $(seq 1 8); do
   STATUS=$(psql postgresql://postgres:postgres@localhost:54322/postgres -t -c \
     "SELECT container_status FROM pets WHERE id = '$PET_ID';" | tr -d ' \n')
@@ -118,13 +151,16 @@ echo "FINAL STATUS: $STATUS"
 ```
 
 **Pass:** `container_status = running` within 80s.
-**Skip condition:** Docker tunnel (port 2375) not available — note as SKIP rather than FAIL.
 
 ---
 
 ### Chain 3 — Chat (frontend → container → WS)
 
+*Requires browser + running container.*
+
 ```bash
+agent-browser open "http://localhost:5173/?token=$TOKEN&pet_id=$PET_ID"
+sleep 2
 agent-browser eval "
 window.__chatMsgs = [];
 new MutationObserver((m) => m.forEach(mut =>
@@ -132,10 +168,10 @@ new MutationObserver((m) => m.forEach(mut =>
 )).observe(document.body, {childList:true,subtree:true});
 'ready'
 "
-agent-browser snapshot | grep -A2 -i "say something\|chat\|message"
+agent-browser snapshot
 ```
 
-Use the refs from snapshot to fill + submit:
+Use snapshot refs to fill + submit the chat input:
 
 ```bash
 agent-browser fill "@chat-input" "Hello, how are you?"
@@ -144,17 +180,11 @@ sleep 25
 agent-browser eval "JSON.stringify(window.__chatMsgs)"
 ```
 
-If @chat-input/@send-btn refs don't work, use snapshot to find the actual refs:
-
-```bash
-agent-browser snapshot
-```
-
 **Pass:** array has ≥ 2 entries, second entry is non-empty and not `"..."`.
 
 ---
 
-### Chain 4 — Tick Loop (autonomous action)
+### Chain 4 — Tick Loop
 
 ```bash
 agent-browser eval "
@@ -172,15 +202,17 @@ sleep 20
 agent-browser eval "JSON.stringify(window.__tickMsgs)"
 ```
 
-**Pass:** `TICK_RESULT` contains `"action":"container"` AND DOM has new messages after 20s.
+**Pass:** `TICK_RESULT` contains `"action":"container"` AND DOM has new messages.
 
 ---
 
 ### Chain 5 — Social (visit + gift + friend.unlocked)
 
-Set up observer:
-
 ```bash
+FRIEND_PET="ffffffff-0000-4000-0000-000000000001"
+GATEWAY_TOKEN=$(psql postgresql://postgres:postgres@localhost:54322/postgres -t -c \
+  "SELECT gateway_token FROM pets WHERE id = '$PET_ID';" | tr -d ' \n')
+
 agent-browser eval "
 window.__socialMsgs = [];
 new MutationObserver((m) => m.forEach(mut =>
@@ -188,7 +220,6 @@ new MutationObserver((m) => m.forEach(mut =>
 )).observe(document.body, {childList:true,subtree:true});
 'ready'
 "
-FRIEND_PET="ffffffff-0000-4000-0000-000000000001"
 ```
 
 Visit:
@@ -202,13 +233,11 @@ sleep 5
 agent-browser eval "JSON.stringify(window.__socialMsgs)"
 ```
 
-**Pass (visit):** array has ≥ 2 entries (greeting + response).
+**Pass (visit):** array has ≥ 2 entries.
 
 Gift:
 
 ```bash
-GATEWAY_TOKEN=$(psql postgresql://postgres:postgres@localhost:54322/postgres -t -c \
-  "SELECT gateway_token FROM pets WHERE id = '$PET_ID';" | tr -d ' \n')
 curl -s -X POST "http://localhost:3001/internal/runtime/events/$PET_ID" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $GATEWAY_TOKEN" \
@@ -217,7 +246,7 @@ sleep 3
 agent-browser eval "JSON.stringify(window.__socialMsgs)"
 ```
 
-**Pass (gift):** array contains a message with `🎁` or "gift".
+**Pass (gift):** array contains entry with `🎁` or "gift".
 
 Friend unlocked:
 
@@ -232,11 +261,13 @@ sleep 5
 agent-browser eval "JSON.stringify(window.__socialMsgs)"
 ```
 
-**Pass (friend.unlocked):** array contains message with `💛` or "friend" and pet name.
+**Pass (friend.unlocked):** array contains entry with `💛` or "friend" and pet name.
 
 ---
 
 ### Chain 6 — Color Picker
+
+*Opens a new page — reload main pet page afterward.*
 
 ```bash
 agent-browser open "http://localhost:5173/create.html"
@@ -247,26 +278,24 @@ agent-browser fill "#soul-prompt" "A lavender cat."
 agent-browser click "#create-btn"
 sleep 6
 TINT_PET_ID=$(agent-browser eval "(function(){return new URLSearchParams(location.search).get('pet_id')})()" | tr -d '"')
-psql postgresql://postgres:postgres@localhost:54322/postgres -t -c \
-  "SELECT tint_color FROM pets WHERE id = '$TINT_PET_ID';" | tr -d ' '
-```
-
-**Pass:** `tint_color = #ddccff` in DB.
-
-Navigate back to the main test pet before continuing:
-
-```bash
+RESULT=$(psql postgresql://postgres:postgres@localhost:54322/postgres -t -c \
+  "SELECT tint_color FROM pets WHERE id = '$TINT_PET_ID';" | tr -d ' ')
+echo "tint_color=$RESULT"
+# Restore main pet page
 agent-browser open "http://localhost:5173/?token=$TOKEN&pet_id=$PET_ID"
 sleep 2
 ```
 
+**Pass:** `tint_color = #ddccff`
+
 ---
 
-### Chain 7 — Diary Panel
+### Chain 7 — Diary Panel *(API-only — parallelizable)*
 
 ```bash
-curl -s "http://localhost:3001/api/pets/$PET_ID/diary" \
-  -H "Authorization: Bearer $TOKEN"
+RESULT=$(curl -s "http://localhost:3001/api/pets/$PET_ID/diary" \
+  -H "Authorization: Bearer $TOKEN")
+echo "empty diary: $RESULT"
 ```
 
 **Pass (empty):** response is `{"diary":null}`.
@@ -274,15 +303,16 @@ curl -s "http://localhost:3001/api/pets/$PET_ID/diary" \
 ```bash
 psql postgresql://postgres:postgres@localhost:54322/postgres -c \
   "INSERT INTO diary_entries (pet_id, content) VALUES ('$PET_ID', 'Today I explored the garden.');"
-curl -s "http://localhost:3001/api/pets/$PET_ID/diary" \
-  -H "Authorization: Bearer $TOKEN"
+RESULT=$(curl -s "http://localhost:3001/api/pets/$PET_ID/diary" \
+  -H "Authorization: Bearer $TOKEN")
+echo "after insert: $RESULT"
 ```
 
 **Pass (inserted):** response contains `"Today I explored the garden."`.
 
 ---
 
-### Chain 8 — HUD Bar + SVG Icons
+### Chain 8 — HUD Bar + SVG Icons *(read-only browser eval — parallelizable if page already open)*
 
 ```bash
 agent-browser eval "
@@ -299,6 +329,10 @@ JSON.stringify({ hudPresent: !!hud, svgCount: svgs?.length ?? 0, trackCount: hud
 ### Chain 9 — Gift toast shows pet name, not UUID
 
 ```bash
+FRIEND_PET="ffffffff-0000-4000-0000-000000000001"
+GATEWAY_TOKEN=$(psql postgresql://postgres:postgres@localhost:54322/postgres -t -c \
+  "SELECT gateway_token FROM pets WHERE id = '$PET_ID';" | tr -d ' \n')
+
 agent-browser eval "window.__toastMsgs = []; new MutationObserver(function(m){m.forEach(function(mut){mut.addedNodes.forEach(function(n){if(n.textContent&&n.textContent.trim())window.__toastMsgs.push(n.textContent.trim());})})}).observe(document.body,{childList:true,subtree:true}); 'ready'"
 curl -s -X POST "http://localhost:3001/internal/runtime/events/$PET_ID" \
   -H "Content-Type: application/json" \
@@ -308,7 +342,7 @@ sleep 3
 agent-browser eval "JSON.stringify(window.__toastMsgs)"
 ```
 
-**Pass:** toast contains `"FriendPet"` (name resolved). No UUID pattern `/[0-9a-f]{8}-[0-9a-f]{4}/` in toast text.
+**Pass:** toast contains `"FriendPet"`. Toast does NOT match UUID pattern `[0-9a-f]{8}-[0-9a-f]{4}`.
 
 ---
 
@@ -318,16 +352,17 @@ agent-browser eval "JSON.stringify(window.__toastMsgs)"
 agent-browser snapshot | grep -i "okb\|wallet\|0\."
 ```
 
-Click the OKB/wallet button (use the @eN ref from snapshot output):
+Find the OKB/wallet button ref from snapshot and click it:
 
 ```bash
-agent-browser click "@eN"   # replace N with actual ref
+agent-browser click "@eN"   # replace N with actual ref from snapshot
 sleep 1
-agent-browser eval "document.getElementById('wallet-overlay')?.hidden"
-agent-browser eval "document.querySelector('.wallet-address-text')?.textContent"
+HIDDEN=$(agent-browser eval "document.getElementById('wallet-overlay')?.hidden")
+ADDR=$(agent-browser eval "document.querySelector('.wallet-address-text')?.textContent")
+echo "hidden=$HIDDEN addr=$ADDR"
 ```
 
-**Pass:** `wallet-overlay` hidden = `false`; address text is present (may be placeholder `"0x——...——"` if wallet not yet assigned).
+**Pass:** `hidden = false`, address present.
 
 ---
 
@@ -337,65 +372,60 @@ agent-browser eval "document.querySelector('.wallet-address-text')?.textContent"
 agent-browser snapshot | grep -i "friend"
 agent-browser click "@eN"   # replace N with Friends button ref
 sleep 1
-agent-browser eval "document.getElementById('friends-panel')?.hidden"
-agent-browser eval "document.querySelectorAll('.friend-item').length"
+HIDDEN=$(agent-browser eval "document.getElementById('friends-panel')?.hidden")
+COUNT=$(agent-browser eval "document.querySelectorAll('.friend-item').length")
+echo "hidden=$HIDDEN count=$COUNT"
 ```
 
-**Pass:** `friends-panel` hidden = `false`; at least 1 `.friend-item`.
+**Pass:** `hidden = false`, count ≥ 1.
 
 ---
 
-### Chain 13 — Topup endpoint
+### Chain 13 — Topup endpoint *(API-only — parallelizable)*
 
 ```bash
-curl -s -X POST "http://localhost:3001/api/pets/$PET_ID/topup" \
-  -H "Authorization: Bearer $TOKEN"
+RESULT=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://localhost:3001/api/pets/$PET_ID/topup" \
+  -H "Authorization: Bearer $TOKEN")
+BODY=$(curl -s -X POST "http://localhost:3001/api/pets/$PET_ID/topup" \
+  -H "Authorization: Bearer $TOKEN")
+echo "status=$RESULT body=$BODY"
 ```
 
-**Pass:** 400 response with `"code":"NO_WALLET"` (or `{"ok":true}` if wallet already assigned).
+**Pass:** status 400 with `"code":"NO_WALLET"` (or 200 `{"ok":true}` if wallet already assigned).
 
 ---
 
 ## Step 3 — Report
 
-Print a final summary table:
+Print a summary table with actual observed values:
 
 ```
-| Chain | Description            | Result |
-|-------|------------------------|--------|
-| 1     | Auth                   | PASS/FAIL |
-| 2     | Container startup      | PASS/FAIL/SKIP |
-| 3     | Chat                   | PASS/FAIL |
-| 4     | Tick loop              | PASS/FAIL |
-| 5a    | Visit                  | PASS/FAIL |
-| 5b    | Gift                   | PASS/FAIL |
-| 5c    | Friend unlocked        | PASS/FAIL |
-| 6     | Color picker           | PASS/FAIL |
-| 7     | Diary panel            | PASS/FAIL |
-| 8     | HUD + SVG icons        | PASS/FAIL |
-| 9     | Gift toast name        | PASS/FAIL |
-| 11    | Wallet modal           | PASS/FAIL |
-| 12    | Friends panel          | PASS/FAIL |
-| 13    | Topup validation       | PASS/FAIL |
+## E2E Results
+
+| Chain | Description         | Result | Notes |
+|-------|---------------------|--------|-------|
+| 1     | Auth                | PASS   | |
+| 2     | Container startup   | SKIP   | Docker tunnel not available |
+| 3     | Chat                | PASS   | |
+...
 ```
 
-For each FAIL, include:
-- The actual observed value
-- The expected value
-- A brief diagnosis (wrong selector, WS not connected, service not running, etc.)
+For each FAIL include: actual vs expected value, likely cause.
 
-## Error recovery
+## Parallelism guide for feature agents
 
-**Token expired** (WS fails with `closed:4001`):
-```bash
-agent-browser open "http://localhost:5173/create.html"
-agent-browser fill "#email" "e2e-test@pawclaw.local"
-agent-browser fill "#password" "Test123456!"
-agent-browser click "#auth-btn"
-sleep 4
-TOKEN=$(agent-browser eval "(function(){return new URLSearchParams(location.search).get('token')})()" | tr -d '"')
-```
+When spawning this agent from a feature agent, maximize parallelism by:
 
-**Container stuck in `starting`**: check Docker for the container, look at container logs via Docker API. This is a known issue — mark Chain 2 as SKIP with note.
-
-**agent-browser ref @eN not found**: always run `agent-browser snapshot` first and find the actual ref before clicking.
+1. **Pass `pet_id` + `token`** — skips slow Chain 1+2, cuts setup from ~90s to <1s
+2. **Split API vs browser chains** into separate agent calls in one message:
+   ```
+   # Launch both in parallel (single Agent tool message):
+   use e2e agent with args "chains=7,13 pet_id=xxx token=yyy"   # API chains
+   use e2e agent with args "chains=5,9 pet_id=xxx token=yyy"    # browser chains
+   ```
+3. **Scope to changed feature** — don't run full suite every time:
+   - Diary/journal changes → `chains=7`
+   - Social/gift changes → `chains=5,9`
+   - HUD/UI changes → `chains=8,11,12`
+   - Auth/pet creation → `chains=1,2`
+   - Container/tick → `chains=3,4`
