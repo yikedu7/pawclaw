@@ -6,3 +6,4 @@ dist/
 .claude/settings.local.json
 supabase/.temp/
 packages/frontend/test-results
+.local/
