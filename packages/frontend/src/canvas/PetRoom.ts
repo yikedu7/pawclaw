@@ -1,5 +1,6 @@
 import { Application, Container, Graphics, Ticker, Texture } from 'pixi.js';
 import type { WsEvent } from '@pawclaw/shared';
+import { stripMarkdown } from '../ui/markdown';
 import { DialogueBubble } from './DialogueBubble';
 import { GiftAnimation } from './GiftAnimation';
 import { SceneBackground } from './SceneBackground';
@@ -91,7 +92,7 @@ export class PetRoom extends Container {
     // Stats are now rendered by the DOM UI overlay (packages/frontend/src/ui/StatBars.ts)
   }
 
-  showDialogue(message: string): void { this.bubble.enqueue(message); }
+  showDialogue(message: string): void { this.bubble.enqueue(stripMarkdown(message)); }
 
   showVisit(fromPetId: string, message: string): void {
     const doorX = this.bg.doorX;
@@ -103,7 +104,7 @@ export class PetRoom extends Container {
       {
         x: doorX, y: floorY, row: 2,
         stopRow: 1,
-        onArrive: () => { this.bubble.enqueue(`[${fromPetId}] ${message}`); },
+        onArrive: () => { this.bubble.enqueue(`[${fromPetId}] ${stripMarkdown(message)}`); },
         waitMs: VISIT_INSIDE_MS,
       },
       // Walk right (row 3) back offscreen
