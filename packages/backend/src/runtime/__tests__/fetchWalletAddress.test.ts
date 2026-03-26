@@ -5,19 +5,23 @@
  * We verify the JSON address-extraction logic directly.
  */
 import { describe, it, expect } from 'vitest';
+import { z } from 'zod';
 
-// Extracted JSON parsing logic from container.ts — inline test of the parsing algorithm
+// Mirrors the Zod-based parsing logic in container.ts fetchWalletAddress
+const WalletAddSchema = z.object({
+  ok: z.boolean(),
+  data: z.object({
+    addressList: z.array(z.object({ address: z.string(), chainIndex: z.string() })),
+  }).optional(),
+});
+
 function parseWalletAddressFromWalletAdd(stdout: string): string | null {
-  try {
-    const json = JSON.parse(stdout) as {
-      ok: boolean;
-      data?: { addressList?: Array<{ address: string; chainIndex: string }> };
-    };
-    const entry = json.data?.addressList?.find((a) => a.chainIndex === '196');
-    return entry?.address ?? null;
-  } catch {
-    return null;
-  }
+  let raw: unknown;
+  try { raw = JSON.parse(stdout); } catch { return null; }
+  const parsed = WalletAddSchema.safeParse(raw);
+  if (!parsed.success) return null;
+  const entry = parsed.data.data?.addressList.find((a) => a.chainIndex === '196');
+  return entry?.address ?? null;
 }
 
 describe('wallet address parsing (container.fetchWalletAddress — wallet add output)', () => {

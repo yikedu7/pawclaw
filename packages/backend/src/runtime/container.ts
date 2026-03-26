@@ -1,5 +1,6 @@
 import Docker from 'dockerode';
 import { Client as SshClient } from 'ssh2';
+import { z } from 'zod';
 import { readdir, readFile, writeFile, unlink, mkdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -651,16 +652,19 @@ export async function fetchWalletAddress(containerId: string): Promise<string | 
   if (exitCode !== 0) return null;
 
   // Parse: { ok: true, data: { accountId: "...", addressList: [{ address: "0x...", chainIndex: "196" }] } }
-  try {
-    const json = JSON.parse(stdout) as {
-      ok: boolean;
-      data?: { addressList?: Array<{ address: string; chainIndex: string }> };
-    };
-    const entry = json.data?.addressList?.find((a) => a.chainIndex === '196');
-    return entry?.address ?? null;
-  } catch {
-    return null;
-  }
+  // Validate CLI output at the external boundary with Zod (guards against malformed output).
+  const WalletAddSchema = z.object({
+    ok: z.boolean(),
+    data: z.object({
+      addressList: z.array(z.object({ address: z.string(), chainIndex: z.string() })),
+    }).optional(),
+  });
+  let raw: unknown;
+  try { raw = JSON.parse(stdout); } catch { return null; }
+  const parsed = WalletAddSchema.safeParse(raw);
+  if (!parsed.success) return null;
+  const entry = parsed.data.data?.addressList.find((a) => a.chainIndex === '196');
+  return entry?.address ?? null;
 }
 
 /**
