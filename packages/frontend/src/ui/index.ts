@@ -54,6 +54,9 @@ export function initUI(mount: HTMLElement, petId?: string, token?: string): void
   // Wire eventBus → UI components
   eventBus.on('pet.state', (e) => {
     hudBar.updateStats(e.data.hunger, e.data.mood, e.data.affection);
+    if (e.data.wallet_address !== undefined) {
+      hudBar.walletPanel.setAddress(e.data.wallet_address);
+    }
   });
 
   eventBus.on('pet.speak', (e) => {
