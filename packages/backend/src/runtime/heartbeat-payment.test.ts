@@ -6,6 +6,9 @@ const BASE_PET = {
   petId: '00000000-0000-0000-0000-000000000001',
   gatewayToken: 'test-gateway-token',
   backendUrl: 'http://localhost:3001',
+  hunger: 75,
+  mood: 65,
+  affection: 20,
 };
 
 describe('generateHeartbeatMd — x402 payment block', () => {

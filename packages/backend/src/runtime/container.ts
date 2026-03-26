@@ -257,6 +257,9 @@ export async function createPetContainer(
     petId,
     gatewayToken,
     backendUrl: process.env.BACKEND_URL ?? 'http://localhost:3001',
+    hunger: pet.hunger,
+    mood: pet.mood,
+    affection: pet.affection,
   });
 
   // 3. Fetch all OKX skills and write everything to Hetzner via SSH

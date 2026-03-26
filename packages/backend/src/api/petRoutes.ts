@@ -10,7 +10,7 @@ import { getPawBalance } from '../onchain/balance.js';
 
 export type PetRouteDeps = {
   generateSoulMd: (input: { name: string; mood: number; soul_prompt: string }) => string;
-  generateSkillMd: (input: { id: string; backendUrl: string; webhookToken: string }) => string;
+  generateSkillMd: (input: { id: string; backendUrl: string; webhookToken: string; hunger: number; mood: number; affection: number }) => string;
   /** Optional — injected by index.ts when HETZNER_HOST is set; absent in tests */
   launchContainer?: (petId: string, soulMd: string, skillMd: string) => void;
   /** Optional — injected for topup revival; absent in tests */
@@ -84,7 +84,7 @@ export async function registerPetRoutes(
       .returning();
 
     // Generate skill_md with the real pet id
-    const skill_md = deps.generateSkillMd({ id: row.id, backendUrl, webhookToken });
+    const skill_md = deps.generateSkillMd({ id: row.id, backendUrl, webhookToken, hunger: row.hunger, mood: row.mood, affection: row.affection });
     const [updated] = await db
       .update(pets)
       .set({ skill_md })
