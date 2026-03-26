@@ -133,6 +133,11 @@ export class PetRoom extends Container {
     this.petSprite.setTint(hexColor);
   }
 
+  /** Play greeting animation (happy flash → idle). Used by the login-page ambient background. */
+  greet(): void {
+    this.petSprite.flashHappy();
+  }
+
   showFriendUnlocked(petId: string): void {
     this.bubble.enqueue(`Friend unlocked: ${petId}!`);
     this.flashElapsed = 0;

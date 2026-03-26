@@ -1,3 +1,5 @@
+import { getAuth } from '../auth';
+
 const MAX_ENTRIES = 50;
 const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string | undefined) ?? 'http://localhost:3001';
 
@@ -49,9 +51,9 @@ export class ChatLog {
   }
 
   private buildInputRow(): HTMLDivElement {
-    const params = new URLSearchParams(location.search);
-    const petId = params.get('pet_id');
-    const token = params.get('token');
+    const auth = getAuth();
+    const petId = auth?.pet_id ?? null;
+    const token = auth?.token ?? null;
 
     const row = document.createElement('div');
     row.className = 'chat-input-row';
@@ -132,7 +134,7 @@ export class ChatLog {
   }
 
   addSpeak(petId: string, message: string): void {
-    const token = new URLSearchParams(location.search).get('token');
+    const token = getAuth()?.token ?? null;
     const time = new Date();
     resolvePetName(petId, token).then((name) => {
       this.add({ speaker: name, text: message, time });
@@ -140,7 +142,7 @@ export class ChatLog {
   }
 
   addVisit(fromPetId: string, turns: { speaker_pet_id: string; line: string }[]): void {
-    const token = new URLSearchParams(location.search).get('token');
+    const token = getAuth()?.token ?? null;
     for (const turn of turns) {
       const time = new Date();
       resolvePetName(turn.speaker_pet_id, token).then((name) => {

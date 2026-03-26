@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { setAuth } from '../auth';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
@@ -93,7 +94,8 @@ authBtn.addEventListener('click', async () => {
     if (petsRes.ok) {
       const pets = await petsRes.json() as Array<{ id: string }>;
       if (pets.length > 0) {
-        window.location.href = `/?token=${encodeURIComponent(accessToken)}&pet_id=${encodeURIComponent(pets[0].id)}`;
+        setAuth(accessToken, pets[0].id);
+        window.location.replace('/');
         return;
       }
     }
@@ -139,8 +141,9 @@ createBtn.addEventListener('click', async () => {
       return;
     }
 
-    // Redirect to the canvas with the auth token and pet id
-    window.location.href = `/?token=${encodeURIComponent(accessToken)}&pet_id=${encodeURIComponent(data.id ?? '')}`;
+    // Persist auth and redirect to the canvas
+    setAuth(accessToken, data.id ?? '');
+    window.location.replace('/');
   } catch (err) {
     errorMsgPet.textContent = err instanceof Error ? err.message : 'Unknown error';
   } finally {
