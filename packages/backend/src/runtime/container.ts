@@ -657,31 +657,44 @@ export async function fetchWalletAddress(containerId: string): Promise<string | 
   // Step 2 — create a new sub-account; wallet add is synchronous and returns unique address
   const { exitCode, stdout, stderr } = await dockerExec(container, [bin, 'wallet', 'add', '--chain', '196']);
   console.log(`[fetchWallet] containerId=${containerId} exitCode=${exitCode} stdoutLen=${stdout.length} stderrLen=${stderr.length}`);
-  console.log(`[fetchWallet] stdout=${stdout.slice(0, 500)}`);
   if (stderr) console.log(`[fetchWallet] stderr=${stderr.slice(0, 200)}`);
   if (exitCode !== 0) return null;
 
-  // Parse: { ok: true, data: { accountId: "...", addressList: [{ address: "0x...", chainIndex: "196" }] } }
-  // Validate CLI output at the external boundary with Zod (guards against malformed output).
+  // The CLI outputs multiple JSON objects concatenated (status/progress lines + final result).
+  // Extract all top-level JSON objects by tracking brace depth, then find the one that
+  // matches WalletAddSchema with ok=true and a chain-196 address entry.
   const WalletAddSchema = z.object({
     ok: z.boolean(),
     data: z.object({
       addressList: z.array(z.object({ address: z.string(), chainIndex: z.string() })),
     }).optional(),
   });
-  let raw: unknown;
-  try { raw = JSON.parse(stdout); } catch (e) {
-    console.log(`[fetchWallet] JSON.parse failed: ${e}`);
-    return null;
+
+  let depth = 0;
+  let start = -1;
+  for (let i = 0; i < stdout.length; i++) {
+    if (stdout[i] === '{') {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (stdout[i] === '}') {
+      depth--;
+      if (depth === 0 && start !== -1) {
+        let obj: unknown;
+        try { obj = JSON.parse(stdout.slice(start, i + 1)); } catch { start = -1; continue; }
+        const parsed = WalletAddSchema.safeParse(obj);
+        if (parsed.success && parsed.data.ok) {
+          const entry = parsed.data.data?.addressList.find((a) => a.chainIndex === '196');
+          if (entry?.address) {
+            console.log(`[fetchWallet] result=${entry.address}`);
+            return entry.address;
+          }
+        }
+        start = -1;
+      }
+    }
   }
-  const parsed = WalletAddSchema.safeParse(raw);
-  if (!parsed.success) {
-    console.log(`[fetchWallet] Zod parse failed: ${JSON.stringify(parsed.error.issues)}`);
-    return null;
-  }
-  const entry = parsed.data.data?.addressList.find((a) => a.chainIndex === '196');
-  console.log(`[fetchWallet] result=${entry?.address ?? 'null (no chain 196 entry)'}`);
-  return entry?.address ?? null;
+  console.log(`[fetchWallet] no chain-196 address found in stdout`);
+  return null;
 }
 
 /**
