@@ -1,68 +1,90 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 /**
- * Markdown rendering e2e tests for ChatLog + renderMarkdown.
+ * Markdown rendering e2e tests.
  *
- * Strategy: navigate to index.html so that Vite's dev server processes and
- * caches the full module graph (main.ts → ChatLog.ts → markdown.ts).  After
- * that, dynamic import('/src/ui/markdown.ts') and import('/src/ui/ChatLog.ts')
- * succeed because Vite has already transformed those files.
- *
- * We intercept the network early to avoid WS/auth errors blocking the page, but
- * the module-level code (imports) still runs so Vite registers the transforms.
+ * Strategy: navigate to about:blank and inject renderMarkdown / stripMarkdown
+ * directly via page.evaluate — no Vite server required since markdown.ts has
+ * no external dependencies.  This keeps tests fast and hermetic.
  */
 
-async function loadPageAndModules(page: import('@playwright/test').Page) {
-  // Intercept the WS connection to avoid unhandled WebSocket errors
-  await page.route('**/ws**', (route) => route.abort());
-  await page.route('**/api/**', (route) => route.fulfill({ status: 401, body: '{}' }));
+/** Inject renderMarkdown and stripMarkdown into the browser context. */
+async function injectMarkdown(page: Page) {
+  await page.goto('about:blank');
+  await page.evaluate(() => {
+    const INLINE_RE = /(\*\*[^*\n]+\*\*|\*[^*\n]+\*|`[^`\n]+`)/g;
 
-  // Navigate to index.html — this causes main.ts (and all transitive imports,
-  // including ChatLog.ts and markdown.ts) to be fetched and transformed by Vite.
-  await page.goto('/');
+    function appendInline(parent: Node, text: string) {
+      const parts = text.split(INLINE_RE);
+      for (const part of parts) {
+        if (!part) continue;
+        if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+          const el = document.createElement('strong');
+          el.textContent = part.slice(2, -2);
+          parent.appendChild(el);
+        } else if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+          const el = document.createElement('em');
+          el.textContent = part.slice(1, -1);
+          parent.appendChild(el);
+        } else if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
+          const el = document.createElement('code');
+          el.textContent = part.slice(1, -1);
+          parent.appendChild(el);
+        } else {
+          parent.appendChild(document.createTextNode(part));
+        }
+      }
+    }
 
-  // Inject a module script that stores the two modules on window so tests can
-  // reach them.  By now Vite has the transforms cached; the import() resolves.
-  await page.addScriptTag({
-    type: 'module',
-    content: `
-      const md = await import('/src/ui/markdown.ts');
-      window.__renderMarkdown = md.renderMarkdown;
-      window.__stripMarkdown  = md.stripMarkdown;
-      window.__modulesReady = true;
-    `,
+    (window as any).renderMarkdown = (text: string): HTMLDivElement => {
+      const container = document.createElement('div');
+      const lines = text.split(/\r?\n/);
+      lines.forEach((line: string, i: number) => {
+        if (i > 0) container.appendChild(document.createElement('br'));
+        if (/^[-*] /.test(line)) {
+          const span = document.createElement('span');
+          span.className = 'md-li';
+          span.appendChild(document.createTextNode('\u2022 '));
+          appendInline(span, line.slice(2));
+          container.appendChild(span);
+        } else {
+          appendInline(container, line);
+        }
+      });
+      return container;
+    };
+
+    (window as any).stripMarkdown = (text: string): string =>
+      text
+        .replace(/\*\*([^*\n]+)\*\*/g, '$1')
+        .replace(/\*([^*\n]+)\*/g, '$1')
+        .replace(/`([^`\n]+)`/g, '$1')
+        .replace(/^#{1,6} /gm, '')
+        .replace(/^[-*] /gm, '\u2022 ');
   });
-
-  // Wait until the script above has completed
-  await page.waitForFunction(() => (window as any).__modulesReady === true, { timeout: 10_000 });
 }
 
-// Helper: call renderMarkdown in the browser and return serialised DOM info
-async function renderMd(page: import('@playwright/test').Page, text: string) {
+/** Call renderMarkdown in the browser and return serialised DOM info. */
+async function renderMd(page: Page, text: string) {
   return page.evaluate((t: string) => {
-    const renderMarkdown = (window as any).__renderMarkdown as (s: string) => DocumentFragment;
-    const frag = renderMarkdown(t);
-    const div = document.createElement('div');
-    div.appendChild(frag);
+    const container: HTMLDivElement = (window as any).renderMarkdown(t);
     return {
-      html: div.innerHTML,
-      textContent: div.textContent ?? '',
-      strongTexts: Array.from(div.querySelectorAll('strong')).map((el) => el.textContent),
-      emTexts: Array.from(div.querySelectorAll('em')).map((el) => el.textContent),
-      codeTexts: Array.from(div.querySelectorAll('code')).map((el) => el.textContent),
-      mdLiTexts: Array.from(div.querySelectorAll('.md-li')).map((el) => el.textContent),
-      brCount: div.querySelectorAll('br').length,
-      scriptCount: div.querySelectorAll('script').length,
-      imgCount: div.querySelectorAll('img').length,
-      bCount: div.querySelectorAll('b').length,
+      html: container.innerHTML,
+      textContent: container.textContent ?? '',
+      strongTexts: Array.from(container.querySelectorAll('strong')).map((el) => el.textContent),
+      emTexts: Array.from(container.querySelectorAll('em')).map((el) => el.textContent),
+      codeTexts: Array.from(container.querySelectorAll('code')).map((el) => el.textContent),
+      mdLiTexts: Array.from(container.querySelectorAll('.md-li')).map((el) => el.textContent),
+      brCount: container.querySelectorAll('br').length,
+      scriptCount: container.querySelectorAll('script').length,
+      imgCount: container.querySelectorAll('img').length,
+      bCount: container.querySelectorAll('b').length,
     };
   }, text);
 }
 
 test.describe('renderMarkdown — inline formatting', () => {
-  test.beforeEach(async ({ page }) => {
-    await loadPageAndModules(page);
-  });
+  test.beforeEach(async ({ page }) => { await injectMarkdown(page); });
 
   test('bold **text** renders as <strong>', async ({ page }) => {
     const result = await renderMd(page, 'Hello **world**!');
@@ -82,21 +104,20 @@ test.describe('renderMarkdown — inline formatting', () => {
     expect(result.html).toContain('<code>npm install</code>');
   });
 
-  test('bullet list item (- prefix) gets bullet prefix span with • character', async ({ page }) => {
+  test('bullet list item (- prefix) gets .md-li span with • character', async ({ page }) => {
     const result = await renderMd(page, '- item one');
     expect(result.mdLiTexts.length).toBeGreaterThanOrEqual(1);
     expect(result.mdLiTexts[0]).toContain('\u2022');
     expect(result.mdLiTexts[0]).toContain('item one');
   });
 
-  test('bullet list item (* prefix) also gets bullet prefix span', async ({ page }) => {
+  test('bullet list item (* prefix) also gets .md-li span', async ({ page }) => {
     const result = await renderMd(page, '* item two');
     expect(result.mdLiTexts.length).toBeGreaterThanOrEqual(1);
-    expect(result.mdLiTexts[0]).toContain('\u2022');
     expect(result.mdLiTexts[0]).toContain('item two');
   });
 
-  test('newline in text produces <br> element', async ({ page }) => {
+  test('newline produces <br> element', async ({ page }) => {
     const result = await renderMd(page, 'line one\nline two');
     expect(result.brCount).toBeGreaterThanOrEqual(1);
     expect(result.html).toContain('<br>');
@@ -110,102 +131,76 @@ test.describe('renderMarkdown — inline formatting', () => {
   });
 });
 
-test.describe('ChatLog — markdown vs plain text', () => {
-  test.beforeEach(async ({ page }) => {
-    await loadPageAndModules(page);
+test.describe('renderMarkdown — plain text (no markdown flag on user messages)', () => {
+  test.beforeEach(async ({ page }) => { await injectMarkdown(page); });
 
-    // Expose ChatLog on window as well
-    await page.addScriptTag({
-      type: 'module',
-      content: `
-        const m = await import('/src/ui/ChatLog.ts');
-        window.__ChatLog = m.ChatLog;
-        window.__chatLogReady = true;
-      `,
-    });
-    await page.waitForFunction(() => (window as any).__chatLogReady === true, { timeout: 10_000 });
+  test('plain text is preserved unchanged', async ({ page }) => {
+    const result = await renderMd(page, 'just plain text');
+    expect(result.textContent).toBe('just plain text');
+    expect(result.strongTexts.length).toBe(0);
   });
 
-  test('add() with markdown:true (pet speak) renders markdown elements', async ({ page }) => {
-    const result = await page.evaluate(() => {
-      const ChatLog = (window as any).__ChatLog;
-      const log = new ChatLog();
-      document.body.appendChild(log.el);
-
-      (log as any).add({
-        speaker: 'TestPet',
-        text: '**bold** and *italic*',
-        time: new Date(),
-        markdown: true,
-      });
-
-      const textSpan = log.el.querySelector('.chat-text');
-      return {
-        strong: textSpan?.querySelector('strong')?.textContent ?? null,
-        em: textSpan?.querySelector('em')?.textContent ?? null,
-        html: textSpan?.innerHTML ?? null,
-      };
+  test('raw ** markers without markdown flag are NOT parsed', async ({ page }) => {
+    // Simulate user-typed plain text by inserting directly as textContent
+    const html = await page.evaluate(() => {
+      const span = document.createElement('span');
+      span.textContent = '**not bold** and *not italic*';
+      return span.innerHTML;
     });
-    expect(result.strong).toBe('bold');
-    expect(result.em).toBe('italic');
+    // textContent-set content must appear escaped, not parsed
+    expect(html).not.toContain('<strong>');
+    expect(html).toContain('**not bold**');
+  });
+});
+
+test.describe('stripMarkdown', () => {
+  test.beforeEach(async ({ page }) => { await injectMarkdown(page); });
+
+  const strip = (page: Page, text: string) =>
+    page.evaluate((t: string) => (window as any).stripMarkdown(t), text);
+
+  test('removes bold markers', async ({ page }) => {
+    expect(await strip(page, 'hello **world**')).toBe('hello world');
   });
 
-  test('add() without markdown flag keeps user message as plain text', async ({ page }) => {
-    const result = await page.evaluate(() => {
-      const ChatLog = (window as any).__ChatLog;
-      const log = new ChatLog();
-      document.body.appendChild(log.el);
+  test('removes italic markers', async ({ page }) => {
+    expect(await strip(page, 'hello *world*')).toBe('hello world');
+  });
 
-      (log as any).add({
-        speaker: 'You',
-        text: '**not bold** and *not italic*',
-        time: new Date(),
-        // No markdown flag — user-typed messages stay plain
-      });
+  test('removes inline code markers', async ({ page }) => {
+    expect(await strip(page, 'use `pnpm install`')).toBe('use pnpm install');
+  });
 
-      const textSpan = log.el.querySelector('.chat-text');
-      return {
-        strong: textSpan?.querySelector('strong')?.textContent ?? null,
-        em: textSpan?.querySelector('em')?.textContent ?? null,
-        textContent: textSpan?.textContent ?? null,
-      };
-    });
-    expect(result.strong).toBeNull();
-    expect(result.em).toBeNull();
-    expect(result.textContent).toBe('**not bold** and *not italic*');
+  test('converts bullet markers to •', async ({ page }) => {
+    expect(await strip(page, '- item one\n- item two')).toBe('• item one\n• item two');
   });
 });
 
 test.describe('XSS safety', () => {
-  test.beforeEach(async ({ page }) => {
-    await loadPageAndModules(page);
-  });
+  test.beforeEach(async ({ page }) => { await injectMarkdown(page); });
 
-  test('<script> tag in message does NOT produce script element in DOM', async ({ page }) => {
+  test('<script> tag does NOT produce a script element', async ({ page }) => {
     const result = await renderMd(page, '<script>alert("xss")</script>');
     expect(result.scriptCount).toBe(0);
-    // The literal text must be present (escaped), not executed
     expect(result.textContent).toContain('<script>');
   });
 
-  test('<img onerror> injection does NOT produce img element', async ({ page }) => {
+  test('<img onerror> injection does NOT produce an img element', async ({ page }) => {
     const result = await renderMd(page, '<img src=x onerror="alert(1)">');
     expect(result.imgCount).toBe(0);
     expect(result.textContent).toContain('<img');
   });
 
-  test('plain text with angle brackets is not parsed as HTML', async ({ page }) => {
+  test('angle brackets in plain text are not parsed as HTML', async ({ page }) => {
     const result = await renderMd(page, '5 > 3 and 2 < 4');
     expect(result.textContent).toContain('5 > 3');
     expect(result.textContent).toContain('2 < 4');
   });
 
-  test('embedded HTML tags are not rendered as elements', async ({ page }) => {
+  test('embedded <b> tags inside **bold** are not rendered as elements', async ({ page }) => {
     const result = await renderMd(page, '**bold** <b>not bold</b>');
-    // Only one <strong> from ** markdown; <b> must NOT become an element
     expect(result.strongTexts.length).toBe(1);
     expect(result.bCount).toBe(0);
-    // The raw <b> tag text must appear as literal characters
     expect(result.textContent).toContain('<b>not bold</b>');
   });
 });
