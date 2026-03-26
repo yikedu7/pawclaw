@@ -36,7 +36,51 @@ export class Nameplate {
       });
     });
 
-    this.el.append(this.statusDot, this.nameEl, this.walletEl);
+    const logoutBtn = document.createElement('button');
+    logoutBtn.className = 'logout-btn';
+    logoutBtn.textContent = 'Logout';
+    logoutBtn.addEventListener('click', () => this.showLogoutDialog());
+
+    this.el.append(this.statusDot, this.nameEl, this.walletEl, logoutBtn);
+  }
+
+  private showLogoutDialog(): void {
+    const backdrop = document.createElement('div');
+    backdrop.id = 'logout-overlay';
+
+    const dialog = document.createElement('div');
+    dialog.id = 'logout-dialog';
+    dialog.classList.add('ui-panel');
+
+    const msg = document.createElement('p');
+    msg.className = 'logout-message';
+    msg.textContent = 'Are you sure you want to logout?';
+
+    const btnRow = document.createElement('div');
+    btnRow.className = 'logout-btn-row';
+
+    const confirmBtn = document.createElement('button');
+    confirmBtn.className = 'logout-confirm-btn';
+    confirmBtn.textContent = 'Confirm';
+    confirmBtn.addEventListener('click', () => {
+      localStorage.removeItem('token');
+      localStorage.removeItem('pet_id');
+      window.location.href = '/create.html';
+    });
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'logout-cancel-btn';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', () => backdrop.remove());
+
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) backdrop.remove();
+    });
+
+    btnRow.append(confirmBtn, cancelBtn);
+    dialog.append(msg, btnRow);
+    backdrop.append(dialog);
+    document.body.append(backdrop);
   }
 
   setName(name: string): void {
