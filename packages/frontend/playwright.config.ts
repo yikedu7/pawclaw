@@ -7,15 +7,19 @@ const LOCAL_ANON_KEY =
   '.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9' +
   '.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
 
+// Use port 5174 so this worktree's dev server does not collide with other
+// worktrees that may already be running on 5173.
+const DEV_PORT = 5174;
+
 export default defineConfig({
   testDir: './tests',
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: `http://localhost:${DEV_PORT}`,
     ...devices['Desktop Chrome'],
   },
   webServer: {
-    command: 'pnpm dev',
-    url: 'http://localhost:5173',
+    command: `pnpm dev --port ${DEV_PORT}`,
+    url: `http://localhost:${DEV_PORT}`,
     reuseExistingServer: false,
     env: {
       VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL ?? LOCAL_SUPABASE_URL,
