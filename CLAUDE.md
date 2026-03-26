@@ -52,6 +52,10 @@ packages/
 - **Affection score** — Increments per positive social event; threshold = human friendship unlocked
 - **tick loop** — Per-pet scheduled loop: evaluate state → LLM decides action → execute → emit WS event
 
+## Spawning agents
+
+Only use the `/spawn` skill (Zellij pane) when the user **explicitly says "spawn"**. Do not spawn a pane for sub-tasks, research, or exploration — use the Agent tool instead.
+
 ## Development Workflow
 
 Every task must have a GitHub issue. No issue → no work.
