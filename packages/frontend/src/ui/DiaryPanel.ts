@@ -1,4 +1,5 @@
 import { Icons } from './icons';
+import { getAuth } from '../auth';
 
 const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string | undefined) ?? 'http://localhost:3001';
 
@@ -48,9 +49,9 @@ export class DiaryPanel {
     this.el.hidden = false;
     this.body.textContent = 'Loading...';
 
-    const params = new URLSearchParams(location.search);
-    const petId = params.get('pet_id');
-    const token = params.get('token');
+    const auth = getAuth();
+    const petId = auth?.pet_id ?? null;
+    const token = auth?.token ?? null;
 
     if (!petId) {
       this.showEmpty();
