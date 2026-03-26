@@ -82,35 +82,33 @@ function getDocker(): Docker {
  * but system binaries can. On Linux/Railway, HETZNER_SSH_KEY (inline PEM) is
  * used directly via the ssh2 library.
  */
-async function sshRun(command: string): Promise<void> {
+/** Resolves SSH connection params from env; throws if misconfigured. */
+function sshConfig(): { host: string; username: string; keyFile?: string; privateKey?: string } {
   const host = process.env.HETZNER_HOST;
   const username = process.env.HETZNER_USER;
+  if (!host || !username) throw new Error('HETZNER_HOST and HETZNER_USER must be set');
   const keyFile = process.env.HETZNER_SSH_KEY_FILE;
   const privateKey = process.env.HETZNER_SSH_KEY;
+  if (!keyFile && !privateKey) throw new Error('Either HETZNER_SSH_KEY or HETZNER_SSH_KEY_FILE must be set');
+  return { host, username, keyFile, privateKey };
+}
 
-  if (!host || !username) {
-    throw new Error('HETZNER_HOST, HETZNER_USER must be set');
-  }
+/** Runs a single shell command on the remote Hetzner host via SSH. */
+async function sshRun(command: string): Promise<void> {
+  const { host, username, keyFile, privateKey } = sshConfig();
 
+  // ── Path A: system SSH binary (macOS local dev) ──
   if (keyFile) {
-    const exec = (cmd: string, args: string[]) =>
-      new Promise<void>((resolve, reject) => {
-        execFile(cmd, args, (err) => (err ? reject(err) : resolve()));
-      });
-    await exec('ssh', [
-      '-i', keyFile,
-      '-o', 'StrictHostKeyChecking=no',
-      '-o', 'BatchMode=yes',
-      `${username}@${host}`,
-      command,
-    ]);
+    await new Promise<void>((resolve, reject) => {
+      execFile('ssh', [
+        '-i', keyFile, '-o', 'StrictHostKeyChecking=no', '-o', 'BatchMode=yes',
+        `${username}@${host}`, command,
+      ], (err) => (err ? reject(err) : resolve()));
+    });
     return;
   }
 
-  if (!privateKey) {
-    throw new Error('Either HETZNER_SSH_KEY or HETZNER_SSH_KEY_FILE must be set');
-  }
-
+  // ── Path B: ssh2 library (Linux/Railway) ──
   await new Promise<void>((resolve, reject) => {
     const ssh = new SshClient();
     ssh.on('ready', () => {
@@ -125,14 +123,7 @@ async function sshRun(command: string): Promise<void> {
 }
 
 async function sshWriteFiles(files: Array<{ path: string; content: string }>): Promise<void> {
-  const host = process.env.HETZNER_HOST;
-  const username = process.env.HETZNER_USER;
-  const keyFile = process.env.HETZNER_SSH_KEY_FILE;
-  const privateKey = process.env.HETZNER_SSH_KEY;
-
-  if (!host || !username) {
-    throw new Error('HETZNER_HOST, HETZNER_USER must be set');
-  }
+  const { host, username, keyFile, privateKey } = sshConfig();
 
   // ── Path A: system SSH binary (macOS local dev with HETZNER_SSH_KEY_FILE) ──
   if (keyFile) {
@@ -150,18 +141,13 @@ async function sshWriteFiles(files: Array<{ path: string; content: string }>): P
 
     for (const { path: filePath, content } of files) {
       const dir = filePath.substring(0, filePath.lastIndexOf('/'));
-      // mkdir -p on remote
       await exec('ssh', [...sshArgs, `mkdir -p "${dir}"`]);
-      // Write content via temp file + scp
       const tmp = join(tmpdir(), `openclaw-upload-${Date.now()}.tmp`);
       await writeFile(tmp, content, 'utf-8');
       try {
         await exec('scp', [
-          '-i', keyFile,
-          '-o', 'StrictHostKeyChecking=no',
-          '-o', 'BatchMode=yes',
-          tmp,
-          `${username}@${host}:${filePath}`,
+          '-i', keyFile, '-o', 'StrictHostKeyChecking=no', '-o', 'BatchMode=yes',
+          tmp, `${username}@${host}:${filePath}`,
         ]);
       } finally {
         await unlink(tmp).catch(() => {});
@@ -171,10 +157,6 @@ async function sshWriteFiles(files: Array<{ path: string; content: string }>): P
   }
 
   // ── Path B: ssh2 library (Linux/Railway with inline HETZNER_SSH_KEY) ────────
-  if (!privateKey) {
-    throw new Error('Either HETZNER_SSH_KEY or HETZNER_SSH_KEY_FILE must be set');
-  }
-
   await new Promise<void>((resolve, reject) => {
     const ssh = new SshClient();
 
@@ -184,7 +166,6 @@ async function sshWriteFiles(files: Array<{ path: string; content: string }>): P
 
         const writeAll = async () => {
           for (const { path: filePath, content } of files) {
-            // mkdir -p equivalent: ensure parent dirs exist
             const dir = filePath.substring(0, filePath.lastIndexOf('/'));
             await new Promise<void>((res, rej) => {
               ssh.exec(`mkdir -p "${dir}"`, (execErr, stream) => {
@@ -209,7 +190,6 @@ async function sshWriteFiles(files: Array<{ path: string; content: string }>): P
     });
 
     ssh.on('error', reject);
-
     ssh.connect({ host, port: 22, username, privateKey });
   });
 }
@@ -702,8 +682,8 @@ export async function fetchWalletAddress(containerId: string): Promise<string | 
 
   // Step 2 — create a new sub-account; wallet add is synchronous and returns unique address
   const { exitCode, stdout, stderr } = await dockerExec(container, [bin, 'wallet', 'add', '--chain', '196']);
-  console.log(`[fetchWallet] containerId=${containerId} exitCode=${exitCode} stdoutLen=${stdout.length} stderrLen=${stderr.length}`);
-  if (stderr) console.log(`[fetchWallet] stderr=${stderr.slice(0, 200)}`);
+  process.stdout.write(`[fetchWallet] containerId=${containerId} exitCode=${exitCode} stdoutLen=${stdout.length} stderrLen=${stderr.length}\n`);
+  if (stderr) process.stdout.write(`[fetchWallet] stderr=${stderr.slice(0, 200)}\n`);
   if (exitCode !== 0) return null;
 
   // The CLI outputs multiple JSON objects concatenated (status/progress lines + final result).
@@ -731,7 +711,7 @@ export async function fetchWalletAddress(containerId: string): Promise<string | 
         if (parsed.success && parsed.data.ok) {
           const entry = parsed.data.data?.addressList.find((a) => a.chainIndex === '196');
           if (entry?.address) {
-            console.log(`[fetchWallet] result=${entry.address}`);
+            process.stdout.write(`[fetchWallet] result=${entry.address}\n`);
             return entry.address;
           }
         }
@@ -739,7 +719,7 @@ export async function fetchWalletAddress(containerId: string): Promise<string | 
       }
     }
   }
-  console.log(`[fetchWallet] no chain-196 address found in stdout`);
+  process.stdout.write(`[fetchWallet] no chain-196 address found in stdout\n`);
   return null;
 }
 
