@@ -631,15 +631,19 @@ export async function fetchWalletAddress(containerId: string): Promise<string | 
   const container = docker.getContainer(containerId);
   const bin = '/home/node/.local/bin/onchainos';
 
-  // Step 1 — install onchainos from the latest GitHub release
-  await dockerExec(container, [
-    'sh', '-c',
-    // Use grep+sed to extract tag_name — avoids node quote-escaping issues inside sh -c.
-    'curl -sSL "https://api.github.com/repos/okx/onchainos-skills/releases/latest"' +
-    ' | grep \'"tag_name"\'' +
-    ' | sed \'s/.*"tag_name": *"\\([^"]*\\)".*/\\1/\'' +
-    ' | xargs -I TAG sh -c \'curl -sSL "https://raw.githubusercontent.com/okx/onchainos-skills/TAG/install.sh" | sh\'',
-  ]);
+  // Step 1 — install onchainos only if not already present (pre-installed in image)
+  // Unconditional reinstall would fetch the latest release which may require a newer
+  // glibc than the container OS provides, overwriting the working pre-installed binary.
+  const { exitCode: binCheck } = await dockerExec(container, ['test', '-x', bin]);
+  if (binCheck !== 0) {
+    await dockerExec(container, [
+      'sh', '-c',
+      'curl -sSL "https://api.github.com/repos/okx/onchainos-skills/releases/latest"' +
+      ' | grep \'"tag_name"\'' +
+      ' | sed \'s/.*"tag_name": *"\\([^"]*\\)".*/\\1/\'' +
+      ' | xargs -I TAG sh -c \'curl -sSL "https://raw.githubusercontent.com/okx/onchainos-skills/TAG/install.sh" | sh\'',
+    ]);
+  }
 
   // Step 2 — silent login using OKX_* env vars already present in the container
   await dockerExec(container, [bin, 'wallet', 'login']);
