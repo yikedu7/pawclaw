@@ -385,6 +385,51 @@ echo "topup: $RESULT"
 
 ---
 
+### Chain 14 — Unique wallet per pet
+
+*Skip if Docker (port 2375) not available. Requires `pet_id` + `token` from a pet whose container is already running.*
+
+Create a second pet and wait for its container to start:
+
+```bash
+RESULT2=$(curl -s -X POST "http://localhost:3001/api/pets" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"WalletUniquePet","soulPrompt":"A second test pet for wallet uniqueness."}')
+echo "create pet2: $RESULT2"
+PET_ID2=$(echo "$RESULT2" | node -e "process.stdin.resume();let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).pet?.id??''))")
+echo "PET_ID2=$PET_ID2"
+```
+
+Wait for the second pet's container to reach `running`:
+
+```bash
+STATUS2=""
+for i in $(seq 1 8); do
+  STATUS2=$(psql postgresql://postgres:postgres@localhost:54322/postgres -t -c \
+    "SELECT container_status FROM pets WHERE id = '$PET_ID2';" | tr -d ' \n')
+  echo "[$i] container_status2: $STATUS2"
+  [ "$STATUS2" = "running" ] && break
+  sleep 10
+done
+echo "FINAL STATUS2: $STATUS2"
+```
+
+Query both wallet addresses and assert uniqueness:
+
+```bash
+ADDR1=$(psql postgresql://postgres:postgres@localhost:54322/postgres -t -c \
+  "SELECT wallet_address FROM pets WHERE id = '$PET_ID';" | tr -d ' \n')
+ADDR2=$(psql postgresql://postgres:postgres@localhost:54322/postgres -t -c \
+  "SELECT wallet_address FROM pets WHERE id = '$PET_ID2';" | tr -d ' \n')
+echo "ADDR1=$ADDR1"
+echo "ADDR2=$ADDR2"
+```
+
+**Pass:** Both `ADDR1` and `ADDR2` are non-empty, both match `^0x[0-9a-fA-F]{40}$`, and `ADDR1 != ADDR2`.
+
+---
+
 ## Step 3 — Report
 
 ```
@@ -411,6 +456,7 @@ use e2e agent with args "chains=5,9 pet_id=xxx token=yyy session=e2e-social"
 use e2e agent with args "chains=6 pet_id=xxx token=yyy session=e2e-color"
 use e2e agent with args "chains=7,13 pet_id=xxx token=yyy session=e2e-api"
 use e2e agent with args "chains=8,11,12 pet_id=xxx token=yyy session=e2e-ui"
+use e2e agent with args "chains=14 pet_id=xxx token=yyy session=e2e-wallet"
 ```
 
 Feature-scoped regression:
@@ -424,3 +470,4 @@ Feature-scoped regression:
 | Container/tick  | `chains=3,4` |
 | Color picker    | `chains=6` |
 | Topup           | `chains=13` |
+| Wallet/onchain  | `chains=14` |
