@@ -417,10 +417,11 @@ Emitted after each tick loop completes; carries updated pet stats.
 {
   type: "pet.state";
   data: {
-    pet_id: string;    // uuid — identifies which pet updated
-    hunger: number;    // 0–100
-    mood: number;      // 0–100
+    pet_id: string;              // uuid — identifies which pet updated
+    hunger: number;              // 0–100
+    mood: number;                // 0–100
     affection: number;
+    wallet_address?: string | null; // optional: set once Onchain OS provisions the wallet
   };
 }
 ```
