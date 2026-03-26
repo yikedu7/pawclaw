@@ -4,13 +4,10 @@ import pg from 'pg';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { registerPetRoutes } from '../petRoutes.js';
 
-// Mock the credits module — real on-chain calls are not part of integration tests.
-// wallet_address is null at pet creation time (Onchain OS sets it asynchronously),
-// so grantRegistrationCredits is never triggered via POST /api/pets in tests.
-// The credits code path (wallet_address non-null) is covered in petRoutes.credits.test.ts.
-const mockGrantCredits = vi.hoisted(() => vi.fn<(wallet: string) => Promise<void>>());
+// Mock the credits module — DB credit grant is not under test here.
+const mockGrantCredits = vi.hoisted(() => vi.fn<(petId: string) => Promise<void>>());
 vi.mock('../../onchain/credits.js', () => ({
-  grantRegistrationCredits: mockGrantCredits,
+  grantDbCredits: mockGrantCredits,
 }));
 
 const { Pool } = pg;
@@ -138,9 +135,7 @@ describe('pet CRUD integration', () => {
     expect(rows[0].initial_credits).toBe(200);
   });
 
-  it('POST /api/pets does not call grantRegistrationCredits when wallet_address is null', async () => {
-    // wallet_address is null at insert time (Onchain OS assigns it asynchronously after
-    // container start), so grantRegistrationCredits must not be called at creation.
+  it('POST /api/pets calls grantDbCredits with the pet id', async () => {
     mockGrantCredits.mockClear();
     const res = await app.inject({
       method: 'POST', url: '/api/pets',
@@ -149,7 +144,7 @@ describe('pet CRUD integration', () => {
     });
     expect(res.statusCode).toBe(201);
     await new Promise((r) => setTimeout(r, 0));
-    expect(mockGrantCredits).not.toHaveBeenCalled();
+    expect(mockGrantCredits).toHaveBeenCalledWith(res.json().id);
   });
 
   it('GET /api/pets/:id returns 200 with owner_id for owner', async () => {

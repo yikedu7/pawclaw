@@ -15,7 +15,7 @@ import { registerPetRoutes } from '../petRoutes.js';
 
 // Mock credits — not under test here
 vi.mock('../../onchain/credits.js', () => ({
-  grantRegistrationCredits: vi.fn<(wallet: string) => Promise<void>>().mockResolvedValue(undefined),
+  grantDbCredits: vi.fn<(petId: string) => Promise<void>>().mockResolvedValue(undefined),
 }));
 
 const { Pool } = pg;

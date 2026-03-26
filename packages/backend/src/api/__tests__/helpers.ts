@@ -2,6 +2,10 @@ import { vi } from 'vitest';
 import jwt from 'jsonwebtoken';
 import Fastify, { type FastifyInstance } from 'fastify';
 
+vi.mock('../../onchain/credits.js', () => ({
+  grantDbCredits: vi.fn().mockResolvedValue(undefined),
+}));
+
 export const SECRET = 'test-secret';
 export const OWNER_ID = '00000000-0000-4000-a000-000000000001';
 export const OTHER_OWNER = '00000000-0000-4000-a000-000000000002';

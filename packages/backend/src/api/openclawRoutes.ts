@@ -24,6 +24,8 @@ function checkBearerToken(authHeader: string | undefined): boolean {
 
 const PetIdSchema = z.string().uuid();
 
+const HEARTBEAT_COST = 0.000001;
+
 const RuntimeEventSchema = z.discriminatedUnion('event_type', [
   z.object({ event_type: z.literal('speak'), message: z.string() }),
   z.object({ event_type: z.literal('visit'), target_pet_id: z.string().uuid(), greeting: z.string() }),
@@ -366,5 +368,33 @@ export async function registerOpenclawRoutes(
     await db.update(pets).set({ paw_balance: newBalance.toString() }).where(eq(pets.id, petId));
 
     return reply.send({ ok: true, tx_hash: txHash });
+  });
+
+  // ── POST /internal/heartbeat/:petId/deduct ────────────────────────────────
+  // Fallback deduct endpoint — called when x402 USDC payment fails.
+  // Deducts HEARTBEAT_COST from DB paw_balance directly.
+  // Auth: per-pet gateway_token (same as /internal/heartbeat/:petId).
+  fastify.post('/internal/heartbeat/:petId/deduct', async (request, reply) => {
+    const petIdParsed = PetIdSchema.safeParse((request.params as { petId: string }).petId);
+    if (!petIdParsed.success) {
+      return reply.code(400).send({ error: 'Invalid petId', code: 'VALIDATION_ERROR' });
+    }
+    const petId = petIdParsed.data;
+
+    const pet = await db.query.pets.findFirst({ where: eq(pets.id, petId) });
+    if (!pet) return reply.code(404).send({ error: 'Pet not found', code: 'NOT_FOUND' });
+
+    if (!pet.gateway_token || request.headers.authorization !== `Bearer ${pet.gateway_token}`) {
+      return reply.code(401).send({ error: 'Unauthorized', code: 'UNAUTHORIZED' });
+    }
+
+    const newBalance = parseFloat(pet.paw_balance ?? '0') - HEARTBEAT_COST;
+    await db.update(pets).set({ paw_balance: newBalance.toString() }).where(eq(pets.id, petId));
+
+    if (newBalance <= 0) {
+      deps.emitOwnerEvent(pet.owner_id, { type: 'pet.died', data: { pet_id: petId } });
+    }
+
+    return reply.send({ ok: true, paw_balance: newBalance.toString() });
   });
 }

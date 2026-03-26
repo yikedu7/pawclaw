@@ -1,10 +1,8 @@
 /**
- * Unit tests for the grantRegistrationCredits code path in POST /api/pets.
+ * Unit tests for the grantDbCredits code path in POST /api/pets.
  *
- * Integration tests (petRoutes.integration.test.ts) cannot exercise this path
- * because wallet_address is null at pet creation time — Onchain OS assigns it
- * asynchronously after the container starts. These unit tests use a mock DB that
- * returns wallet_address on the UPDATE so the if-guard in petRoutes.ts fires.
+ * grantDbCredits(petId) is always called at pet creation — no wallet_address
+ * guard since it writes directly to the DB.
  */
 import { vi, describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
@@ -12,16 +10,15 @@ import jwt from 'jsonwebtoken';
 
 // ── Module mocks (hoisted) ───────────────────────────────────────────────────
 
-const mockGrantCredits = vi.fn<(wallet: string) => Promise<void>>();
+const mockGrantCredits = vi.fn<(petId: string) => Promise<void>>();
 
 vi.mock('../../onchain/credits.js', () => ({
-  grantRegistrationCredits: mockGrantCredits,
+  grantDbCredits: mockGrantCredits,
 }));
 
 const PET_ID = '00000000-0000-4000-b000-000000000099';
-const WALLET = '0xpet-wallet-address';
 
-// Mock DB — UPDATE returns wallet_address so the credits guard fires
+// Mock DB — returns a pet with no wallet_address (normal at creation time)
 vi.mock('../../db/client.js', () => ({
   db: {
     insert: () => ({
@@ -51,7 +48,7 @@ vi.mock('../../db/client.js', () => ({
             name: 'TestPet',
             soul_md: '# SOUL',
             skill_md: (vals.skill_md as string) ?? '',
-            wallet_address: WALLET, // non-null: simulates wallet assigned before UPDATE
+            wallet_address: null,
             initial_credits: 200,
             hunger: 100, mood: 100, affection: 0,
             llm_history: [], last_tick_at: null, created_at: new Date(),
@@ -92,7 +89,7 @@ async function buildApp(): Promise<FastifyInstance> {
 
 // ── Tests ────────────────────────────────────────────────────────────────────
 
-describe('POST /api/pets — grantRegistrationCredits (unit)', () => {
+describe('POST /api/pets — grantDbCredits (unit)', () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {
@@ -104,7 +101,7 @@ describe('POST /api/pets — grantRegistrationCredits (unit)', () => {
     mockGrantCredits.mockResolvedValue(undefined);
   });
 
-  it('calls grantRegistrationCredits with the pet wallet address', async () => {
+  it('calls grantDbCredits with the pet id', async () => {
     const res = await app.inject({
       method: 'POST', url: '/api/pets',
       headers: { authorization: `Bearer ${makeToken(OWNER_ID)}` },
@@ -112,11 +109,11 @@ describe('POST /api/pets — grantRegistrationCredits (unit)', () => {
     });
     expect(res.statusCode).toBe(201);
     await new Promise((r) => setTimeout(r, 0));
-    expect(mockGrantCredits).toHaveBeenCalledWith(WALLET);
+    expect(mockGrantCredits).toHaveBeenCalledWith(PET_ID);
   });
 
-  it('still returns 201 when grantRegistrationCredits rejects', async () => {
-    mockGrantCredits.mockRejectedValueOnce(new Error('chain unavailable'));
+  it('still returns 201 when grantDbCredits rejects', async () => {
+    mockGrantCredits.mockRejectedValueOnce(new Error('db unavailable'));
     const res = await app.inject({
       method: 'POST', url: '/api/pets',
       headers: { authorization: `Bearer ${makeToken(OWNER_ID)}` },

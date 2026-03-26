@@ -12,9 +12,9 @@ vi.mock('../../onchain/balance.js', () => ({
   getPawBalance: mockGetPawBalance,
 }));
 
-// Mock grantRegistrationCredits — not relevant for topup tests
+// Mock grantDbCredits — not relevant for topup tests
 vi.mock('../../onchain/credits.js', () => ({
-  grantRegistrationCredits: vi.fn().mockResolvedValue(undefined),
+  grantDbCredits: vi.fn().mockResolvedValue(undefined),
 }));
 
 const { Pool } = pg;

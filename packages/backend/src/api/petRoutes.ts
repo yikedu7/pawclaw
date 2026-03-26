@@ -5,7 +5,7 @@ import type { WsEvent } from '@pawclaw/shared';
 import { db } from '../db/client.js';
 import { pets } from '../db/schema.js';
 import { authHook } from './authHook.js';
-import { grantRegistrationCredits } from '../onchain/credits.js';
+import { grantDbCredits } from '../onchain/credits.js';
 import { getPawBalance } from '../onchain/balance.js';
 
 export type PetRouteDeps = {
@@ -95,11 +95,9 @@ export async function registerPetRoutes(
     deps.launchContainer?.(row.id, soul_md, skill_md);
 
     // Grant registration credits (non-blocking — log errors but don't fail the response)
-    if (updated.wallet_address) {
-      grantRegistrationCredits(updated.wallet_address).catch((err: unknown) => {
-        fastify.log.error({ err, petId: updated.id }, '[credits] Failed to grant registration credits');
-      });
-    }
+    grantDbCredits(updated.id).catch((err: unknown) => {
+      fastify.log.error({ err, petId: updated.id }, '[credits] Failed to grant DB credits');
+    });
 
     return reply.code(201).send(toPetSummary(updated));
   });
