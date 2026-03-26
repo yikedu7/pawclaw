@@ -617,14 +617,15 @@ async function dockerExec(
 }
 
 /**
- * Fetches the EVM wallet address assigned by the Onchain OS inside a container.
+ * Fetches a fresh unique EVM wallet address for this pet via the Onchain OS.
  *
- * Three steps:
+ * Two steps:
  *   1. Install the `onchainos` CLI via curl (binary lands at /home/node/.local/bin/onchainos).
- *   2. Silent login — OKX_API_KEY/OKX_SECRET_KEY/OKX_PASSPHRASE are already set as env vars.
- *   3. Fetch the X Layer (chain 196) address — retried every 3s for up to 30s.
+ *   2. Run `onchainos wallet add --chain 196` — creates a new sub-account under the shared
+ *      OKX API credentials and returns a unique address. wallet add is synchronous so no
+ *      retry loop is needed.
  *
- * Returns null if no address is found within the timeout.
+ * Returns null if the command fails or returns no chain-196 address.
  */
 export async function fetchWalletAddress(containerId: string): Promise<string | null> {
   const docker = getDocker();
@@ -645,33 +646,21 @@ export async function fetchWalletAddress(containerId: string): Promise<string | 
     ]);
   }
 
-  // Step 2 — silent login using OKX_* env vars already present in the container
-  await dockerExec(container, [bin, 'wallet', 'login']);
+  // Step 2 — create a new sub-account; wallet add is synchronous and returns unique address
+  const { exitCode, stdout } = await dockerExec(container, [bin, 'wallet', 'add', '--chain', '196']);
+  if (exitCode !== 0) return null;
 
-  // Step 3 — fetch address, retry for up to 30s (wallet may initialise asynchronously)
-  const deadline = Date.now() + 30_000;
-
-  while (Date.now() < deadline) {
-    try {
-      const { exitCode, stdout } = await dockerExec(container, [
-        bin, 'wallet', 'addresses', '--chain', '196',
-      ]);
-      if (exitCode === 0) {
-        const match = stdout.match(/0x[0-9a-fA-F]{40}/);
-        if (match) return match[0];
-      }
-    } catch {
-      // not ready yet — keep retrying
-    }
-
-    if (Date.now() + 3000 < deadline) {
-      await new Promise((r) => setTimeout(r, 3000));
-    } else {
-      break;
-    }
+  // Parse: { ok: true, data: { accountId: "...", addressList: [{ address: "0x...", chainIndex: "196" }] } }
+  try {
+    const json = JSON.parse(stdout) as {
+      ok: boolean;
+      data?: { addressList?: Array<{ address: string; chainIndex: string }> };
+    };
+    const entry = json.data?.addressList?.find((a) => a.chainIndex === '196');
+    return entry?.address ?? null;
+  } catch {
+    return null;
   }
-
-  return null;
 }
 
 /**
