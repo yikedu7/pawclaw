@@ -63,15 +63,15 @@ Always work in an isolated git worktree — never modify files directly in the m
 ```bash
 # From the main repo directory
 git fetch origin
-git worktree add ../x-pet-issue-<N> -b issue-<N>-short-name origin/main
-cd ../x-pet-issue-<N>
+git worktree add ../pawclaw-issue-<N> -b issue-<N>-short-name origin/main
+cd ../pawclaw-issue-<N>
 # do all work here
 ```
 
 After PR merges, clean up:
 ```bash
-cd /Users/yikedu/Code/x-pet
-git worktree remove ../x-pet-issue-<N>
+cd /Users/yikedu/Code/pawclaw
+git worktree remove ../pawclaw-issue-<N>
 ```
 
 ### Frontend canvas verification (PixiJS/WebGL)
