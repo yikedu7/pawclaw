@@ -70,9 +70,9 @@ export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRout
           request.owner_id,
           (token: string) => { raw.write(`data: ${token}\n\n`); },
         );
+        await deductChatCost(id, deps, request.log);
         raw.write('data: [DONE]\n\n');
         raw.end();
-        await deductChatCost(id, request.log);
       } catch (err: unknown) {
         request.log.error({ err, petId: id }, 'Container chat stream failed');
         raw.write('data: [ERROR]\n\n');
@@ -95,7 +95,7 @@ export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRout
           type: 'pet.speak',
           data: { pet_id: id, message: replyText },
         });
-        await deductChatCost(id, request.log);
+        await deductChatCost(id, deps, request.log);
         return reply.send({ reply: replyText });
       } catch (err: unknown) {
         request.log.error({ err, petId: id }, 'Container chat failed');
@@ -170,23 +170,35 @@ export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRout
       data: { pet_id: id, message: reply_text },
     });
 
-    await deductChatCost(id, request.log);
+    await deductChatCost(id, deps, request.log);
     return reply.send({ reply: reply_text });
   });
 }
 
 async function deductChatCost(
   petId: string,
+  deps: ChatRouteDeps,
   log: { error(obj: object, msg: string): void },
 ): Promise<void> {
   try {
-    await db.execute(sql`
+    const result = await db.execute(sql`
       UPDATE pets
       SET
         system_credits = system_credits - ${CHAT_COST},
         hunger = LEAST(100, GREATEST(0, ROUND((1 - (system_credits - ${CHAT_COST}) / initial_credits) * 100)))
       WHERE id = ${petId}
+      RETURNING system_credits, owner_id, mood, affection, hunger, container_id, container_status
     `);
+    const row = result.rows[0] as { system_credits: string; owner_id: string; mood: number; affection: number; hunger: number; container_id: string | null; container_status: string } | undefined;
+    if (!row) return;
+    if (parseFloat(row.system_credits) <= 0) {
+      if (row.container_id && row.container_status === 'running' && deps.stopPetContainer) {
+        await deps.stopPetContainer(row.container_id).catch(() => {});
+      }
+      deps.emitOwnerEvent(row.owner_id, { type: 'pet.died', data: { pet_id: petId } });
+    } else {
+      deps.emitOwnerEvent(row.owner_id, { type: 'pet.state', data: { pet_id: petId, hunger: row.hunger, mood: row.mood, affection: row.affection } });
+    }
   } catch (err) {
     log.error({ err, petId }, '[chat] Failed to deduct CHAT_COST');
   }

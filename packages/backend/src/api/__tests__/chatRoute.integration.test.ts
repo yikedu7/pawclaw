@@ -240,9 +240,6 @@ describe('POST /api/pets/:id/chat — SSE streaming', () => {
       });
       expect(res.statusCode).toBe(200);
 
-      // deductChatCost runs after raw.end() — give it a moment to settle
-      await new Promise((r) => setTimeout(r, 100));
-
       const { rows } = await streamPool.query<{ system_credits: string }>(
         'SELECT system_credits FROM pets WHERE id = $1',
         [creditPetId],
