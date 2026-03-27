@@ -22,6 +22,7 @@ COPY packages/shared ./packages/shared
 COPY packages/frontend ./packages/frontend
 RUN pnpm --filter @pawclaw/shared build
 RUN rm -rf packages/frontend/node_modules/.vite
+RUN head -5 packages/frontend/src/ui/StatBars.ts
 RUN pnpm --filter @pawclaw/frontend build
 
 # Serve
