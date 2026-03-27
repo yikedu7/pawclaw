@@ -69,10 +69,12 @@ await registerOpenclawRoutes(fastify, {
   emitOwnerEvent: (ownerId, event) => tickBus.emit('ownerEvent', ownerId, event),
 });
 
-// Start PAW balance polling (every 1h) when on-chain config is present
-if (process.env.PAYMENT_TOKEN_ADDRESS) {
-  startBalancePoller(fastify.log);
-}
+// Balance poller disabled: getPawBalance uses PAW 18-decimal ABI but
+// PAYMENT_TOKEN_ADDRESS now points to USDC (6 decimals) — results are wrong.
+// Re-enable once economic model is redesigned for USDC.
+// if (process.env.PAYMENT_TOKEN_ADDRESS) {
+//   startBalancePoller(fastify.log);
+// }
 
 const port = Number(process.env.PORT ?? 3001);
 await fastify.listen({ port, host: '0.0.0.0' });
