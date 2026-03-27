@@ -7,3 +7,7 @@ dist/
 supabase/.temp/
 packages/frontend/test-results
 .local/
+.DS_Store
+.env.local
+.deploy-wallet
+supabase/.branches/
