@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import Anthropic from '@anthropic-ai/sdk';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { WsEvent } from '@pawclaw/shared';
 import { db } from '../db/client.js';
@@ -70,9 +70,9 @@ export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRout
           request.owner_id,
           (token: string) => { raw.write(`data: ${token}\n\n`); },
         );
+        await deductChatCost(id, deps, request.log);
         raw.write('data: [DONE]\n\n');
         raw.end();
-        // SSE client already received the full stream — no WS echo needed
       } catch (err: unknown) {
         request.log.error({ err, petId: id }, 'Container chat stream failed');
         raw.write('data: [ERROR]\n\n');
@@ -95,7 +95,7 @@ export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRout
           type: 'pet.speak',
           data: { pet_id: id, message: replyText },
         });
-        await deductChatCost(pet, deps, request.log);
+        await deductChatCost(id, deps, request.log);
         return reply.send({ reply: replyText });
       } catch (err: unknown) {
         request.log.error({ err, petId: id }, 'Container chat failed');
@@ -170,34 +170,36 @@ export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRout
       data: { pet_id: id, message: reply_text },
     });
 
-    await deductChatCost(pet, deps, request.log);
+    await deductChatCost(id, deps, request.log);
     return reply.send({ reply: reply_text });
   });
 }
 
 async function deductChatCost(
-  pet: { id: string; owner_id: string; system_credits: string | null; onchain_balance: string | null; initial_credits: string; mood: number; affection: number; hunger: number; container_id: string | null; container_status: string },
+  petId: string,
   deps: ChatRouteDeps,
   log: { error(obj: object, msg: string): void },
 ): Promise<void> {
   try {
-    const newSystemCredits = parseFloat(pet.system_credits ?? '0') - CHAT_COST;
-    const onchainBalance = parseFloat(pet.onchain_balance ?? '0');
-    const initialCredits = parseFloat(pet.initial_credits ?? '0.3');
-    const total = newSystemCredits + onchainBalance;
-    const hunger = Math.max(0, Math.min(100, Math.round((1 - total / initialCredits) * 100)));
-
-    await db.update(pets).set({ system_credits: newSystemCredits.toString(), hunger }).where(eq(pets.id, pet.id));
-
-    if (total <= 0) {
-      if (pet.container_id && pet.container_status === 'running' && deps.stopPetContainer) {
-        await deps.stopPetContainer(pet.container_id).catch(() => {});
+    const result = await db.execute(sql`
+      UPDATE pets
+      SET
+        system_credits = system_credits - ${CHAT_COST},
+        hunger = LEAST(100, GREATEST(0, ROUND((1 - (system_credits - ${CHAT_COST}) / initial_credits) * 100)))
+      WHERE id = ${petId}
+      RETURNING system_credits, owner_id, mood, affection, hunger, container_id, container_status
+    `);
+    const row = result.rows[0] as { system_credits: string; owner_id: string; mood: number; affection: number; hunger: number; container_id: string | null; container_status: string } | undefined;
+    if (!row) return;
+    if (parseFloat(row.system_credits) <= 0) {
+      if (row.container_id && row.container_status === 'running' && deps.stopPetContainer) {
+        await deps.stopPetContainer(row.container_id).catch(() => {});
       }
-      deps.emitOwnerEvent(pet.owner_id, { type: 'pet.died', data: { pet_id: pet.id } });
+      deps.emitOwnerEvent(row.owner_id, { type: 'pet.died', data: { pet_id: petId } });
     } else {
-      deps.emitOwnerEvent(pet.owner_id, { type: 'pet.state', data: { pet_id: pet.id, hunger, mood: pet.mood, affection: pet.affection } });
+      deps.emitOwnerEvent(row.owner_id, { type: 'pet.state', data: { pet_id: petId, hunger: row.hunger, mood: row.mood, affection: row.affection } });
     }
   } catch (err) {
-    log.error({ err, petId: pet.id }, '[chat] Failed to deduct CHAT_COST');
+    log.error({ err, petId }, '[chat] Failed to deduct CHAT_COST');
   }
 }
