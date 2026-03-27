@@ -761,11 +761,13 @@ async function dockerExec(
 /**
  * Fetches a fresh unique EVM wallet address for this pet via the Onchain OS.
  *
- * Two steps:
- *   1. Install the `onchainos` CLI via curl (binary lands at /home/node/.local/bin/onchainos).
- *   2. Run `onchainos wallet add --chain 196` — creates a new sub-account under the shared
- *      OKX API credentials and returns a unique address. wallet add is synchronous so no
- *      retry loop is needed.
+ * Steps:
+ *   1. Install the `onchainos` CLI if not present.
+ *   2. Login (wallet login requires OKX credentials; must complete before wallet add).
+ *   3. Run `onchainos wallet add --chain 196` — creates a new sub-account and returns address.
+ *
+ * Login is performed here (not relied on from startContainer's fire-and-forget loginWallet)
+ * to avoid the race where wallet add runs before login completes.
  *
  * Returns null if the command fails or returns no chain-196 address.
  */
@@ -788,11 +790,19 @@ export async function fetchWalletAddress(containerId: string): Promise<string | 
     ]);
   }
 
-  // Step 2 — create a new sub-account; wallet add is synchronous and returns unique address
+  // Step 2 — login (wallet add requires an active OKX session in the linux keyring).
+  // loginWallet in startContainer is fire-and-forget; calling login here ensures the
+  // session is established before wallet add, avoiding the race.
+  await dockerExec(container, [bin, 'wallet', 'login']);
+
+  // Step 3 — create a new sub-account; wallet add is synchronous and returns unique address
   const { exitCode, stdout, stderr } = await dockerExec(container, [bin, 'wallet', 'add', '--chain', '196']);
   process.stdout.write(`[fetchWallet] containerId=${containerId} exitCode=${exitCode} stdoutLen=${stdout.length} stderrLen=${stderr.length}\n`);
   if (stderr) process.stdout.write(`[fetchWallet] stderr=${stderr.slice(0, 200)}\n`);
-  if (exitCode !== 0) return null;
+  if (exitCode !== 0) {
+    process.stdout.write(`[fetchWallet] stdout=${stdout.slice(0, 200)}\n`);
+    return null;
+  }
 
   // The CLI outputs multiple JSON objects concatenated (status/progress lines + final result).
   // Extract all top-level JSON objects by tracking brace depth, then find the one that
