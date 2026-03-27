@@ -1,22 +1,19 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import jwt from 'jsonwebtoken';
 import pg from 'pg';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { registerChatRoute } from '../chatRoute.js';
+import { getTestToken, deleteTestUser } from './supabase-auth.js';
 
 const { Pool } = pg;
 
-const SECRET = 'smoke-test-secret';
 const OWNER_A = '00000000-cccc-4000-d000-000000000001';
 const OWNER_B = '00000000-cccc-4000-d000-000000000002';
-
-function makeToken(sub: string) {
-  return jwt.sign({ sub }, SECRET);
-}
 
 let pool: InstanceType<typeof Pool>;
 let app: FastifyInstance;
 let petId: string;
+let tokenA: string;
+let tokenB: string;
 
 beforeAll(async () => {
   const url = process.env.DATABASE_URL;
@@ -25,13 +22,9 @@ beforeAll(async () => {
   pool = new Pool({ connectionString: url });
   await pool.query('SELECT 1');
 
-  await pool.query(`
-    INSERT INTO auth.users (id, email, encrypted_password, aud, role, instance_id, created_at, updated_at, confirmation_token, recovery_token, email_change_token_new)
-    VALUES
-      ($1, 'chat-owner-a@test.local', '$2a$10$fake', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now(), now(), '', '', ''),
-      ($2, 'chat-owner-b@test.local', '$2a$10$fake', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now(), now(), '', '', '')
-    ON CONFLICT (id) DO NOTHING
-  `, [OWNER_A, OWNER_B]);
+  // Get real Supabase JWT tokens (ES256) via admin API
+  tokenA = await getTestToken(OWNER_A, 'chat-owner-a@test.local');
+  tokenB = await getTestToken(OWNER_B, 'chat-owner-b@test.local');
 
   await pool.query('DELETE FROM pets WHERE owner_id IN ($1, $2)', [OWNER_A, OWNER_B]);
 
@@ -42,7 +35,6 @@ beforeAll(async () => {
   `, [OWNER_A]);
   petId = rows[0].id;
 
-  process.env.JWT_SECRET = SECRET;
   app = Fastify();
   await registerChatRoute(app, {
     emitOwnerEvent: () => {},
@@ -55,6 +47,7 @@ afterAll(async () => {
   await pool.query('DELETE FROM pets WHERE owner_id IN ($1, $2)', [OWNER_A, OWNER_B]);
   await pool.end();
   await app.close();
+  await Promise.all([deleteTestUser(OWNER_A), deleteTestUser(OWNER_B)]);
 });
 
 describe('POST /api/pets/:id/chat', () => {
@@ -69,7 +62,7 @@ describe('POST /api/pets/:id/chat', () => {
   it('returns 400 when message is missing', async () => {
     const res = await app.inject({
       method: 'POST', url: `/api/pets/${petId}/chat`,
-      headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
+      headers: { authorization: `Bearer ${tokenA}` },
       payload: {},
     });
     expect(res.statusCode).toBe(400);
@@ -79,7 +72,7 @@ describe('POST /api/pets/:id/chat', () => {
   it('returns 400 when message exceeds 500 chars', async () => {
     const res = await app.inject({
       method: 'POST', url: `/api/pets/${petId}/chat`,
-      headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
+      headers: { authorization: `Bearer ${tokenA}` },
       payload: { message: 'x'.repeat(501) },
     });
     expect(res.statusCode).toBe(400);
@@ -89,7 +82,7 @@ describe('POST /api/pets/:id/chat', () => {
   it('returns 403 for wrong owner', async () => {
     const res = await app.inject({
       method: 'POST', url: `/api/pets/${petId}/chat`,
-      headers: { authorization: `Bearer ${makeToken(OWNER_B)}` },
+      headers: { authorization: `Bearer ${tokenB}` },
       payload: { message: 'hello' },
     });
     expect(res.statusCode).toBe(403);
@@ -99,7 +92,7 @@ describe('POST /api/pets/:id/chat', () => {
   it('returns 404 for non-existent pet', async () => {
     const res = await app.inject({
       method: 'POST', url: '/api/pets/00000000-0000-4000-b000-999999999999/chat',
-      headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
+      headers: { authorization: `Bearer ${tokenA}` },
       payload: { message: 'hello' },
     });
     expect(res.statusCode).toBe(404);
@@ -113,7 +106,7 @@ describe('POST /api/pets/:id/chat', () => {
     }
     const res = await app.inject({
       method: 'POST', url: `/api/pets/${petId}/chat`,
-      headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
+      headers: { authorization: `Bearer ${tokenA}` },
       payload: { message: 'Hello, how are you?' },
     });
     expect(res.statusCode).toBe(200);

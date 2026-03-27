@@ -1,20 +1,8 @@
 import { vi, describe, it, expect, beforeAll, afterAll } from 'vitest';
-import type { FastifyRequest, FastifyReply } from 'fastify';
 import pg from 'pg';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { registerPetRoutes } from '../petRoutes.js';
-
-// Mock authHook — topup tests cover DB side-effects and on-chain balance polling,
-// not authentication.
-vi.mock('../authHook.js', () => ({
-  authHook: () => async (request: FastifyRequest, reply: FastifyReply) => {
-    const header = request.headers.authorization ?? '';
-    if (!header.startsWith('Bearer fake:')) {
-      return reply.code(401).send({ error: 'Missing or invalid token', code: 'UNAUTHORIZED' });
-    }
-    request.owner_id = header.slice('Bearer fake:'.length);
-  },
-}));
+import { getTestToken, deleteTestUser } from './supabase-auth.js';
 
 // vi.hoisted ensures this fn is initialised before vi.mock hoisting
 const mockGetPawBalance = vi.hoisted(() => vi.fn<() => Promise<string>>());
@@ -34,12 +22,10 @@ const { Pool } = pg;
 const OWNER_A = '00000000-aaaa-4001-a000-000000000001';
 const OWNER_B = '00000000-aaaa-4001-a000-000000000002';
 
-function makeToken(sub: string): string {
-  return `fake:${sub}`;
-}
-
 let pool: InstanceType<typeof Pool>;
 let app: FastifyInstance;
+let tokenA: string;
+let tokenB: string;
 let reviveContainerCalled: string | null = null;
 let emitOwnerEventCalls: Array<{ ownerId: string; type: string }> = [];
 
@@ -50,14 +36,9 @@ beforeAll(async () => {
   pool = new Pool({ connectionString: url });
   await pool.query('SELECT 1');
 
-  // Seed auth.users rows for FK constraints
-  await pool.query(`
-    INSERT INTO auth.users (id, email, encrypted_password, aud, role, instance_id, created_at, updated_at, confirmation_token, recovery_token, email_change_token_new)
-    VALUES
-      ($1, 'topup-owner-a@test.local', '$2a$10$fake', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now(), now(), '', '', ''),
-      ($2, 'topup-owner-b@test.local', '$2a$10$fake', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now(), now(), '', '', '')
-    ON CONFLICT (id) DO NOTHING
-  `, [OWNER_A, OWNER_B]);
+  // Get real Supabase JWT tokens (ES256) via admin API (sequential to avoid DB contention)
+  tokenA = await getTestToken(OWNER_A, 'topup-owner-a@test.local');
+  tokenB = await getTestToken(OWNER_B, 'topup-owner-b@test.local');
 
   await pool.query('DELETE FROM pets WHERE owner_id IN ($1, $2)', [OWNER_A, OWNER_B]);
 
@@ -74,6 +55,7 @@ afterAll(async () => {
   await pool.query('DELETE FROM pets WHERE owner_id IN ($1, $2)', [OWNER_A, OWNER_B]);
   await pool.end();
   await app.close();
+  await Promise.all([deleteTestUser(OWNER_A), deleteTestUser(OWNER_B)]);
 });
 
 describe('POST /api/pets/:id/topup', () => {
@@ -98,7 +80,7 @@ describe('POST /api/pets/:id/topup', () => {
     mockGetPawBalance.mockResolvedValue('100.0');
     const res = await app.inject({
       method: 'POST', url: '/api/pets/00000000-0000-4000-b000-999999999001/topup',
-      headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
+      headers: { authorization: `Bearer ${tokenA}` },
     });
     expect(res.statusCode).toBe(404);
     expect(res.json().code).toBe('NOT_FOUND');
@@ -107,7 +89,7 @@ describe('POST /api/pets/:id/topup', () => {
   it('returns 403 for wrong owner', async () => {
     const res = await app.inject({
       method: 'POST', url: `/api/pets/${petId}/topup`,
-      headers: { authorization: `Bearer ${makeToken(OWNER_B)}` },
+      headers: { authorization: `Bearer ${tokenB}` },
     });
     expect(res.statusCode).toBe(403);
     expect(res.json().code).toBe('FORBIDDEN');
@@ -124,7 +106,7 @@ describe('POST /api/pets/:id/topup', () => {
 
     const res = await app.inject({
       method: 'POST', url: `/api/pets/${noWalletPetId}/topup`,
-      headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
+      headers: { authorization: `Bearer ${tokenA}` },
     });
     expect(res.statusCode).toBe(400);
     expect(res.json().code).toBe('NO_WALLET');
@@ -139,7 +121,7 @@ describe('POST /api/pets/:id/topup', () => {
 
     const res = await app.inject({
       method: 'POST', url: `/api/pets/${petId}/topup`,
-      headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
+      headers: { authorization: `Bearer ${tokenA}` },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { ok: boolean; paw_balance: string };
@@ -165,7 +147,7 @@ describe('POST /api/pets/:id/topup', () => {
 
     const res = await app.inject({
       method: 'POST', url: `/api/pets/${petId}/topup`,
-      headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
+      headers: { authorization: `Bearer ${tokenA}` },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { ok: boolean; paw_balance: string };
@@ -197,7 +179,7 @@ describe('GET /api/pets/:id — paw_balance + initial_credits', () => {
   it('includes paw_balance and initial_credits in response', async () => {
     const res = await app.inject({
       method: 'GET', url: `/api/pets/${petId}`,
-      headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
+      headers: { authorization: `Bearer ${tokenA}` },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { paw_balance: string; initial_credits: number };
@@ -215,7 +197,7 @@ describe('GET /api/pets/:id — paw_balance + initial_credits', () => {
 
     const res = await app.inject({
       method: 'GET', url: `/api/pets/${nullPetId}`,
-      headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
+      headers: { authorization: `Bearer ${tokenA}` },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { paw_balance: string };

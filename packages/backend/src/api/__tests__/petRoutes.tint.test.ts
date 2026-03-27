@@ -8,21 +8,10 @@
  *   supabase db reset
  */
 import { vi, describe, it, expect, beforeAll, afterAll } from 'vitest';
-import type { FastifyRequest, FastifyReply } from 'fastify';
 import pg from 'pg';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { registerPetRoutes } from '../petRoutes.js';
-
-// Mock authHook — tint tests cover DB side-effects, not authentication.
-vi.mock('../authHook.js', () => ({
-  authHook: () => async (request: FastifyRequest, reply: FastifyReply) => {
-    const header = request.headers.authorization ?? '';
-    if (!header.startsWith('Bearer fake:')) {
-      return reply.code(401).send({ error: 'Missing or invalid token', code: 'UNAUTHORIZED' });
-    }
-    request.owner_id = header.slice('Bearer fake:'.length);
-  },
-}));
+import { getTestToken, deleteTestUser } from './supabase-auth.js';
 
 // Mock credits — not under test here
 vi.mock('../../onchain/credits.js', () => ({
@@ -33,12 +22,9 @@ const { Pool } = pg;
 
 const OWNER = '00000000-cccc-4000-a000-000000000011';
 
-function makeToken(sub: string): string {
-  return `fake:${sub}`;
-}
-
 let pool: InstanceType<typeof Pool>;
 let app: FastifyInstance;
+let token: string;
 
 beforeAll(async () => {
   const url = process.env.DATABASE_URL;
@@ -47,12 +33,8 @@ beforeAll(async () => {
   pool = new Pool({ connectionString: url });
   await pool.query('SELECT 1');
 
-  // Seed auth.users row for FK constraint
-  await pool.query(`
-    INSERT INTO auth.users (id, email, encrypted_password, aud, role, instance_id, created_at, updated_at, confirmation_token, recovery_token, email_change_token_new)
-    VALUES ($1, 'tint-owner@test.local', '$2a$10$fake', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now(), now(), '', '', '')
-    ON CONFLICT (id) DO NOTHING
-  `, [OWNER]);
+  // Get real Supabase JWT token (ES256) via admin API
+  token = await getTestToken(OWNER, 'tint-owner@test.local');
 
   await pool.query('DELETE FROM pets WHERE owner_id = $1', [OWNER]);
 
@@ -67,6 +49,7 @@ afterAll(async () => {
   await pool.query('DELETE FROM pets WHERE owner_id = $1', [OWNER]);
   await pool.end();
   await app.close();
+  await deleteTestUser(OWNER);
 });
 
 describe('tint_color integration', () => {
@@ -76,7 +59,7 @@ describe('tint_color integration', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/pets',
-      headers: { authorization: `Bearer ${makeToken(OWNER)}` },
+      headers: { authorization: `Bearer ${token}` },
       payload: { name: 'TintPet', soul_prompt: 'a lavender cat', tint_color: '#ddccff' },
     });
     expect(res.statusCode).toBe(201);
@@ -96,7 +79,7 @@ describe('tint_color integration', () => {
     const res = await app.inject({
       method: 'GET',
       url: `/api/pets/${petId}`,
-      headers: { authorization: `Bearer ${makeToken(OWNER)}` },
+      headers: { authorization: `Bearer ${token}` },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json();
@@ -107,7 +90,7 @@ describe('tint_color integration', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/pets',
-      headers: { authorization: `Bearer ${makeToken(OWNER)}` },
+      headers: { authorization: `Bearer ${token}` },
       payload: { name: 'WhitePet', soul_prompt: 'a plain dog' },
     });
     expect(res.statusCode).toBe(201);
@@ -119,7 +102,7 @@ describe('tint_color integration', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/pets',
-      headers: { authorization: `Bearer ${makeToken(OWNER)}` },
+      headers: { authorization: `Bearer ${token}` },
       payload: { name: 'BadPet', soul_prompt: 'a broken pet', tint_color: 'notacolor' },
     });
     expect(res.statusCode).toBe(400);
@@ -130,7 +113,7 @@ describe('tint_color integration', () => {
     const res = await app.inject({
       method: 'GET',
       url: '/api/pets',
-      headers: { authorization: `Bearer ${makeToken(OWNER)}` },
+      headers: { authorization: `Bearer ${token}` },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as Array<{ tint_color?: string }>;
