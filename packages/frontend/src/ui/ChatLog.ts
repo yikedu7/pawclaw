@@ -1,5 +1,6 @@
 import { getAuth } from '../auth';
 import { renderMarkdown } from './markdown';
+import { SentenceDetector } from '../ws/SentenceDetector';
 
 const MAX_ENTRIES = 50;
 const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string | undefined) ?? 'http://localhost:3001';
@@ -30,11 +31,19 @@ interface ChatEntry {
   markdown?: boolean;
 }
 
+export interface DialogueHandlers {
+  startThinking: () => void;
+  stopThinking: () => void;
+  updateCurrent: (text: string) => void;
+  enqueue: (sentence: string) => void;
+}
+
 /** Scrollable chat log panel — auto-scrolls, max 50 entries. */
 export class ChatLog {
   readonly el: HTMLDivElement;
   private readonly messages: HTMLDivElement;
   private count = 0;
+  private dialogueHandlers: DialogueHandlers | null = null;
 
   constructor() {
     this.el = document.createElement('div');
@@ -51,6 +60,11 @@ export class ChatLog {
     const inputRow = this.buildInputRow();
 
     this.el.append(header, this.messages, inputRow);
+  }
+
+  /** Wire canvas dialogue bubble handlers for streaming display. */
+  setDialogueHandlers(handlers: DialogueHandlers): void {
+    this.dialogueHandlers = handlers;
   }
 
   private buildInputRow(): HTMLDivElement {
@@ -82,16 +96,33 @@ export class ChatLog {
       this.add({ speaker: 'You', text: message, time: new Date() });
       input.value = '';
 
+      // Insert a thinking row and trigger canvas thinking state
+      const thinkingRow = this.addThinkingRow();
+      this.dialogueHandlers?.startThinking();
+
       try {
-        await fetch(`${BACKEND_URL}/api/pets/${petId}/chat`, {
+        const res = await fetch(`${BACKEND_URL}/api/pets/${petId}/chat`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
+            Accept: 'text/event-stream',
           },
           body: JSON.stringify({ message }),
         });
-        // Pet reply arrives via WS pet.speak event — no need to handle response body
+
+        if (res.headers.get('Content-Type')?.includes('text/event-stream') && res.body) {
+          await this.handleStream(res.body, thinkingRow, token, petId);
+        } else {
+          // Non-streaming fallback: pet reply arrives via WS pet.speak event
+          thinkingRow.remove();
+          this.count--;
+          this.dialogueHandlers?.stopThinking();
+        }
+      } catch {
+        thinkingRow.remove();
+        this.count--;
+        this.dialogueHandlers?.stopThinking();
       } finally {
         input.disabled = false;
         btn.disabled = false;
@@ -104,6 +135,128 @@ export class ChatLog {
 
     row.append(input, btn);
     return row;
+  }
+
+  private async handleStream(
+    body: ReadableStream<Uint8Array>,
+    thinkingRow: HTMLDivElement,
+    token: string,
+    petId: string,
+  ): Promise<void> {
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let lineBuffer = '';
+    let accumulated = '';
+    let streamingRow: HTMLDivElement | null = null;
+    let streamingTextEl: HTMLSpanElement | null = null;
+    const handlers = this.dialogueHandlers;
+
+    const detector = new SentenceDetector((sentence) => {
+      handlers?.enqueue(sentence);
+    });
+
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        lineBuffer += decoder.decode(value, { stream: true });
+        const lines = lineBuffer.split('\n');
+        lineBuffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const data = line.slice(6).trim();
+          if (data === '[DONE]' || data === '[ERROR]') continue;
+
+          // On first token: replace thinking row with streaming row
+          if (streamingRow === null) {
+            thinkingRow.remove();
+            this.count--;
+
+            const petName = await resolvePetName(petId, token);
+            const { row, textEl } = this.createStreamingRow(petName);
+            streamingRow = row;
+            streamingTextEl = textEl;
+            this.messages.appendChild(streamingRow);
+            this.count++;
+            this.scrollToBottom();
+
+            handlers?.stopThinking();
+          }
+
+          accumulated += data;
+          detector.push(data);
+          handlers?.updateCurrent(accumulated);
+
+          if (streamingTextEl) {
+            streamingTextEl.textContent = accumulated;
+            this.scrollToBottom();
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    // Flush remaining partial sentence
+    const remaining = detector.flush();
+    if (remaining) {
+      handlers?.enqueue(remaining);
+    }
+
+    // If we never got a token (stream was empty), clean up
+    if (streamingRow === null) {
+      thinkingRow.remove();
+      this.count--;
+      handlers?.stopThinking();
+    } else if (streamingTextEl && accumulated) {
+      // Finalise row with markdown rendering
+      streamingTextEl.textContent = '';
+      streamingTextEl.appendChild(renderMarkdown(accumulated));
+    }
+  }
+
+  private addThinkingRow(): HTMLDivElement {
+    const row = document.createElement('div');
+    row.className = 'chat-entry chat-thinking';
+
+    const time = document.createElement('span');
+    time.className = 'chat-time';
+    time.textContent = this.formatTime(new Date());
+
+    const speaker = document.createElement('span');
+    speaker.className = 'chat-speaker';
+    speaker.textContent = '…';
+
+    const dots = document.createElement('span');
+    dots.className = 'chat-thinking-dots';
+    dots.innerHTML = '<span></span><span></span><span></span>';
+
+    row.append(time, speaker, dots);
+    this.messages.appendChild(row);
+    this.count++;
+    this.scrollToBottom();
+    return row;
+  }
+
+  private createStreamingRow(speaker: string): { row: HTMLDivElement; textEl: HTMLSpanElement } {
+    const row = document.createElement('div');
+    row.className = 'chat-entry';
+
+    const time = document.createElement('span');
+    time.className = 'chat-time';
+    time.textContent = this.formatTime(new Date());
+
+    const speakerEl = document.createElement('span');
+    speakerEl.className = 'chat-speaker';
+    speakerEl.textContent = speaker;
+
+    const textEl = document.createElement('span');
+    textEl.className = 'chat-text';
+
+    row.append(time, speakerEl, textEl);
+    return { row, textEl };
   }
 
   add(entry: ChatEntry): void {
@@ -136,8 +289,7 @@ export class ChatLog {
       this.count--;
     }
 
-    // Auto-scroll to bottom
-    this.messages.scrollTop = this.messages.scrollHeight;
+    this.scrollToBottom();
   }
 
   addSpeak(petId: string, message: string): void {
@@ -156,6 +308,10 @@ export class ChatLog {
         this.add({ speaker: name, text: turn.line, time, markdown: true });
       });
     }
+  }
+
+  private scrollToBottom(): void {
+    this.messages.scrollTop = this.messages.scrollHeight;
   }
 
   private formatTime(d: Date): string {
