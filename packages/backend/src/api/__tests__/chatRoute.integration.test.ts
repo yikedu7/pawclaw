@@ -125,8 +125,8 @@ describe('POST /api/pets/:id/chat', () => {
     expect(res.json()).toMatchObject({ reply: expect.any(String) });
   });
 
-  it('returns JSON when no container and SSE is requested', async () => {
-    // Pet has no container — falls back to direct LLM (or MOCK_LLM)
+  it('returns SSE stream when no container and Accept: text/event-stream', async () => {
+    // Pet has no container — direct LLM path also streams when SSE is requested
     const prev = process.env.MOCK_LLM;
     process.env.MOCK_LLM = '1';
     try {
@@ -138,9 +138,10 @@ describe('POST /api/pets/:id/chat', () => {
         },
         payload: { message: 'ping' },
       });
-      // No container → falls through to JSON fallback
       expect(res.statusCode).toBe(200);
-      expect(res.json()).toMatchObject({ reply: expect.any(String) });
+      expect(res.headers['content-type']).toMatch(/text\/event-stream/);
+      expect(res.body).toContain('data: ');
+      expect(res.body).toContain('data: [DONE]\n\n');
     } finally {
       if (prev === undefined) delete process.env.MOCK_LLM;
       else process.env.MOCK_LLM = prev;
