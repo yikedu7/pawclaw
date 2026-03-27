@@ -8,23 +8,33 @@
  *   supabase db reset
  */
 import { vi, describe, it, expect, beforeAll, afterAll } from 'vitest';
-import jwt from 'jsonwebtoken';
+import type { FastifyRequest, FastifyReply } from 'fastify';
 import pg from 'pg';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { registerPetRoutes } from '../petRoutes.js';
 
+// Mock authHook — tint tests cover DB side-effects, not authentication.
+vi.mock('../authHook.js', () => ({
+  authHook: () => async (request: FastifyRequest, reply: FastifyReply) => {
+    const header = request.headers.authorization ?? '';
+    if (!header.startsWith('Bearer fake:')) {
+      return reply.code(401).send({ error: 'Missing or invalid token', code: 'UNAUTHORIZED' });
+    }
+    request.owner_id = header.slice('Bearer fake:'.length);
+  },
+}));
+
 // Mock credits — not under test here
 vi.mock('../../onchain/credits.js', () => ({
-  grantRegistrationCredits: vi.fn<(wallet: string) => Promise<void>>().mockResolvedValue(undefined),
+  grantDbCredits: vi.fn<(petId: string) => Promise<void>>().mockResolvedValue(undefined),
 }));
 
 const { Pool } = pg;
 
-const SECRET = 'tint-test-secret';
 const OWNER = '00000000-cccc-4000-a000-000000000011';
 
 function makeToken(sub: string): string {
-  return jwt.sign({ sub }, SECRET);
+  return `fake:${sub}`;
 }
 
 let pool: InstanceType<typeof Pool>;
@@ -46,7 +56,6 @@ beforeAll(async () => {
 
   await pool.query('DELETE FROM pets WHERE owner_id = $1', [OWNER]);
 
-  process.env.JWT_SECRET = SECRET;
   app = Fastify();
   await registerPetRoutes(app, {
     generateSoulMd: () => '# SOUL tint',

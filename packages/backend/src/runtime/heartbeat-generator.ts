@@ -50,19 +50,29 @@ Run:
 
 Then extract and encode the payment payload:
 \`\`\`
-PAYLOAD=$(python3 -c "import json,base64,sys; d=json.load(open('/tmp/hb_pay.json')); print(base64.b64encode(json.dumps(d['data']).encode()).decode())" 2>/dev/null) || { echo HEARTBEAT_OK; exit 0; }
+PAYLOAD=$(python3 -c "import json,base64,sys; d=json.load(open('/tmp/hb_pay.json')); print(base64.b64encode(json.dumps(d['data']).encode()).decode())" 2>/dev/null) || PAYLOAD=""
 \`\`\`
 
-## Step 3 — Submit payment
+## Step 3 — Submit x402 payment (if PAYLOAD is set)
 
-Run:
+If PAYLOAD is non-empty, run:
 \`\`\`
 curl -s -X POST ${pet.backendUrl}/internal/heartbeat/${pet.petId} \\
   -H "Authorization: Bearer ${pet.gatewayToken}" \\
   -H "PAYMENT-SIGNATURE: $PAYLOAD"
 \`\`\`
 
-If \`{"ok":true}\` → payment done. If any step fails → respond HEARTBEAT_OK and stop.
+If \`{"ok":true}\` → payment done. Continue to stat check below.
+
+## Step 4 — Fallback deduct (if x402 failed)
+
+If PAYLOAD was empty (x402 payment failed), deduct from DB balance instead:
+\`\`\`
+curl -s -X POST ${pet.backendUrl}/internal/heartbeat/${pet.petId}/deduct \\
+  -H "Authorization: Bearer ${pet.gatewayToken}"
+echo HEARTBEAT_OK
+exit 0
+\`\`\`
 
 ## Stat check (after payment)
 

@@ -1,8 +1,20 @@
 import { vi, describe, it, expect, beforeAll, afterAll } from 'vitest';
-import jwt from 'jsonwebtoken';
+import type { FastifyRequest, FastifyReply } from 'fastify';
 import pg from 'pg';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { registerPetRoutes } from '../petRoutes.js';
+
+// Mock authHook — topup tests cover DB side-effects and on-chain balance polling,
+// not authentication.
+vi.mock('../authHook.js', () => ({
+  authHook: () => async (request: FastifyRequest, reply: FastifyReply) => {
+    const header = request.headers.authorization ?? '';
+    if (!header.startsWith('Bearer fake:')) {
+      return reply.code(401).send({ error: 'Missing or invalid token', code: 'UNAUTHORIZED' });
+    }
+    request.owner_id = header.slice('Bearer fake:'.length);
+  },
+}));
 
 // vi.hoisted ensures this fn is initialised before vi.mock hoisting
 const mockGetPawBalance = vi.hoisted(() => vi.fn<() => Promise<string>>());
@@ -12,19 +24,18 @@ vi.mock('../../onchain/balance.js', () => ({
   getPawBalance: mockGetPawBalance,
 }));
 
-// Mock grantRegistrationCredits — not relevant for topup tests
+// Mock grantDbCredits — not relevant for topup tests
 vi.mock('../../onchain/credits.js', () => ({
-  grantRegistrationCredits: vi.fn().mockResolvedValue(undefined),
+  grantDbCredits: vi.fn().mockResolvedValue(undefined),
 }));
 
 const { Pool } = pg;
 
-const SECRET = 'topup-integration-secret';
 const OWNER_A = '00000000-aaaa-4001-a000-000000000001';
 const OWNER_B = '00000000-aaaa-4001-a000-000000000002';
 
 function makeToken(sub: string): string {
-  return jwt.sign({ sub }, SECRET);
+  return `fake:${sub}`;
 }
 
 let pool: InstanceType<typeof Pool>;
@@ -50,7 +61,6 @@ beforeAll(async () => {
 
   await pool.query('DELETE FROM pets WHERE owner_id IN ($1, $2)', [OWNER_A, OWNER_B]);
 
-  process.env.JWT_SECRET = SECRET;
   app = Fastify();
   await registerPetRoutes(app, {
     generateSoulMd: () => '# SOUL topup',

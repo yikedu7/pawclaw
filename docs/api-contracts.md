@@ -20,6 +20,7 @@ Defines the full contract between backend and frontend for PawClaw.
 | POST | `/api/pets/:id/feed` | Feed the pet to restore hunger — **deferred, not yet implemented** |
 | POST | `/api/pets/:id/chat` | Send a message to the pet, get its reply |
 | POST | `/internal/tick/:petId` | Force an immediate tick (internal, no auth) |
+| POST | `/internal/heartbeat/:petId/deduct` | Fallback heartbeat deduct — deducts HEARTBEAT_COST from DB paw_balance when x402 fails |
 
 ### WebSocket
 
@@ -384,6 +385,32 @@ Force an immediate tick for this pet. Triggers the full tick loop: read pet stat
 | Status | code           | Condition                           |
 |--------|----------------|-------------------------------------|
 | 500    | —              | Pet not found or tick execution error |
+
+---
+
+### POST /internal/heartbeat/:petId/deduct
+
+Fallback heartbeat deduct endpoint — called by the pet container when `onchainos payment x402-pay` fails and no USDC payment can be submitted. Deducts `HEARTBEAT_COST` (0.000001) from `paw_balance` in the DB. If `paw_balance` reaches zero or below, emits a `pet.died` WsEvent to the owner.
+
+**Auth:** per-pet `gateway_token` — `Authorization: Bearer <gateway_token>`
+
+**Path params:** `petId` — pet uuid
+
+**Request body:** none
+
+**Response — 200 OK**
+
+```typescript
+{ "ok": true, "paw_balance": string }  // updated balance after deduction
+```
+
+**Error codes**
+
+| Status | code               | Condition                        |
+|--------|--------------------|----------------------------------|
+| 400    | `VALIDATION_ERROR` | `petId` is not a valid uuid      |
+| 401    | `UNAUTHORIZED`     | Missing or wrong `gateway_token` |
+| 404    | `NOT_FOUND`        | Pet does not exist               |
 
 ---
 

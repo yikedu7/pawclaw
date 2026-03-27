@@ -1,13 +1,28 @@
 import { vi } from 'vitest';
-import jwt from 'jsonwebtoken';
+import type { FastifyRequest, FastifyReply } from 'fastify';
 import Fastify, { type FastifyInstance } from 'fastify';
 
-export const SECRET = 'test-secret';
+vi.mock('../../onchain/credits.js', () => ({
+  grantDbCredits: vi.fn().mockResolvedValue(undefined),
+}));
+
 export const OWNER_ID = '00000000-0000-4000-a000-000000000001';
 export const OTHER_OWNER = '00000000-0000-4000-a000-000000000002';
 
+// Mock authHook — unit tests using helpers.ts test business logic, not auth.
+// Tokens of the form "fake:<uuid>" pass; anything else returns 401.
+vi.mock('../authHook.js', () => ({
+  authHook: () => async (request: FastifyRequest, reply: FastifyReply) => {
+    const header = request.headers.authorization ?? '';
+    if (!header.startsWith('Bearer fake:')) {
+      return reply.code(401).send({ error: 'Missing or invalid token', code: 'UNAUTHORIZED' });
+    }
+    request.owner_id = header.slice('Bearer fake:'.length);
+  },
+}));
+
 export function makeToken(sub: string): string {
-  return jwt.sign({ sub }, SECRET);
+  return `fake:${sub}`;
 }
 
 // ── In-memory pet store ─────────────────────────────────────────────────────
@@ -152,7 +167,6 @@ vi.mock('drizzle-orm', () => ({
 // ── App factory ─────────────────────────────────────────────────────────────
 
 export async function buildApp(): Promise<FastifyInstance> {
-  process.env.JWT_SECRET = SECRET;
   const { registerPetRoutes } = await import('../petRoutes.js');
   const app = Fastify();
   await registerPetRoutes(app, {

@@ -7,6 +7,7 @@ export default defineConfig({
     pool: 'forks',
     env: {
       DATABASE_URL: process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:54322/postgres',
+      SUPABASE_URL: process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321',
     },
   },
 });
