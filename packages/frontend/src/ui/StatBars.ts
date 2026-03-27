@@ -1,3 +1,4 @@
+// v2: drumstick icon, tooltip panel
 import { Icons } from './icons';
 
 interface Stat {
