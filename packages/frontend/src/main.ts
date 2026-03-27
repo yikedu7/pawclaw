@@ -5,7 +5,8 @@ import { MockEvents } from './canvas/MockEvents';
 import { eventBus } from './ws/eventBus';
 import { WsClient, buildWsUrl } from './ws/WsClient';
 import { initUI } from './ui';
-import { getAuth } from './auth';
+import { getAuth, refreshSession } from './auth';
+import { apiFetch, BACKEND_URL } from './api';
 
 // Crisp pixel-art rendering — nearest-neighbour, no bilinear blur.
 TextureStyle.defaultOptions.scaleMode = 'nearest';
@@ -28,8 +29,18 @@ async function main(): Promise<void> {
   const params = new URLSearchParams(location.search);
   // Prefer localStorage auth; fall back to URL params for backwards compat
   const stored = getAuth();
-  const token = stored?.token ?? params.get('token') ?? import.meta.env.VITE_WS_TOKEN as string | undefined;
-  const petId = stored?.pet_id ?? params.get('pet_id') ?? undefined;
+  let token: string | undefined;
+  let petId: string | undefined;
+
+  if (stored) {
+    // Attempt to refresh the session — SDK auto-refreshes if access token is expired
+    const freshToken = await refreshSession();
+    token = freshToken ?? stored.token;
+    petId = stored.pet_id;
+  } else {
+    token = params.get('token') ?? import.meta.env.VITE_WS_TOKEN as string | undefined;
+    petId = params.get('pet_id') ?? undefined;
+  }
 
   if (!token || !petId) {
     window.location.replace('/create.html');
@@ -94,8 +105,7 @@ async function main(): Promise<void> {
   eventBus.on('error',          (e) => room.showDialogue(`Error: ${e.data.message}`));
 
   // Fetch initial pet state and apply tint + stats
-  const backendUrl = (import.meta.env.VITE_BACKEND_URL as string | undefined) ?? 'http://localhost:3001';
-  fetch(`${backendUrl}/api/pets/${petId}`, {
+  apiFetch(`/api/pets/${petId}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
     .then((res) => res.ok ? res.json() as Promise<{ tint_color?: string; hunger?: number; mood?: number; affection?: number }> : Promise.resolve({} as { tint_color?: string; hunger?: number; mood?: number; affection?: number }))
@@ -104,7 +114,7 @@ async function main(): Promise<void> {
         room.applyPetTint(data.tint_color);
       }
       if (data.hunger != null && data.mood != null && data.affection != null) {
-        room.updateStats({ pet_id: petId, hunger: data.hunger, mood: data.mood, affection: data.affection });
+        room.updateStats({ pet_id: petId!, hunger: data.hunger, mood: data.mood, affection: data.affection });
       }
     })
     .catch(() => { /* non-critical */ });

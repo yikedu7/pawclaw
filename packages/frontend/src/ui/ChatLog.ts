@@ -1,9 +1,9 @@
 import { getAuth } from '../auth';
+import { apiFetch } from '../api';
 import { renderMarkdown } from './markdown';
 import { SentenceDetector } from '../ws/SentenceDetector';
 
 const MAX_ENTRIES = 50;
-const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string | undefined) ?? 'http://localhost:3001';
 
 // petId → display name, populated lazily from GET /api/pets/:id
 const petNames = new Map<string, string>();
@@ -12,7 +12,7 @@ export async function resolvePetName(petId: string, token: string | null): Promi
   if (petNames.has(petId)) return petNames.get(petId)!;
   if (!token) return petId;
   try {
-    const res = await fetch(`${BACKEND_URL}/api/pets/${petId}`, {
+    const res = await apiFetch(`/api/pets/${petId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) {
@@ -101,7 +101,7 @@ export class ChatLog {
       this.dialogueHandlers?.startThinking();
 
       try {
-        const res = await fetch(`${BACKEND_URL}/api/pets/${petId}/chat`, {
+        const res = await apiFetch(`/api/pets/${petId}/chat`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

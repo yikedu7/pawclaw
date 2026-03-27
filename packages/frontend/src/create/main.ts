@@ -48,6 +48,13 @@ colorCustomInput.addEventListener('input', () => {
 
 let isSignUp = false;
 let accessToken = '';
+let refreshToken = '';
+
+// --- Session expired message ---
+const expiredReason = new URLSearchParams(location.search).get('reason');
+if (expiredReason === 'expired') {
+  errorMsg.textContent = 'Session expired, please sign in again.';
+}
 
 // --- Auth toggle ---
 toggleBtn.addEventListener('click', () => {
@@ -82,6 +89,7 @@ authBtn.addEventListener('click', async () => {
     }
 
     accessToken = data.session?.access_token ?? '';
+    refreshToken = data.session?.refresh_token ?? '';
     if (!accessToken) {
       errorMsg.textContent = 'Auth succeeded but no session token returned.';
       return;
@@ -94,7 +102,7 @@ authBtn.addEventListener('click', async () => {
     if (petsRes.ok) {
       const pets = await petsRes.json() as Array<{ id: string }>;
       if (pets.length > 0) {
-        setAuth(accessToken, pets[0].id);
+        setAuth(accessToken, pets[0].id, refreshToken);
         window.location.replace('/');
         return;
       }
@@ -142,7 +150,7 @@ createBtn.addEventListener('click', async () => {
     }
 
     // Persist auth and redirect to the canvas
-    setAuth(accessToken, data.id ?? '');
+    setAuth(accessToken, data.id ?? '', refreshToken);
     window.location.replace('/');
   } catch (err) {
     errorMsgPet.textContent = err instanceof Error ? err.message : 'Unknown error';

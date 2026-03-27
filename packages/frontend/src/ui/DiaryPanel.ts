@@ -1,7 +1,6 @@
 import { Icons } from './icons';
 import { getAuth } from '../auth';
-
-const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string | undefined) ?? 'http://localhost:3001';
+import { apiFetch } from '../api';
 
 /** Centered modal overlay showing the pet's diary from GET /api/pets/:id/diary. */
 export class DiaryPanel {
@@ -61,7 +60,7 @@ export class DiaryPanel {
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    fetch(`${BACKEND_URL}/api/pets/${petId}/diary`, { headers })
+    apiFetch(`/api/pets/${petId}/diary`, { headers })
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json() as Promise<{ diary: string | null; created_at?: string }>;
