@@ -799,10 +799,7 @@ export async function fetchWalletAddress(containerId: string): Promise<string | 
   const { exitCode, stdout, stderr } = await dockerExec(container, [bin, 'wallet', 'add', '--chain', '196']);
   process.stdout.write(`[fetchWallet] containerId=${containerId} exitCode=${exitCode} stdoutLen=${stdout.length} stderrLen=${stderr.length}\n`);
   if (stderr) process.stdout.write(`[fetchWallet] stderr=${stderr.slice(0, 200)}\n`);
-  if (exitCode !== 0) {
-    process.stdout.write(`[fetchWallet] stdout=${stdout.slice(0, 200)}\n`);
-    return null;
-  }
+  if (exitCode !== 0) return null;
 
   // The CLI outputs multiple JSON objects concatenated (status/progress lines + final result).
   // Extract all top-level JSON objects by tracking brace depth, then find the one that
