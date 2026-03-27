@@ -49,7 +49,7 @@ export class StatBars {
     this.el.appendChild(titleRow);
 
     const defs: { key: string; label: string; icon: () => SVGSVGElement }[] = [
-      { key: 'hunger',    label: 'Hunger', icon: Icons.drumstick },
+      { key: 'hunger',    label: 'Hunger!', icon: Icons.drumstick },
       { key: 'mood',      label: 'Mood',   icon: Icons.smile },
       { key: 'affection', label: 'Love',   icon: Icons.heart },
     ];
