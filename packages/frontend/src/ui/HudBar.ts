@@ -9,7 +9,7 @@ interface StatSlot {
 }
 
 const STAT_DEFS = [
-  { key: 'hunger',    icon: Icons.apple,  label: 'Hunger' },
+  { key: 'hunger',    icon: Icons.drumstick, label: 'Hunger' },
   { key: 'mood',      icon: Icons.smile,  label: 'Mood' },
   { key: 'affection', icon: Icons.heart,  label: 'Love' },
 ];

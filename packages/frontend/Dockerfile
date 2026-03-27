@@ -11,7 +11,7 @@ RUN pnpm install --frozen-lockfile --filter @pawclaw/frontend...
 
 # Build
 FROM deps AS builder
-ARG CACHE_BUST=2
+
 ARG VITE_BACKEND_URL
 ARG VITE_WS_HOST
 ARG VITE_WS_TOKEN
@@ -22,7 +22,6 @@ COPY packages/shared ./packages/shared
 COPY packages/frontend ./packages/frontend
 RUN pnpm --filter @pawclaw/shared build
 RUN rm -rf packages/frontend/node_modules/.vite
-RUN head -5 packages/frontend/src/ui/StatBars.ts
 RUN pnpm --filter @pawclaw/frontend build
 
 # Serve
