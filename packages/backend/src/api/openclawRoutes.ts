@@ -8,7 +8,6 @@ import { executeVisit } from '../social/visit.js';
 import { send402, decodePaymentSignature, type PaymentAuthorization } from '../payment/x402.js';
 import { verifyEIP3009Signature, submitTransferWithAuthorization } from '../payment/verify.js';
 import { stopContainer } from '../runtime/container.js';
-import { tickBus } from '../runtime/tick-bus.js';
 
 export type OpenclawRouteDeps = {
   emitOwnerEvent: (ownerId: string, event: WsEvent) => void;
@@ -41,6 +40,7 @@ async function applyBalancePostProcessing(
   mood: number,
   affection: number,
   containerId: string | null,
+  emitOwnerEvent: (ownerId: string, event: WsEvent) => void,
 ): Promise<void> {
   const total = systemCredits + onchainBalance;
   const hunger = Math.max(0, Math.min(100, Math.round((1 - total / initialCredits) * 100)));
@@ -50,9 +50,9 @@ async function applyBalancePostProcessing(
     if (containerId) {
       await stopContainer(containerId).catch(() => {});
     }
-    tickBus.emit('ownerEvent', ownerId, { type: 'pet.died', data: { pet_id: petId } });
+    emitOwnerEvent(ownerId, { type: 'pet.died', data: { pet_id: petId } });
   } else {
-    tickBus.emit('ownerEvent', ownerId, { type: 'pet.state', data: { pet_id: petId, hunger, mood, affection } });
+    emitOwnerEvent(ownerId, { type: 'pet.state', data: { pet_id: petId, hunger, mood, affection } });
   }
 }
 
@@ -393,7 +393,7 @@ export async function registerOpenclawRoutes(
     const systemCredits = parseFloat(pet.system_credits ?? '0');
     const initialCredits = parseFloat(pet.initial_credits ?? '0.3');
 
-    await applyBalancePostProcessing(petId, pet.owner_id, systemCredits, newOnchain, initialCredits, pet.mood, pet.affection, pet.container_id);
+    await applyBalancePostProcessing(petId, pet.owner_id, systemCredits, newOnchain, initialCredits, pet.mood, pet.affection, pet.container_id, deps.emitOwnerEvent);
 
     return reply.send({ ok: true, tx_hash: txHash });
   });
@@ -420,7 +420,7 @@ export async function registerOpenclawRoutes(
     const onchainBalance = parseFloat(pet.onchain_balance ?? '0');
     const initialCredits = parseFloat(pet.initial_credits ?? '0.3');
 
-    await applyBalancePostProcessing(petId, pet.owner_id, newSystemCredits, onchainBalance, initialCredits, pet.mood, pet.affection, pet.container_id);
+    await applyBalancePostProcessing(petId, pet.owner_id, newSystemCredits, onchainBalance, initialCredits, pet.mood, pet.affection, pet.container_id, deps.emitOwnerEvent);
 
     return reply.send({ ok: true, system_credits: newSystemCredits.toString() });
   });
