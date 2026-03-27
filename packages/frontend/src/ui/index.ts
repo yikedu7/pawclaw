@@ -7,7 +7,7 @@ import './styles.css';
 
 const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string | undefined) ?? 'http://localhost:3001';
 
-/** Fetch pet data and apply PAW-based hunger to the HUD. */
+/** Fetch pet data and apply credit-based stats to the HUD. */
 async function loadPetHunger(petId: string, token: string, hudBar: HudBar): Promise<void> {
   try {
     const res = await fetch(`${BACKEND_URL}/api/pets/${petId}`, {
@@ -15,13 +15,11 @@ async function loadPetHunger(petId: string, token: string, hudBar: HudBar): Prom
     });
     if (!res.ok) return;
     const data = await res.json() as {
-      paw_balance?: string;
-      initial_credits?: number;
+      hunger?: number;
       mood?: number;
       affection?: number;
     };
-    const hunger = 100; // TODO: derive from paw_balance once wallet is funded
-    hudBar.updateStats(hunger, data.mood ?? 100, data.affection ?? 0);
+    hudBar.updateStats(data.hunger ?? 20, data.mood ?? 80, data.affection ?? 20);
   } catch { /* ignore — WS events will update when available */ }
 }
 
@@ -40,13 +38,14 @@ export function initUI(mount: HTMLElement, petId?: string, token?: string): { ch
 
   // Load initial pet data on page open
   if (petId && token) {
-    loadPetHunger(petId, token, hudBar).catch(() => {});
     fetch(`${BACKEND_URL}/api/pets/${petId}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.ok ? r.json() as Promise<{ name?: string; wallet_address?: string | null }> : null)
+      .then((r) => r.ok ? r.json() as Promise<{ name?: string; wallet_address?: string | null; hunger?: number; mood?: number; affection?: number }> : null)
       .then((data) => {
-        if (data?.name) nameplate.setName(data.name);
-        nameplate.setWallet(data?.wallet_address);
-        hudBar.walletPanel.setAddress(data?.wallet_address);
+        if (!data) return;
+        if (data.name) nameplate.setName(data.name);
+        nameplate.setWallet(data.wallet_address);
+        hudBar.walletPanel.setAddress(data.wallet_address);
+        hudBar.updateStats(data.hunger ?? 20, data.mood ?? 80, data.affection ?? 20);
       })
       .catch(() => {});
   }
@@ -92,7 +91,6 @@ export function initUI(mount: HTMLElement, petId?: string, token?: string): { ch
   });
 
   eventBus.on('pet.revived', (e) => {
-    // Refresh from API to get updated paw_balance
     if (token) {
       loadPetHunger(e.data.pet_id, token, hudBar).catch(() => {});
     }
