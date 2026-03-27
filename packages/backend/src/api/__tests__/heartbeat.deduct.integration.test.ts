@@ -1,8 +1,8 @@
 /**
  * Integration tests for:
- *   1. grantDbCredits — registration sets paw_balance = initial_credits
- *   2. POST /internal/heartbeat/:petId/deduct — decrements paw_balance
- *   3. pet.died event — fired when paw_balance reaches 0
+ *   1. grantDbCredits — sets system_credits=0.24, onchain_balance=0, hunger=20
+ *   2. POST /internal/heartbeat/:petId/deduct — decrements system_credits by HEARTBEAT_COST (0.0125)
+ *   3. pet.died event — fired when total_balance reaches 0
  *
  * Requires a real Supabase local DB:
  *   supabase start && supabase db reset
@@ -31,7 +31,6 @@ beforeAll(async () => {
   pool = new Pool({ connectionString: url });
   await pool.query('SELECT 1');
 
-  // Seed auth user
   await pool.query(`
     INSERT INTO auth.users (id, email, encrypted_password, aud, role, instance_id, created_at, updated_at, confirmation_token, recovery_token, email_change_token_new)
     VALUES ($1, 'deduct-test@test.local', '$2a$10$fake', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now(), now(), '', '', '')
@@ -41,8 +40,8 @@ beforeAll(async () => {
   await pool.query('DELETE FROM pets WHERE owner_id = $1', [OWNER]);
 
   const { rows } = await pool.query<{ id: string }>(`
-    INSERT INTO pets (owner_id, name, soul_md, skill_md, gateway_token, paw_balance)
-    VALUES ($1, 'DeductPet', '# soul', '# skill', $2, NULL)
+    INSERT INTO pets (owner_id, name, soul_md, skill_md, gateway_token)
+    VALUES ($1, 'DeductPet', '# soul', '# skill', $2)
     RETURNING id
   `, [OWNER, GATEWAY_TOKEN]);
   petId = rows[0].id;
@@ -63,22 +62,23 @@ afterAll(async () => {
 const authHeader = { authorization: `Bearer ${GATEWAY_TOKEN}` };
 
 describe('grantDbCredits', () => {
-  it('sets paw_balance = initial_credits in the DB', async () => {
+  it('sets system_credits=0.24, onchain_balance=0, hunger=20', async () => {
     await grantDbCredits(petId);
 
-    const { rows } = await pool.query<{ paw_balance: string; initial_credits: number }>(
-      'SELECT paw_balance, initial_credits FROM pets WHERE id = $1',
+    const { rows } = await pool.query<{ system_credits: string; onchain_balance: string; hunger: number }>(
+      'SELECT system_credits, onchain_balance, hunger FROM pets WHERE id = $1',
       [petId],
     );
     expect(rows).toHaveLength(1);
-    expect(parseFloat(rows[0].paw_balance)).toBe(rows[0].initial_credits);
+    expect(parseFloat(rows[0].system_credits)).toBeCloseTo(0.24);
+    expect(parseFloat(rows[0].onchain_balance)).toBe(0);
+    expect(rows[0].hunger).toBe(20);
   });
 });
 
 describe('POST /internal/heartbeat/:petId/deduct', () => {
   beforeAll(async () => {
-    // Set a known paw_balance before deduct tests
-    await pool.query('UPDATE pets SET paw_balance = $1 WHERE id = $2', ['1.0', petId]);
+    await pool.query('UPDATE pets SET system_credits = $1, onchain_balance = $2 WHERE id = $3', ['0.2', '0', petId]);
   });
 
   it('returns 404 for unknown petId', async () => {
@@ -101,8 +101,8 @@ describe('POST /internal/heartbeat/:petId/deduct', () => {
     expect(res.json().code).toBe('UNAUTHORIZED');
   });
 
-  it('returns 200 and decrements paw_balance by HEARTBEAT_COST', async () => {
-    await pool.query('UPDATE pets SET paw_balance = $1 WHERE id = $2', ['10.0', petId]);
+  it('returns 200 and decrements system_credits by HEARTBEAT_COST (0.0125)', async () => {
+    await pool.query('UPDATE pets SET system_credits = $1, onchain_balance = $2 WHERE id = $3', ['0.2', '0', petId]);
 
     const res = await app.inject({
       method: 'POST',
@@ -113,15 +113,33 @@ describe('POST /internal/heartbeat/:petId/deduct', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({ ok: true });
 
-    const { rows } = await pool.query<{ paw_balance: string }>(
-      'SELECT paw_balance FROM pets WHERE id = $1',
+    const { rows } = await pool.query<{ system_credits: string }>(
+      'SELECT system_credits FROM pets WHERE id = $1',
       [petId],
     );
-    expect(parseFloat(rows[0].paw_balance)).toBeCloseTo(10.0 - 0.000001, 6);
+    expect(parseFloat(rows[0].system_credits)).toBeCloseTo(0.2 - 0.0125, 4);
+  });
+
+  it('recomputes hunger after deduction', async () => {
+    await pool.query('UPDATE pets SET system_credits = $1, onchain_balance = $2 WHERE id = $3', ['0.24', '0', petId]);
+
+    await app.inject({
+      method: 'POST',
+      url: `/internal/heartbeat/${petId}/deduct`,
+      headers: authHeader,
+    });
+
+    const { rows } = await pool.query<{ hunger: number }>(
+      'SELECT hunger FROM pets WHERE id = $1',
+      [petId],
+    );
+    // After deduct: total=(0.24-0.0125)=0.2275, hunger=clamp((1-0.2275/0.3)*100)≈24
+    expect(rows[0].hunger).toBeGreaterThan(20);
+    expect(rows[0].hunger).toBeLessThan(50);
   });
 
   it('does not emit pet.died when balance remains positive', async () => {
-    await pool.query('UPDATE pets SET paw_balance = $1 WHERE id = $2', ['10.0', petId]);
+    await pool.query('UPDATE pets SET system_credits = $1, onchain_balance = $2 WHERE id = $3', ['0.2', '0', petId]);
     emittedEvents.length = 0;
 
     await app.inject({
@@ -133,9 +151,8 @@ describe('POST /internal/heartbeat/:petId/deduct', () => {
     expect(emittedEvents.find((e) => e.type === 'pet.died')).toBeUndefined();
   });
 
-  it('emits pet.died when paw_balance reaches 0', async () => {
-    // Set balance to exactly HEARTBEAT_COST so one deduct zeroes it
-    await pool.query('UPDATE pets SET paw_balance = $1 WHERE id = $2', ['0.000001', petId]);
+  it('emits pet.died when total_balance reaches 0', async () => {
+    await pool.query('UPDATE pets SET system_credits = $1, onchain_balance = $2 WHERE id = $3', ['0.0125', '0', petId]);
     emittedEvents.length = 0;
 
     const res = await app.inject({
@@ -145,15 +162,13 @@ describe('POST /internal/heartbeat/:petId/deduct', () => {
     });
 
     expect(res.statusCode).toBe(200);
-
     const diedEvent = emittedEvents.find((e) => e.type === 'pet.died');
     expect(diedEvent).toBeDefined();
     expect(diedEvent).toMatchObject({ type: 'pet.died', data: { pet_id: petId } });
   });
 
-  it('emits pet.died when paw_balance goes below 0', async () => {
-    // Set balance below HEARTBEAT_COST so the result is negative
-    await pool.query('UPDATE pets SET paw_balance = $1 WHERE id = $2', ['0.0000005', petId]);
+  it('emits pet.died when total_balance goes below 0', async () => {
+    await pool.query('UPDATE pets SET system_credits = $1, onchain_balance = $2 WHERE id = $3', ['0.005', '0', petId]);
     emittedEvents.length = 0;
 
     const res = await app.inject({
@@ -163,7 +178,6 @@ describe('POST /internal/heartbeat/:petId/deduct', () => {
     });
 
     expect(res.statusCode).toBe(200);
-
     const diedEvent = emittedEvents.find((e) => e.type === 'pet.died');
     expect(diedEvent).toBeDefined();
     expect(diedEvent).toMatchObject({ type: 'pet.died', data: { pet_id: petId } });

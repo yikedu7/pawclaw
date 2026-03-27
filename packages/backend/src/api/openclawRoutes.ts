@@ -10,6 +10,8 @@ import { verifyEIP3009Signature, submitTransferWithAuthorization } from '../paym
 
 export type OpenclawRouteDeps = {
   emitOwnerEvent: (ownerId: string, event: WsEvent) => void;
+  /** Stop a running container — injected from runtime layer by index.ts. */
+  stopPetContainer?: (containerId: string) => Promise<void>;
   /** Override blockchain submission for testing. Defaults to real X Layer submission. */
   submitPaymentTx?: (authorization: PaymentAuthorization, signature: string) => Promise<string>;
   /** Override heartbeat payment submission for testing. Defaults to real X Layer submission. */
@@ -24,7 +26,36 @@ function checkBearerToken(authHeader: string | undefined): boolean {
 
 const PetIdSchema = z.string().uuid();
 
-const HEARTBEAT_COST = 0.000001;
+const HEARTBEAT_COST = 0.0125;
+
+/**
+ * Shared post-processing after any credit deduction.
+ * Recomputes hunger from total balance, writes to DB, and handles death.
+ */
+async function applyBalancePostProcessing(
+  petId: string,
+  ownerId: string,
+  systemCredits: number,
+  onchainBalance: number,
+  initialCredits: number,
+  mood: number,
+  affection: number,
+  containerId: string | null,
+  deps: OpenclawRouteDeps,
+): Promise<void> {
+  const total = systemCredits + onchainBalance;
+  const hunger = Math.max(0, Math.min(100, Math.round((1 - total / initialCredits) * 100)));
+  await db.update(pets).set({ system_credits: systemCredits.toString(), onchain_balance: onchainBalance.toString(), hunger }).where(eq(pets.id, petId));
+
+  if (total <= 0) {
+    if (containerId && deps.stopPetContainer) {
+      await deps.stopPetContainer(containerId).catch(() => {});
+    }
+    deps.emitOwnerEvent(ownerId, { type: 'pet.died', data: { pet_id: petId } });
+  } else {
+    deps.emitOwnerEvent(ownerId, { type: 'pet.state', data: { pet_id: petId, hunger, mood, affection } });
+  }
+}
 
 const RuntimeEventSchema = z.discriminatedUnion('event_type', [
   z.object({ event_type: z.literal('speak'), message: z.string() }),
@@ -33,7 +64,6 @@ const RuntimeEventSchema = z.discriminatedUnion('event_type', [
   z.object({ event_type: z.literal('rest') }),
   z.object({
     event_type: z.literal('state_update'),
-    hunger: z.number().int().min(0).max(100).optional(),
     mood: z.number().int().min(0).max(100).optional(),
   }),
 ]);
@@ -99,19 +129,17 @@ export async function registerOpenclawRoutes(
       }
 
       case 'rest': {
-        const newHunger = Math.min(100, pet.hunger + 10);
         const newMood = Math.min(100, pet.mood + 5);
-        await db.update(pets).set({ hunger: newHunger, mood: newMood }).where(eq(pets.id, petId));
+        await db.update(pets).set({ mood: newMood }).where(eq(pets.id, petId));
         deps.emitOwnerEvent(pet.owner_id, {
           type: 'pet.state',
-          data: { pet_id: petId, hunger: newHunger, mood: newMood, affection: pet.affection },
+          data: { pet_id: petId, hunger: pet.hunger, mood: newMood, affection: pet.affection },
         });
         break;
       }
 
       case 'state_update': {
-        const updates: Partial<{ hunger: number; mood: number }> = {};
-        if (event.hunger !== undefined) updates.hunger = event.hunger;
+        const updates: Partial<{ mood: number }> = {};
         if (event.mood !== undefined) updates.mood = event.mood;
         if (Object.keys(updates).length > 0) {
           await db.update(pets).set(updates).where(eq(pets.id, petId));
@@ -120,7 +148,7 @@ export async function registerOpenclawRoutes(
           type: 'pet.state',
           data: {
             pet_id: petId,
-            hunger: updates.hunger ?? pet.hunger,
+            hunger: pet.hunger,
             mood: updates.mood ?? pet.mood,
             affection: pet.affection,
           },
@@ -178,12 +206,11 @@ export async function registerOpenclawRoutes(
     }
     const pet = await db.query.pets.findFirst({ where: eq(pets.id, parsed.data.pet_id) });
     if (!pet) return reply.code(404).send({ error: 'Pet not found', code: 'NOT_FOUND' });
-    const newHunger = Math.min(100, pet.hunger + 10);
     const newMood = Math.min(100, pet.mood + 5);
-    await db.update(pets).set({ hunger: newHunger, mood: newMood }).where(eq(pets.id, parsed.data.pet_id));
+    await db.update(pets).set({ mood: newMood }).where(eq(pets.id, parsed.data.pet_id));
     deps.emitOwnerEvent(pet.owner_id, {
       type: 'pet.state',
-      data: { pet_id: parsed.data.pet_id, hunger: newHunger, mood: newMood, affection: pet.affection },
+      data: { pet_id: parsed.data.pet_id, hunger: pet.hunger, mood: newMood, affection: pet.affection },
     });
     return reply.send({ ok: true });
   });
@@ -308,7 +335,7 @@ export async function registerOpenclawRoutes(
       if (!platformWallet) {
         return reply.code(500).send({ error: 'PLATFORM_WALLET_ADDRESS not configured', code: 'CONFIG_ERROR' });
       }
-      return send402(reply, '0.000001', platformWallet);
+      return send402(reply, '0.0125', platformWallet);
     }
 
     // ── Replay: decode, verify, submit ────────────────────────────────────────
@@ -363,16 +390,18 @@ export async function registerOpenclawRoutes(
 
     const decimals = parseInt(process.env.PAYMENT_TOKEN_DECIMALS ?? '18', 10);
     const deductAmount = Number(payload.authorization.value) / Math.pow(10, decimals);
-    const newBalance = parseFloat(pet.paw_balance ?? '0') - deductAmount;
+    const newOnchain = parseFloat(pet.onchain_balance ?? '0') - deductAmount;
+    const systemCredits = parseFloat(pet.system_credits ?? '0');
+    const initialCredits = parseFloat(pet.initial_credits ?? '0.3');
 
-    await db.update(pets).set({ paw_balance: newBalance.toString() }).where(eq(pets.id, petId));
+    await applyBalancePostProcessing(petId, pet.owner_id, systemCredits, newOnchain, initialCredits, pet.mood, pet.affection, pet.container_id, deps);
 
     return reply.send({ ok: true, tx_hash: txHash });
   });
 
   // ── POST /internal/heartbeat/:petId/deduct ────────────────────────────────
   // Fallback deduct endpoint — called when x402 USDC payment fails.
-  // Deducts HEARTBEAT_COST from DB paw_balance directly.
+  // Deducts HEARTBEAT_COST from DB system_credits directly.
   // Auth: per-pet gateway_token (same as /internal/heartbeat/:petId).
   fastify.post('/internal/heartbeat/:petId/deduct', async (request, reply) => {
     const petIdParsed = PetIdSchema.safeParse((request.params as { petId: string }).petId);
@@ -388,13 +417,12 @@ export async function registerOpenclawRoutes(
       return reply.code(401).send({ error: 'Unauthorized', code: 'UNAUTHORIZED' });
     }
 
-    const newBalance = parseFloat(pet.paw_balance ?? '0') - HEARTBEAT_COST;
-    await db.update(pets).set({ paw_balance: newBalance.toString() }).where(eq(pets.id, petId));
+    const newSystemCredits = parseFloat(pet.system_credits ?? '0') - HEARTBEAT_COST;
+    const onchainBalance = parseFloat(pet.onchain_balance ?? '0');
+    const initialCredits = parseFloat(pet.initial_credits ?? '0.3');
 
-    if (newBalance <= 0) {
-      deps.emitOwnerEvent(pet.owner_id, { type: 'pet.died', data: { pet_id: petId } });
-    }
+    await applyBalancePostProcessing(petId, pet.owner_id, newSystemCredits, onchainBalance, initialCredits, pet.mood, pet.affection, pet.container_id, deps);
 
-    return reply.send({ ok: true, paw_balance: newBalance.toString() });
+    return reply.send({ ok: true, system_credits: newSystemCredits.toString() });
   });
 }

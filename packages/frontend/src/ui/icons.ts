@@ -64,4 +64,14 @@ export const Icons = {
       `<circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><line x1="9.17" x2="7" y1="11" y2="11"/>`,
       size,
     ),
+  drumstick: (size?: number) =>
+    makeSvg(
+      `<path d="M15.45 15.4c-2.13 2.13-4.72 3.12-5.8 2.04l-5.09-5.09c-1.08-1.08-.09-3.67 2.04-5.8 2.13-2.13 4.72-3.12 5.8-2.04l5.09 5.09c1.08 1.08.09 3.67-2.04 5.8z"/><path d="m11 11 5 5"/><circle cx="19.5" cy="19.5" r="2.5"/>`,
+      size,
+    ),
+  helpCircle: (size?: number) =>
+    makeSvg(
+      `<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>`,
+      size,
+    ),
 } as const;

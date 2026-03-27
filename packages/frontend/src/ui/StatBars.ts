@@ -7,6 +7,12 @@ interface Stat {
   valueEl: HTMLSpanElement;
 }
 
+const STAT_TOOLTIPS: Record<string, string> = {
+  hunger: '🍗 Hunger — how hungry your pet is. Increases over time as credits are spent. Feed by topping up USDC to your pet\'s wallet.',
+  mood: '😊 Mood — your pet\'s current mood. Improves through social interactions and rest.',
+  affection: '❤️ Love — affection score. Grows with positive social events.',
+};
+
 /** Animated stat bars — hunger, mood, affection with smooth transitions. */
 export class StatBars {
   readonly el: HTMLDivElement;
@@ -17,8 +23,32 @@ export class StatBars {
     this.el.id = 'stat-bars';
     this.el.classList.add('ui-panel');
 
+    // Panel title with ? tooltip trigger
+    const titleRow = document.createElement('div');
+    titleRow.className = 'stat-title-row';
+
+    const titleSpan = document.createElement('span');
+    titleSpan.className = 'stat-title';
+    titleSpan.textContent = 'Stats';
+
+    const helpBtn = document.createElement('button');
+    helpBtn.className = 'stat-help-btn';
+    helpBtn.setAttribute('aria-label', 'Stat explanations');
+    helpBtn.append(Icons.helpCircle(12));
+
+    const tooltip = document.createElement('div');
+    tooltip.className = 'stat-tooltip';
+    tooltip.innerHTML = Object.values(STAT_TOOLTIPS).map(t => `<p>${t}</p>`).join('');
+    tooltip.style.display = 'none';
+
+    helpBtn.addEventListener('mouseenter', () => { tooltip.style.display = 'block'; });
+    helpBtn.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+
+    titleRow.append(titleSpan, helpBtn, tooltip);
+    this.el.appendChild(titleRow);
+
     const defs: { key: string; label: string; icon: () => SVGSVGElement }[] = [
-      { key: 'hunger',    label: 'Hunger', icon: Icons.apple },
+      { key: 'hunger',    label: 'Hunger', icon: Icons.drumstick },
       { key: 'mood',      label: 'Mood',   icon: Icons.smile },
       { key: 'affection', label: 'Love',   icon: Icons.heart },
     ];

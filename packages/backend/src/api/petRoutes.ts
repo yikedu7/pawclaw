@@ -32,8 +32,10 @@ function toPetSummary(row: typeof pets.$inferSelect) {
   };
 }
 
-/** GET /api/pets/:id response shape — includes owner_id, paw_balance, initial_credits per contract */
+/** GET /api/pets/:id response shape — includes owner_id, credit balances, initial_credits per contract */
 function toPetDetail(row: typeof pets.$inferSelect) {
+  const systemCredits = parseFloat(row.system_credits ?? '0');
+  const onchainBalance = parseFloat(row.onchain_balance ?? '0');
   return {
     id: row.id,
     owner_id: row.owner_id,
@@ -42,7 +44,9 @@ function toPetDetail(row: typeof pets.$inferSelect) {
     hunger: row.hunger,
     mood: row.mood,
     affection: row.affection,
-    paw_balance: row.paw_balance ?? '0',
+    system_credits: row.system_credits ?? '0',
+    onchain_balance: row.onchain_balance ?? '0',
+    total_balance: (systemCredits + onchainBalance).toString(),
     initial_credits: row.initial_credits,
     tint_color: row.tint_color,
   };
@@ -164,18 +168,18 @@ export async function registerPetRoutes(
     }
 
     const balanceStr = await getPawBalance(row.wallet_address);
-    const balance = parseFloat(balanceStr);
+    const onchainBalance = parseFloat(balanceStr);
 
     await db
       .update(pets)
-      .set({ paw_balance: balanceStr })
+      .set({ onchain_balance: balanceStr })
       .where(eq(pets.id, row.id));
 
-    if (balance > 0 && row.container_status === 'stopped' && row.container_id && deps.reviveContainer) {
+    if (onchainBalance > 0 && row.container_status === 'stopped' && row.container_id && deps.reviveContainer) {
       await deps.reviveContainer(row.container_id);
       deps.emitOwnerEvent?.(row.owner_id, { type: 'pet.revived', data: { pet_id: row.id } });
     }
 
-    return reply.send({ ok: true, paw_balance: balanceStr });
+    return reply.send({ ok: true, onchain_balance: balanceStr });
   });
 }

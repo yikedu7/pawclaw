@@ -7,6 +7,8 @@ import { db } from '../db/client.js';
 import { pets } from '../db/schema.js';
 import { authHook } from './authHook.js';
 
+const CHAT_COST = 0.004;
+
 const anthropic = new Anthropic();
 
 const ChatBodySchema = z.object({
@@ -17,6 +19,8 @@ export type ChatRouteDeps = {
   emitOwnerEvent: (ownerId: string, event: WsEvent) => void;
   containerChat: (containerId: string, gatewayToken: string, message: string, state: object, ownerId?: string) => Promise<string>;
   containerChatStream: (containerId: string, gatewayToken: string, message: string, state: object, ownerId: string | undefined, onToken: (token: string) => void) => Promise<string>;
+  /** Stop a running container — injected from runtime layer by index.ts. */
+  stopPetContainer?: (containerId: string) => Promise<void>;
 };
 
 export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRouteDeps): Promise<void> {
@@ -91,6 +95,7 @@ export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRout
           type: 'pet.speak',
           data: { pet_id: id, message: replyText },
         });
+        await deductChatCost(pet, deps, request.log);
         return reply.send({ reply: replyText });
       } catch (err: unknown) {
         request.log.error({ err, petId: id }, 'Container chat failed');
@@ -165,6 +170,34 @@ export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRout
       data: { pet_id: id, message: reply_text },
     });
 
+    await deductChatCost(pet, deps, request.log);
     return reply.send({ reply: reply_text });
   });
+}
+
+async function deductChatCost(
+  pet: { id: string; owner_id: string; system_credits: string | null; onchain_balance: string | null; initial_credits: string; mood: number; affection: number; hunger: number; container_id: string | null; container_status: string },
+  deps: ChatRouteDeps,
+  log: { error(obj: object, msg: string): void },
+): Promise<void> {
+  try {
+    const newSystemCredits = parseFloat(pet.system_credits ?? '0') - CHAT_COST;
+    const onchainBalance = parseFloat(pet.onchain_balance ?? '0');
+    const initialCredits = parseFloat(pet.initial_credits ?? '0.3');
+    const total = newSystemCredits + onchainBalance;
+    const hunger = Math.max(0, Math.min(100, Math.round((1 - total / initialCredits) * 100)));
+
+    await db.update(pets).set({ system_credits: newSystemCredits.toString(), hunger }).where(eq(pets.id, pet.id));
+
+    if (total <= 0) {
+      if (pet.container_id && pet.container_status === 'running' && deps.stopPetContainer) {
+        await deps.stopPetContainer(pet.container_id).catch(() => {});
+      }
+      deps.emitOwnerEvent(pet.owner_id, { type: 'pet.died', data: { pet_id: pet.id } });
+    } else {
+      deps.emitOwnerEvent(pet.owner_id, { type: 'pet.state', data: { pet_id: pet.id, hunger, mood: pet.mood, affection: pet.affection } });
+    }
+  } catch (err) {
+    log.error({ err, petId: pet.id }, '[chat] Failed to deduct CHAT_COST');
+  }
 }

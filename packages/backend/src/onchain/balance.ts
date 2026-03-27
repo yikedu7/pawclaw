@@ -5,7 +5,7 @@ const ERC20_BALANCE_ABI = ['function balanceOf(address) view returns (uint256)']
 /**
  * Returns the pet's current PAW token balance in PAW units (not Wei).
  * Result is a decimal string like "150.5", suitable for numeric DB storage
- * and direct use in hunger = paw_balance / initial_credits * 100.
+ * and direct use in hunger = clamp((1 - balance / initial_credits) * 100, 0, 100).
  *
  * Requires env vars:
  *   PAYMENT_TOKEN_ADDRESS — deployed PAW ERC20 contract address
@@ -19,6 +19,7 @@ export async function getPawBalance(walletAddress: string): Promise<string> {
 
   const provider = new ethers.JsonRpcProvider(rpcUrl);
   const token = new ethers.Contract(tokenAddress, ERC20_BALANCE_ABI, provider);
+  const decimals = parseInt(process.env.PAYMENT_TOKEN_DECIMALS ?? '18', 10);
   const wei = await token.balanceOf(walletAddress) as bigint;
-  return ethers.formatUnits(wei, 18);
+  return ethers.formatUnits(wei, decimals);
 }

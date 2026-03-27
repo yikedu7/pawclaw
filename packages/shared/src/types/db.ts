@@ -21,6 +21,10 @@ export type DbPet = {
   last_tick_at: Date | null;
   created_at: Date;
   diary_text: string | null;
+  // Economic model
+  initial_credits: string;     // numeric: reference denominator for hunger % (default 0.3)
+  system_credits: string;      // numeric: DB-granted credits consumed by heartbeat fallback + chat
+  onchain_balance: string;     // numeric: on-chain USDC mirror, overwritten by poller
   // Container
   container_id: string | null;
   container_host: string | null;
@@ -28,6 +32,7 @@ export type DbPet = {
   container_status: ContainerStatus;
   gateway_token: string | null;
   port_index: number | null;
+  tint_color: string;
 };
 
 export type DbSocialEvent = {

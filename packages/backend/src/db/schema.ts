@@ -32,18 +32,20 @@ export const pets = pgTable('pets', {
   skill_md: text('skill_md').notNull(),
   // Null until Onchain OS creates the wallet asynchronously after container start
   wallet_address: text('wallet_address'),
-  hunger: integer('hunger').notNull().default(100),
-  mood: integer('mood').notNull().default(100),
-  affection: integer('affection').notNull().default(0),
+  hunger: integer('hunger').notNull().default(20),
+  mood: integer('mood').notNull().default(80),
+  affection: integer('affection').notNull().default(20),
   llm_history: jsonb('llm_history').notNull().default([]),
   last_tick_at: timestamp('last_tick_at', { withTimezone: true }),
   created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   diary_text: text('diary_text'),
 
-  // Economic model: initial PAW grant at registration (for hunger % calc: wallet_balance / initial_credits)
-  initial_credits: integer('initial_credits').notNull().default(200),
-  // Current PAW balance in PAW units (not Wei) — null until first poll or topup
-  paw_balance: numeric('paw_balance'),
+  // Economic model: initial credit grant at registration (denominator for hunger % calc)
+  initial_credits: numeric('initial_credits').notNull().default('0.3'),
+  // DB-granted credits (fallback path): consumed by heartbeat fallback and chat
+  system_credits: numeric('system_credits').notNull().default('0'),
+  // On-chain USDC mirror: poller overwrites with ground truth every hour
+  onchain_balance: numeric('onchain_balance').notNull().default('0'),
 
   tint_color: varchar('tint_color', { length: 7 }).notNull().default('#ffffff'),
 

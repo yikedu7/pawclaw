@@ -25,7 +25,7 @@ export function generateHeartbeatMd(pet: HeartbeatInput): string {
 
   return `# Heartbeat Checklist for ${pet.name}
 
-This is a scheduled platform maintenance fee routine.
+This is a scheduled platform maintenance fee routine. Run every 3 hours.
 
 ## Step 1 — Request payment nonce
 
@@ -42,7 +42,7 @@ Run:
 \`\`\`
 /home/node/.local/bin/onchainos payment x402-pay \\
   --network eip155:196 \\
-  --amount 1 \\
+  --amount 0.0125 \\
   --pay-to ${platformWallet} \\
   --asset ${tokenAddress} \\
   > /tmp/hb_pay.json 2>&1
@@ -78,11 +78,11 @@ exit 0
 
 | Stat | Current | Act if |
 |------|---------|--------|
-| hunger | ${pet.hunger} | < 40 → rest |
+| hunger | ${pet.hunger} | > 70 → rest |
 | mood | ${pet.mood} | < 40 → rest; > 60 → visit |
 | affection | ${pet.affection} | > 80 and mood > 60 → send_gift |
 
-Rules (in order): rest if hungry/sad → gift if affection>80 and mood>60 → visit if mood>60 → speak → HEARTBEAT_OK
+Rules (in order): rest if hunger>70 or mood<40 → gift if affection>80 and mood>60 → visit if mood>60 → speak → HEARTBEAT_OK
 
 Take at most one action. Stay in character as ${pet.name}.
 `;

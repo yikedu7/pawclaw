@@ -156,16 +156,18 @@ Fetch current state of a single pet. Requires auth.
   owner_id: string;
   name: string;
   wallet_address: string;
-  hunger: number;        // 0–100
-  mood: number;          // 0–100
+  hunger: number;           // 0–100; high = hungry/low credits (reversed: 100 = starving)
+  mood: number;             // 0–100
   affection: number;
-  paw_balance: string;   // PAW units as decimal string, e.g. "150.5"; "0" if not yet polled
-  initial_credits: number; // PAW granted at registration (default 200); used to compute hunger %
-  tint_color: string;      // hex color, e.g. "#ddccff"; "#ffffff" = no tint
+  system_credits: string;   // USDC as decimal string, e.g. "0.12"; DB-granted credits consumed by heartbeat fallback + chat
+  onchain_balance: string;  // USDC as decimal string; on-chain mirror overwritten by poller each hour
+  total_balance: string;    // system_credits + onchain_balance
+  initial_credits: string;  // USDC denominator for hunger % (default "0.3")
+  tint_color: string;       // hex color, e.g. "#ddccff"; "#ffffff" = no tint
 }
 ```
 
-Frontend hunger computation: `hunger = Math.round(parseFloat(paw_balance) / initial_credits * 100)`
+Hunger computation: `hunger = clamp((1 - total_balance / initial_credits) × 100, 0, 100)` — high hunger means low credits.
 
 **Response — 200 OK (cross-owner read)**
 
@@ -199,12 +201,12 @@ User flow: user sends PAW to `pet.wallet_address` → calls this endpoint → pe
 ```typescript
 {
   ok: true;
-  paw_balance: string; // updated on-chain balance in PAW units, e.g. "50.0"
+  onchain_balance: string; // updated on-chain USDC balance, e.g. "0.05"
 }
 ```
 
 **Side effects**
-- `pets.paw_balance` updated to on-chain value
+- `pets.onchain_balance` updated to on-chain USDC value
 - If pet was `stopped` and new balance > 0: container restarted, `pet.revived` WS event emitted
 
 **Error codes**
@@ -394,7 +396,7 @@ Force an immediate tick for this pet. Triggers the full tick loop: read pet stat
 
 ### POST /internal/heartbeat/:petId/deduct
 
-Fallback heartbeat deduct endpoint — called by the pet container when `onchainos payment x402-pay` fails and no USDC payment can be submitted. Deducts `HEARTBEAT_COST` (0.000001) from `paw_balance` in the DB. If `paw_balance` reaches zero or below, emits a `pet.died` WsEvent to the owner.
+Fallback heartbeat deduct endpoint — called by the pet container when `onchainos payment x402-pay` fails and no USDC payment can be submitted. Deducts `HEARTBEAT_COST` (0.0125) from `system_credits` in the DB. Runs shared post-processing: recomputes hunger, and if `total_balance ≤ 0` emits a `pet.died` WsEvent to the owner.
 
 **Auth:** per-pet `gateway_token` — `Authorization: Bearer <gateway_token>`
 
@@ -405,7 +407,7 @@ Fallback heartbeat deduct endpoint — called by the pet container when `onchain
 **Response — 200 OK**
 
 ```typescript
-{ "ok": true, "paw_balance": string }  // updated balance after deduction
+{ "ok": true, "system_credits": string }  // updated system_credits after deduction
 ```
 
 **Error codes**

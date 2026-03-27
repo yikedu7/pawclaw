@@ -13,8 +13,9 @@ export type PollerLogger = {
 };
 
 /**
- * Polls PAW balance for all running pets, updates paw_balance in DB,
- * and detects death (paw_balance hits 0 → stop container, emit pet.died).
+ * Polls on-chain USDC balance for all running pets, overwrites onchain_balance in DB
+ * (simple overwrite — always ground truth, no delta, no race condition),
+ * and runs shared post-processing (hunger recompute, death check).
  */
 export async function pollBalances(log: PollerLogger): Promise<void> {
   const runningPets = await db
@@ -27,15 +28,18 @@ export async function pollBalances(log: PollerLogger): Promise<void> {
 
     try {
       const balanceStr = await getPawBalance(pet.wallet_address);
-      const balance = parseFloat(balanceStr);
+      const onchainBalance = parseFloat(balanceStr);
+      const systemCredits = parseFloat(pet.system_credits ?? '0');
+      const initialCredits = parseFloat(pet.initial_credits ?? '0.3');
+      const total = systemCredits + onchainBalance;
+      const hunger = Math.max(0, Math.min(100, Math.round((1 - total / initialCredits) * 100)));
 
       await db
         .update(pets)
-        .set({ paw_balance: balanceStr })
+        .set({ onchain_balance: balanceStr, hunger })
         .where(eq(pets.id, pet.id));
 
-      if (balance <= 0) {
-        // Pet is out of PAW — stop container and emit pet.died
+      if (total <= 0) {
         if (pet.container_id) {
           await stopContainer(pet.container_id).catch((err: unknown) => {
             log.error({ err, petId: pet.id, containerId: pet.container_id }, '[balance-poller] stopContainer failed');
@@ -46,8 +50,6 @@ export async function pollBalances(log: PollerLogger): Promise<void> {
           data: { pet_id: pet.id },
         });
       } else {
-        // Emit updated hunger derived from PAW balance
-        const hunger = Math.max(0, Math.min(100, Math.round((balance / pet.initial_credits) * 100)));
         tickBus.emit('ownerEvent', pet.owner_id, {
           type: 'pet.state',
           data: {

@@ -11,7 +11,7 @@ import { registerDiaryRoute } from './social/diary.js';
 import { registerOpenclawRoutes } from './api/openclawRoutes.js';
 import { generateSoulMd } from './runtime/soul-generator.js';
 import { generateSkillMd } from './runtime/skill-generator.js';
-import { createPetContainer, startContainer, containerChat, containerChatStream, fetchWalletAddress } from './runtime/container.js';
+import { createPetContainer, startContainer, stopContainer, containerChat, containerChatStream, fetchWalletAddress } from './runtime/container.js';
 import { tickBus } from './runtime/tick-bus.js';
 import { db } from './db/client.js';
 import { pets } from './db/schema.js';
@@ -63,18 +63,17 @@ await registerChatRoute(fastify, {
   emitOwnerEvent: (ownerId, event) => tickBus.emit('ownerEvent', ownerId, event),
   containerChat,
   containerChatStream,
+  stopPetContainer: stopContainer,
 });
 await registerDiaryRoute(fastify);
 await registerOpenclawRoutes(fastify, {
   emitOwnerEvent: (ownerId, event) => tickBus.emit('ownerEvent', ownerId, event),
+  stopPetContainer: stopContainer,
 });
 
-// Balance poller disabled: getPawBalance uses PAW 18-decimal ABI but
-// PAYMENT_TOKEN_ADDRESS now points to USDC (6 decimals) — results are wrong.
-// Re-enable once economic model is redesigned for USDC.
-// if (process.env.PAYMENT_TOKEN_ADDRESS) {
-//   startBalancePoller(fastify.log);
-// }
+if (process.env.PAYMENT_TOKEN_ADDRESS) {
+  startBalancePoller(fastify.log);
+}
 
 const port = Number(process.env.PORT ?? 3001);
 await fastify.listen({ port, host: '0.0.0.0' });

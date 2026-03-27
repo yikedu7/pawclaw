@@ -118,9 +118,9 @@ describe('pet CRUD integration', () => {
     expect(res.statusCode).toBe(201);
     const body = res.json();
     expect(body.name).toBe('SmokePet');
-    expect(body.hunger).toBe(100);
-    expect(body.mood).toBe(100);
-    expect(body.affection).toBe(0);
+    expect(body.hunger).toBe(20);
+    expect(body.mood).toBe(80);
+    expect(body.affection).toBe(20);
     expect(body).not.toHaveProperty('owner_id');
     expect(body).toHaveProperty('id');
     expect(body).toHaveProperty('wallet_address');
@@ -134,15 +134,15 @@ describe('pet CRUD integration', () => {
     expect(rows[0].owner_id).toBe(OWNER_A);
     expect(rows[0].soul_md).toBe('# SOUL smoke');
     expect(rows[0].skill_md).toBe('# SKILL smoke');
-    expect(rows[0].initial_credits).toBe(200);
+    expect(parseFloat(rows[0].initial_credits)).toBeCloseTo(0.3);
   });
 
-  it('DB side effect: initial_credits defaults to 200 on creation', async () => {
+  it('DB side effect: initial_credits defaults to 0.3 on creation', async () => {
     const { rows } = await pool.query(
       'SELECT initial_credits FROM pets WHERE id = $1',
       [createdPetId],
     );
-    expect(rows[0].initial_credits).toBe(200);
+    expect(parseFloat(rows[0].initial_credits)).toBeCloseTo(0.3);
   });
 
   it('POST /api/pets calls grantDbCredits with the pet id', async () => {

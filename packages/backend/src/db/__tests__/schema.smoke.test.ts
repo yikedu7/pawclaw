@@ -45,7 +45,7 @@ describe('schema smoke tests', () => {
     expect(pet.id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     );
-    expect(pet.affection).toBe(0);
+    expect(pet.affection).toBe(20);
   });
 
   it('inserts a social_events row referencing an existing pet (FK works)', async () => {
