@@ -57,6 +57,13 @@
       "when": 1774368126086,
       "tag": "0007_safe_mysterio",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1774610000000,
+      "tag": "0008_economic_model_redesign",
+      "breakpoints": true
     }
   ]
 }
