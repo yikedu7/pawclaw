@@ -26,6 +26,9 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Check for dead code modules
+        run: pnpm --filter @pawclaw/frontend knip --include files,exports --reporter compact
+
       - name: Build
         run: pnpm build
 
