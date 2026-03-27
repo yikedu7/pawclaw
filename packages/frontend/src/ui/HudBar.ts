@@ -14,10 +14,10 @@ const STAT_DEFS = [
   { key: 'affection', icon: Icons.heart,     label: 'Love' },
 ];
 
-const STAT_TOOLTIPS = [
-  '🍗 Hunger — how hungry your pet is. Increases over time as credits are spent. Feed by topping up USDC to your pet\'s wallet.',
-  '😊 Mood — your pet\'s current mood. Improves through social interactions and rest.',
-  '❤️ Love — affection score. Grows with positive social events.',
+const STAT_TOOLTIP_ROWS: Array<{ icon: () => SVGSVGElement; text: string }> = [
+  { icon: Icons.drumstick, text: 'Hunger — how hungry your pet is. Increases over time as credits are spent. Feed by topping up USDC to your pet\'s wallet.' },
+  { icon: Icons.smile,     text: 'Mood — your pet\'s current mood. Improves through social interactions and rest.' },
+  { icon: Icons.heart,     text: 'Love — affection score. Grows with positive social events.' },
 ];
 
 /**
@@ -57,7 +57,12 @@ export class HudBar {
     helpBtn.append(Icons.helpCircle(12));
     const tooltip = document.createElement('div');
     tooltip.className = 'stat-tooltip';
-    tooltip.innerHTML = STAT_TOOLTIPS.map(t => `<p>${t}</p>`).join('');
+    for (const row of STAT_TOOLTIP_ROWS) {
+      const p = document.createElement('p');
+      p.appendChild(row.icon(12));
+      p.appendChild(document.createTextNode(' ' + row.text));
+      tooltip.appendChild(p);
+    }
     tooltip.style.display = 'none';
     helpBtn.addEventListener('mouseenter', () => { tooltip.style.display = 'block'; });
     helpBtn.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
