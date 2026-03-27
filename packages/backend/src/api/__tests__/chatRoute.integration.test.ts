@@ -1,17 +1,27 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import jwt from 'jsonwebtoken';
+import { vi, describe, it, expect, beforeAll, afterAll } from 'vitest';
+import type { FastifyRequest, FastifyReply } from 'fastify';
 import pg from 'pg';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { registerChatRoute } from '../chatRoute.js';
 
+// Mock authHook — chat tests cover business logic, not authentication.
+vi.mock('../authHook.js', () => ({
+  authHook: () => async (request: FastifyRequest, reply: FastifyReply) => {
+    const header = request.headers.authorization ?? '';
+    if (!header.startsWith('Bearer fake:')) {
+      return reply.code(401).send({ error: 'Missing or invalid token', code: 'UNAUTHORIZED' });
+    }
+    request.owner_id = header.slice('Bearer fake:'.length);
+  },
+}));
+
 const { Pool } = pg;
 
-const SECRET = 'smoke-test-secret';
 const OWNER_A = '00000000-cccc-4000-d000-000000000001';
 const OWNER_B = '00000000-cccc-4000-d000-000000000002';
 
 function makeToken(sub: string) {
-  return jwt.sign({ sub }, SECRET);
+  return `fake:${sub}`;
 }
 
 let pool: InstanceType<typeof Pool>;
@@ -42,7 +52,6 @@ beforeAll(async () => {
   `, [OWNER_A]);
   petId = rows[0].id;
 
-  process.env.JWT_SECRET = SECRET;
   app = Fastify();
   await registerChatRoute(app, {
     emitOwnerEvent: () => {},

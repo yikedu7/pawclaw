@@ -7,8 +7,15 @@ declare module 'fastify' {
   }
 }
 
-const supabaseUrl = process.env.SUPABASE_URL!;
-const JWKS = createRemoteJWKSet(new URL(`${supabaseUrl}/auth/v1/.well-known/jwks.json`));
+// Lazy JWKS instance — deferred until first request so module load does not
+// crash when SUPABASE_URL is evaluated before env is fully initialised.
+let _jwks: ReturnType<typeof createRemoteJWKSet> | undefined;
+function getJWKS() {
+  if (!_jwks) {
+    _jwks = createRemoteJWKSet(new URL(`${process.env.SUPABASE_URL}/auth/v1/.well-known/jwks.json`));
+  }
+  return _jwks;
+}
 
 export function authHook(fastify: FastifyInstance) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
@@ -19,7 +26,7 @@ export function authHook(fastify: FastifyInstance) {
 
     const token = header.slice(7);
     try {
-      const { payload } = await jwtVerify(token, JWKS);
+      const { payload } = await jwtVerify(token, getJWKS());
       if (!payload.sub) throw new Error('missing sub');
       request.owner_id = payload.sub;
     } catch {

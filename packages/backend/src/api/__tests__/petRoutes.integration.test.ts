@@ -1,26 +1,34 @@
 import { vi, describe, it, expect, beforeAll, afterAll } from 'vitest';
-import jwt from 'jsonwebtoken';
+import type { FastifyRequest, FastifyReply } from 'fastify';
 import pg from 'pg';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { registerPetRoutes } from '../petRoutes.js';
 
-// Mock the credits module — real on-chain calls are not part of integration tests.
-// wallet_address is null at pet creation time (Onchain OS sets it asynchronously),
-// so grantRegistrationCredits is never triggered via POST /api/pets in tests.
-// The credits code path (wallet_address non-null) is covered in petRoutes.credits.test.ts.
-const mockGrantCredits = vi.hoisted(() => vi.fn<(wallet: string) => Promise<void>>());
+// Mock authHook — integration tests cover business logic and DB side-effects,
+// not authentication. Tokens of the form "fake:<uuid>" pass; anything else → 401.
+vi.mock('../authHook.js', () => ({
+  authHook: () => async (request: FastifyRequest, reply: FastifyReply) => {
+    const header = request.headers.authorization ?? '';
+    if (!header.startsWith('Bearer fake:')) {
+      return reply.code(401).send({ error: 'Missing or invalid token', code: 'UNAUTHORIZED' });
+    }
+    request.owner_id = header.slice('Bearer fake:'.length);
+  },
+}));
+
+// Mock the credits module — DB credit grant is not under test here.
+const mockGrantCredits = vi.hoisted(() => vi.fn<(petId: string) => Promise<void>>());
 vi.mock('../../onchain/credits.js', () => ({
-  grantRegistrationCredits: mockGrantCredits,
+  grantDbCredits: mockGrantCredits,
 }));
 
 const { Pool } = pg;
 
-const SECRET = 'smoke-test-secret';
 const OWNER_A = '00000000-aaaa-4000-a000-000000000001';
 const OWNER_B = '00000000-aaaa-4000-a000-000000000002';
 
 function makeToken(sub: string): string {
-  return jwt.sign({ sub }, SECRET);
+  return `fake:${sub}`;
 }
 
 let pool: InstanceType<typeof Pool>;
@@ -47,7 +55,6 @@ beforeAll(async () => {
 
   mockGrantCredits.mockResolvedValue(undefined);
 
-  process.env.JWT_SECRET = SECRET;
   app = Fastify();
   await registerPetRoutes(app, {
     generateSoulMd: () => '# SOUL smoke',
@@ -138,9 +145,7 @@ describe('pet CRUD integration', () => {
     expect(rows[0].initial_credits).toBe(200);
   });
 
-  it('POST /api/pets does not call grantRegistrationCredits when wallet_address is null', async () => {
-    // wallet_address is null at insert time (Onchain OS assigns it asynchronously after
-    // container start), so grantRegistrationCredits must not be called at creation.
+  it('POST /api/pets calls grantDbCredits with the pet id', async () => {
     mockGrantCredits.mockClear();
     const res = await app.inject({
       method: 'POST', url: '/api/pets',
@@ -149,7 +154,7 @@ describe('pet CRUD integration', () => {
     });
     expect(res.statusCode).toBe(201);
     await new Promise((r) => setTimeout(r, 0));
-    expect(mockGrantCredits).not.toHaveBeenCalled();
+    expect(mockGrantCredits).toHaveBeenCalledWith(res.json().id);
   });
 
   it('GET /api/pets/:id returns 200 with owner_id for owner', async () => {
