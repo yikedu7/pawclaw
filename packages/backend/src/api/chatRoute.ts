@@ -68,10 +68,7 @@ export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRout
         );
         raw.write('data: [DONE]\n\n');
         raw.end();
-        deps.emitOwnerEvent(pet.owner_id, {
-          type: 'pet.speak',
-          data: { pet_id: id, message: fullText },
-        });
+        // SSE client already received the full stream — no WS echo needed
       } catch (err: unknown) {
         request.log.error({ err, petId: id }, 'Container chat stream failed');
         raw.write('data: [ERROR]\n\n');
@@ -138,10 +135,7 @@ export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRout
         }
         raw.write('data: [DONE]\n\n');
         raw.end();
-        deps.emitOwnerEvent(pet.owner_id, {
-          type: 'pet.speak',
-          data: { pet_id: id, message: fullText },
-        });
+        // SSE client already received the full stream — no WS echo needed
       } catch (err: unknown) {
         request.log.error({ err, petId: id }, 'Direct LLM stream failed');
         raw.write('data: [ERROR]\n\n');
