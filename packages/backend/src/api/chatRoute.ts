@@ -52,6 +52,9 @@ export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRout
         'Cache-Control': 'no-cache',
         'X-Accel-Buffering': 'no',
         Connection: 'keep-alive',
+        // reply.hijack() bypasses Fastify's onSend hooks (including @fastify/cors),
+        // so we must manually echo the CORS origin header.
+        'Access-Control-Allow-Origin': request.headers.origin ?? '*',
       });
 
       try {
