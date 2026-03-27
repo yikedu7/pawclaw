@@ -61,7 +61,11 @@ lsof -i :54322 | grep LISTEN  # Supabase postgres
 If 3001 or 54322 are not listening, **stop** and report:
 > Backend or DB not running. Start with: `pnpm --filter @pawclaw/backend dev`
 
-Port 2375 (Docker) is only needed for Chain 2. If missing, skip Chain 2.
+Docker is only needed for Chain 2. Check availability via Unix socket (OrbStack exposes Docker at `/var/run/docker.sock`, not TCP 2375):
+```bash
+curl -s --unix-socket /var/run/docker.sock http://localhost/version > /dev/null 2>&1 && echo "docker=ok" || echo "docker=unavailable"
+```
+If unavailable, skip Chain 2.
 
 ## Step 1 — Session + variable init
 
@@ -136,7 +140,7 @@ agent-browser --session $SESSION eval "document.getElementById('pet-section')?.s
 
 ### Chain 2 — Pet Creation + Container Startup
 
-*Skip if `pet_id` provided. Skip if Docker (port 2375) not available.*
+*Skip if `pet_id` provided. Skip if Docker Unix socket (`/var/run/docker.sock`) not available.*
 
 ```bash
 agent-browser --session $SESSION fill "#pet-name" "TestPet"
@@ -389,7 +393,7 @@ echo "topup: $RESULT"
 
 ### Chain 14 — Unique wallet per pet
 
-*Skip if Docker (port 2375) not available. Requires `pet_id` + `token` from a pet whose container is already running.*
+*Skip if Docker Unix socket (`/var/run/docker.sock`) not available. Requires `pet_id` + `token` from a pet whose container is already running.*
 
 Create a second pet and wait for its container to start:
 
