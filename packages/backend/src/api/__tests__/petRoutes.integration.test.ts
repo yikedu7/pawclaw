@@ -12,12 +12,14 @@ vi.mock('../../onchain/credits.js', () => ({
 
 const { Pool } = pg;
 
-const SECRET = 'smoke-test-secret';
+// Use the local Supabase JWT secret — same key the JWKS endpoint exposes.
+// Tokens signed with this secret are verifiable by authHook via JWKS.
+const JWT_SECRET = process.env.JWT_SECRET ?? 'super-secret-jwt-token-with-at-least-32-characters-long';
 const OWNER_A = '00000000-aaaa-4000-a000-000000000001';
 const OWNER_B = '00000000-aaaa-4000-a000-000000000002';
 
 function makeToken(sub: string): string {
-  return jwt.sign({ sub }, SECRET);
+  return jwt.sign({ sub }, JWT_SECRET);
 }
 
 let pool: InstanceType<typeof Pool>;
@@ -44,7 +46,6 @@ beforeAll(async () => {
 
   mockGrantCredits.mockResolvedValue(undefined);
 
-  process.env.JWT_SECRET = SECRET;
   app = Fastify();
   await registerPetRoutes(app, {
     generateSoulMd: () => '# SOUL smoke',

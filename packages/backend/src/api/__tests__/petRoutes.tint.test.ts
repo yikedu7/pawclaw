@@ -20,11 +20,12 @@ vi.mock('../../onchain/credits.js', () => ({
 
 const { Pool } = pg;
 
-const SECRET = 'tint-test-secret';
+// Use the local Supabase JWT secret — same key the JWKS endpoint exposes.
+const JWT_SECRET = process.env.JWT_SECRET ?? 'super-secret-jwt-token-with-at-least-32-characters-long';
 const OWNER = '00000000-cccc-4000-a000-000000000011';
 
 function makeToken(sub: string): string {
-  return jwt.sign({ sub }, SECRET);
+  return jwt.sign({ sub }, JWT_SECRET);
 }
 
 let pool: InstanceType<typeof Pool>;
@@ -46,7 +47,6 @@ beforeAll(async () => {
 
   await pool.query('DELETE FROM pets WHERE owner_id = $1', [OWNER]);
 
-  process.env.JWT_SECRET = SECRET;
   app = Fastify();
   await registerPetRoutes(app, {
     generateSoulMd: () => '# SOUL tint',

@@ -1,17 +1,30 @@
 import { vi } from 'vitest';
-import jwt from 'jsonwebtoken';
+import type { FastifyRequest, FastifyReply } from 'fastify';
 import Fastify, { type FastifyInstance } from 'fastify';
 
 vi.mock('../../onchain/credits.js', () => ({
   grantDbCredits: vi.fn().mockResolvedValue(undefined),
 }));
 
-export const SECRET = 'test-secret';
 export const OWNER_ID = '00000000-0000-4000-a000-000000000001';
 export const OTHER_OWNER = '00000000-0000-4000-a000-000000000002';
 
+// Mock authHook — unit tests using helpers.ts test business logic, not auth.
+// The hook always passes with a fixed owner_id; tests that need different owners
+// pass the owner via makeToken (which is no longer used for real JWT verification).
+vi.mock('../authHook.js', () => ({
+  authHook: () => async (request: FastifyRequest, _reply: FastifyReply) => {
+    // Extract the "sub" embedded in a fake token of the form "fake:<uuid>"
+    // so tests can still control which owner they're acting as.
+    const header = request.headers.authorization ?? '';
+    const token = header.replace('Bearer ', '');
+    const sub = token.startsWith('fake:') ? token.slice(5) : OWNER_ID;
+    request.owner_id = sub;
+  },
+}));
+
 export function makeToken(sub: string): string {
-  return jwt.sign({ sub }, SECRET);
+  return `fake:${sub}`;
 }
 
 // ── In-memory pet store ─────────────────────────────────────────────────────
@@ -156,7 +169,6 @@ vi.mock('drizzle-orm', () => ({
 // ── App factory ─────────────────────────────────────────────────────────────
 
 export async function buildApp(): Promise<FastifyInstance> {
-  process.env.JWT_SECRET = SECRET;
   const { registerPetRoutes } = await import('../petRoutes.js');
   const app = Fastify();
   await registerPetRoutes(app, {

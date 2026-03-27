@@ -3,10 +3,11 @@
  *
  * grantDbCredits(petId) is always called at pet creation — no wallet_address
  * guard since it writes directly to the DB.
+ *
+ * authHook is mocked: this test focuses on credits logic, not authentication.
  */
 import { vi, describe, it, expect, beforeAll, beforeEach } from 'vitest';
-import type { FastifyInstance } from 'fastify';
-import jwt from 'jsonwebtoken';
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 // ── Module mocks (hoisted) ───────────────────────────────────────────────────
 
@@ -16,7 +17,15 @@ vi.mock('../../onchain/credits.js', () => ({
   grantDbCredits: mockGrantCredits,
 }));
 
+const OWNER_ID = '00000000-0000-4000-a000-000000000001';
 const PET_ID = '00000000-0000-4000-b000-000000000099';
+
+// Mock authHook — auth is not under test here; always pass with a fixed owner_id
+vi.mock('../authHook.js', () => ({
+  authHook: () => async (request: FastifyRequest, _reply: FastifyReply) => {
+    request.owner_id = OWNER_ID;
+  },
+}));
 
 // Mock DB — returns a pet with no wallet_address (normal at creation time)
 vi.mock('../../db/client.js', () => ({
@@ -44,7 +53,7 @@ vi.mock('../../db/client.js', () => ({
         where: () => ({
           returning: async () => [{
             id: PET_ID,
-            owner_id: 'owner-1',
+            owner_id: OWNER_ID,
             name: 'TestPet',
             soul_md: '# SOUL',
             skill_md: (vals.skill_md as string) ?? '',
@@ -66,17 +75,9 @@ vi.mock('drizzle-orm', () => ({
   eq: () => () => true,
 }));
 
-// ── Test setup ───────────────────────────────────────────────────────────────
-
-const SECRET = 'credits-unit-test-secret';
-const OWNER_ID = '00000000-0000-4000-a000-000000000001';
-
-function makeToken(sub: string): string {
-  return jwt.sign({ sub }, SECRET);
-}
+// ── App factory ───────────────────────────────────────────────────────────────
 
 async function buildApp(): Promise<FastifyInstance> {
-  process.env.JWT_SECRET = SECRET;
   const Fastify = (await import('fastify')).default;
   const { registerPetRoutes } = await import('../petRoutes.js');
   const app = Fastify();
@@ -104,7 +105,7 @@ describe('POST /api/pets — grantDbCredits (unit)', () => {
   it('calls grantDbCredits with the pet id', async () => {
     const res = await app.inject({
       method: 'POST', url: '/api/pets',
-      headers: { authorization: `Bearer ${makeToken(OWNER_ID)}` },
+      headers: { authorization: 'Bearer any-token' },
       payload: { name: 'CreditsPet', soul_prompt: 'a generous dog' },
     });
     expect(res.statusCode).toBe(201);
@@ -116,7 +117,7 @@ describe('POST /api/pets — grantDbCredits (unit)', () => {
     mockGrantCredits.mockRejectedValueOnce(new Error('db unavailable'));
     const res = await app.inject({
       method: 'POST', url: '/api/pets',
-      headers: { authorization: `Bearer ${makeToken(OWNER_ID)}` },
+      headers: { authorization: 'Bearer any-token' },
       payload: { name: 'CreditsPet2', soul_prompt: 'a resilient cat' },
     });
     expect(res.statusCode).toBe(201);

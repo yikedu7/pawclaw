@@ -1,4 +1,3 @@
-import { createSecretKey } from 'crypto';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
@@ -8,8 +7,8 @@ declare module 'fastify' {
   }
 }
 
-// Lazy JWKS instance — initialized on first request to avoid module-load crash
-// when SUPABASE_URL is not yet set (e.g. vitest workers).
+// Lazy JWKS instance — deferred until first request so module load does not
+// crash when SUPABASE_URL is evaluated before env is fully initialised.
 let _jwks: ReturnType<typeof createRemoteJWKSet> | undefined;
 function getJWKS() {
   if (!_jwks) {
@@ -27,22 +26,9 @@ export function authHook(fastify: FastifyInstance) {
 
     const token = header.slice(7);
     try {
-      let sub: string | undefined;
-
-      if (process.env.SUPABASE_URL) {
-        // Production / local Supabase with JWKS support
-        const { payload } = await jwtVerify(token, getJWKS());
-        sub = payload.sub;
-      } else {
-        // Test environments: HS256 symmetric key via JWT_SECRET
-        const secret = process.env.JWT_SECRET;
-        if (!secret) throw new Error('Either SUPABASE_URL or JWT_SECRET must be set');
-        const { payload } = await jwtVerify(token, createSecretKey(Buffer.from(secret)));
-        sub = payload.sub;
-      }
-
-      if (!sub) throw new Error('missing sub');
-      request.owner_id = sub;
+      const { payload } = await jwtVerify(token, getJWKS());
+      if (!payload.sub) throw new Error('missing sub');
+      request.owner_id = payload.sub;
     } catch {
       return reply.code(401).send({ error: 'Missing or invalid token', code: 'UNAUTHORIZED' });
     }
