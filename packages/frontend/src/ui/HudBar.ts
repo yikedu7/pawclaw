@@ -10,8 +10,14 @@ interface StatSlot {
 
 const STAT_DEFS = [
   { key: 'hunger',    icon: Icons.drumstick, label: 'Hunger' },
-  { key: 'mood',      icon: Icons.smile,  label: 'Mood' },
-  { key: 'affection', icon: Icons.heart,  label: 'Love' },
+  { key: 'mood',      icon: Icons.smile,     label: 'Mood' },
+  { key: 'affection', icon: Icons.heart,     label: 'Love' },
+];
+
+const STAT_TOOLTIPS = [
+  '🍗 Hunger — how hungry your pet is. Increases over time as credits are spent. Feed by topping up USDC to your pet\'s wallet.',
+  '😊 Mood — your pet\'s current mood. Improves through social interactions and rest.',
+  '❤️ Love — affection score. Grows with positive social events.',
 ];
 
 /**
@@ -38,6 +44,25 @@ export class HudBar {
     // ── Left: stat bars ─────────────────────────────────────────────
     const statsSection = document.createElement('div');
     statsSection.className = 'hud-stats';
+
+    // Title row with ? tooltip
+    const titleRow = document.createElement('div');
+    titleRow.className = 'stat-title-row';
+    const titleSpan = document.createElement('span');
+    titleSpan.className = 'stat-title';
+    titleSpan.textContent = 'Stats';
+    const helpBtn = document.createElement('button');
+    helpBtn.className = 'stat-help-btn';
+    helpBtn.setAttribute('aria-label', 'Stat explanations');
+    helpBtn.append(Icons.helpCircle(12));
+    const tooltip = document.createElement('div');
+    tooltip.className = 'stat-tooltip';
+    tooltip.innerHTML = STAT_TOOLTIPS.map(t => `<p>${t}</p>`).join('');
+    tooltip.style.display = 'none';
+    helpBtn.addEventListener('mouseenter', () => { tooltip.style.display = 'block'; });
+    helpBtn.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+    titleRow.append(titleSpan, helpBtn, tooltip);
+    statsSection.appendChild(titleRow);
 
     this.slots = STAT_DEFS.map((def) => {
       const item = document.createElement('div');
