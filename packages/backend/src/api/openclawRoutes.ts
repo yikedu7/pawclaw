@@ -7,10 +7,11 @@ import { pets, transactions, social_events } from '../db/schema.js';
 import { executeVisit } from '../social/visit.js';
 import { send402, decodePaymentSignature, type PaymentAuthorization } from '../payment/x402.js';
 import { verifyEIP3009Signature, submitTransferWithAuthorization } from '../payment/verify.js';
-import { stopContainer } from '../runtime/container.js';
 
 export type OpenclawRouteDeps = {
   emitOwnerEvent: (ownerId: string, event: WsEvent) => void;
+  /** Stop a running container — injected from runtime layer by index.ts. */
+  stopPetContainer?: (containerId: string) => Promise<void>;
   /** Override blockchain submission for testing. Defaults to real X Layer submission. */
   submitPaymentTx?: (authorization: PaymentAuthorization, signature: string) => Promise<string>;
   /** Override heartbeat payment submission for testing. Defaults to real X Layer submission. */
@@ -40,19 +41,19 @@ async function applyBalancePostProcessing(
   mood: number,
   affection: number,
   containerId: string | null,
-  emitOwnerEvent: (ownerId: string, event: WsEvent) => void,
+  deps: OpenclawRouteDeps,
 ): Promise<void> {
   const total = systemCredits + onchainBalance;
   const hunger = Math.max(0, Math.min(100, Math.round((1 - total / initialCredits) * 100)));
   await db.update(pets).set({ system_credits: systemCredits.toString(), onchain_balance: onchainBalance.toString(), hunger }).where(eq(pets.id, petId));
 
   if (total <= 0) {
-    if (containerId) {
-      await stopContainer(containerId).catch(() => {});
+    if (containerId && deps.stopPetContainer) {
+      await deps.stopPetContainer(containerId).catch(() => {});
     }
-    emitOwnerEvent(ownerId, { type: 'pet.died', data: { pet_id: petId } });
+    deps.emitOwnerEvent(ownerId, { type: 'pet.died', data: { pet_id: petId } });
   } else {
-    emitOwnerEvent(ownerId, { type: 'pet.state', data: { pet_id: petId, hunger, mood, affection } });
+    deps.emitOwnerEvent(ownerId, { type: 'pet.state', data: { pet_id: petId, hunger, mood, affection } });
   }
 }
 
@@ -393,7 +394,7 @@ export async function registerOpenclawRoutes(
     const systemCredits = parseFloat(pet.system_credits ?? '0');
     const initialCredits = parseFloat(pet.initial_credits ?? '0.3');
 
-    await applyBalancePostProcessing(petId, pet.owner_id, systemCredits, newOnchain, initialCredits, pet.mood, pet.affection, pet.container_id, deps.emitOwnerEvent);
+    await applyBalancePostProcessing(petId, pet.owner_id, systemCredits, newOnchain, initialCredits, pet.mood, pet.affection, pet.container_id, deps);
 
     return reply.send({ ok: true, tx_hash: txHash });
   });
@@ -420,7 +421,7 @@ export async function registerOpenclawRoutes(
     const onchainBalance = parseFloat(pet.onchain_balance ?? '0');
     const initialCredits = parseFloat(pet.initial_credits ?? '0.3');
 
-    await applyBalancePostProcessing(petId, pet.owner_id, newSystemCredits, onchainBalance, initialCredits, pet.mood, pet.affection, pet.container_id, deps.emitOwnerEvent);
+    await applyBalancePostProcessing(petId, pet.owner_id, newSystemCredits, onchainBalance, initialCredits, pet.mood, pet.affection, pet.container_id, deps);
 
     return reply.send({ ok: true, system_credits: newSystemCredits.toString() });
   });

@@ -11,7 +11,7 @@ import { registerDiaryRoute } from './social/diary.js';
 import { registerOpenclawRoutes } from './api/openclawRoutes.js';
 import { generateSoulMd } from './runtime/soul-generator.js';
 import { generateSkillMd } from './runtime/skill-generator.js';
-import { createPetContainer, startContainer, containerChat, containerChatStream, fetchWalletAddress } from './runtime/container.js';
+import { createPetContainer, startContainer, stopContainer, containerChat, containerChatStream, fetchWalletAddress } from './runtime/container.js';
 import { tickBus } from './runtime/tick-bus.js';
 import { db } from './db/client.js';
 import { pets } from './db/schema.js';
@@ -63,10 +63,12 @@ await registerChatRoute(fastify, {
   emitOwnerEvent: (ownerId, event) => tickBus.emit('ownerEvent', ownerId, event),
   containerChat,
   containerChatStream,
+  stopPetContainer: stopContainer,
 });
 await registerDiaryRoute(fastify);
 await registerOpenclawRoutes(fastify, {
   emitOwnerEvent: (ownerId, event) => tickBus.emit('ownerEvent', ownerId, event),
+  stopPetContainer: stopContainer,
 });
 
 if (process.env.PAYMENT_TOKEN_ADDRESS) {
