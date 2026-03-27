@@ -44,7 +44,6 @@ export class ChatLog {
   private readonly messages: HTMLDivElement;
   private count = 0;
   private dialogueHandlers: DialogueHandlers | null = null;
-  private suppressNextSpeak: string | null = null;
 
   constructor() {
     this.el = document.createElement('div');
@@ -215,8 +214,6 @@ export class ChatLog {
       // Finalise row with markdown rendering
       streamingTextEl.textContent = '';
       streamingTextEl.appendChild(renderMarkdown(accumulated));
-      // Suppress the pet.speak WS echo — message already shown via streaming
-      this.suppressNextSpeak = accumulated;
     }
   }
 
@@ -296,10 +293,6 @@ export class ChatLog {
   }
 
   addSpeak(petId: string, message: string): void {
-    if (this.suppressNextSpeak === message) {
-      this.suppressNextSpeak = null;
-      return;
-    }
     const token = getAuth()?.token ?? null;
     const time = new Date();
     resolvePetName(petId, token).then((name) => {
