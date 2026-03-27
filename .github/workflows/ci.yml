@@ -35,3 +35,21 @@ jobs:
           git diff --exit-code -- packages/backend/drizzle/
         env:
           DATABASE_URL: postgresql://dummy:dummy@localhost/dummy
+
+      - name: Check migration journal is complete
+        run: |
+          node -e "
+          const fs = require('fs');
+          const journal = JSON.parse(fs.readFileSync('packages/backend/drizzle/meta/_journal.json', 'utf8'));
+          const tags = new Set(journal.entries.map(e => e.tag));
+          const sqlFiles = fs.readdirSync('packages/backend/drizzle')
+            .filter(f => f.endsWith('.sql'))
+            .map(f => f.replace('.sql', ''));
+          const missing = sqlFiles.filter(f => !tags.has(f));
+          if (missing.length > 0) {
+            console.error('ERROR: SQL files missing from journal:', missing);
+            console.error('Run pnpm drizzle-kit generate instead of writing SQL manually.');
+            process.exit(1);
+          }
+          console.log('Journal complete:', sqlFiles.length, 'migrations registered.');
+          "
