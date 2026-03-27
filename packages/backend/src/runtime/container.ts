@@ -640,12 +640,16 @@ export async function containerChatStream(
   let lineBuffer = '';
   let isMultiplexed: boolean | null = null;
 
+  const OpenClawDeltaSchema = z.object({
+    choices: z.array(z.object({ delta: z.object({ content: z.string().optional() }).optional() })).optional(),
+  });
+
   const processLine = (line: string): void => {
     if (!line.startsWith('data: ')) return;
     const data = line.slice(6).trim();
     if (data === '[DONE]') return;
     try {
-      const parsed = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string } }> };
+      const parsed = OpenClawDeltaSchema.parse(JSON.parse(data));
       const token = parsed.choices?.[0]?.delta?.content ?? '';
       if (token) {
         fullText += token;

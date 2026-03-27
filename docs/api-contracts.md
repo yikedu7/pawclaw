@@ -299,8 +299,6 @@ Feed the pet to restore its hunger stat. Requires auth.
 
 Send a message to the pet and receive its LLM-generated reply. The reply is also emitted as a `pet.speak` WsEvent so all connected clients see it in real time. Requires auth.
 
-> **Note:** SSE streaming (originally specified) is deferred to a future issue. The current implementation returns the full reply as a single JSON response once the LLM call completes.
-
 **Path params:** `id` — pet uuid
 
 **Request body**
@@ -311,13 +309,46 @@ Send a message to the pet and receive its LLM-generated reply. The reply is also
 }
 ```
 
+This endpoint supports two response modes selected by the `Accept` header:
+
+---
+
+#### Mode 1 — JSON (default)
+
+**Request header:** `Accept: application/json` (or omitted)
+
 **Response — 200 OK (`Content-Type: application/json`)**
 
 ```typescript
 {
-  reply: string; // pet's LLM-generated reply
+  reply: string; // pet's full LLM-generated reply
 }
 ```
+
+---
+
+#### Mode 2 — SSE Streaming
+
+**Request header:** `Accept: text/event-stream`
+
+**Response — 200 OK (`Content-Type: text/event-stream`)**
+
+The server streams Server-Sent Events. Each token delta is emitted as:
+
+```
+data: <token text>\n\n
+```
+
+The stream ends with one of:
+
+```
+data: [DONE]\n\n      // success — full reply has been streamed
+data: [ERROR]\n\n     // failure — stream aborted due to upstream error
+```
+
+After `[DONE]`, the server also emits a `pet.speak` WsEvent so all connected clients see the full reply in real time.
+
+---
 
 **Error codes**
 
