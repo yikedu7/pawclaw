@@ -14,7 +14,7 @@ const STAT_DEFS = [
   { key: 'affection', icon: Icons.heart,     label: 'Love' },
 ];
 
-const STAT_TOOLTIP_ROWS: Array<{ icon: () => SVGSVGElement; text: string }> = [
+const STAT_TOOLTIP_ROWS: Array<{ icon: (size?: number) => SVGSVGElement; text: string }> = [
   { icon: Icons.drumstick, text: 'Hunger — how hungry your pet is. Increases over time as credits are spent. Feed by topping up USDC to your pet\'s wallet.' },
   { icon: Icons.smile,     text: 'Mood — your pet\'s current mood. Improves through social interactions and rest.' },
   { icon: Icons.heart,     text: 'Love — affection score. Grows with positive social events.' },
