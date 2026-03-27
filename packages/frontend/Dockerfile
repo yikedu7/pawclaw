@@ -21,6 +21,7 @@ COPY tsconfig.base.json ./
 COPY packages/shared ./packages/shared
 COPY packages/frontend ./packages/frontend
 RUN pnpm --filter @pawclaw/shared build
+RUN rm -rf packages/frontend/node_modules/.vite
 RUN pnpm --filter @pawclaw/frontend build
 
 # Serve
