@@ -8,23 +8,14 @@ declare module 'fastify' {
   }
 }
 
-// Lazily resolved verifier — supports two modes:
-//   1. JWKS (production + local Supabase with JWKS support): when SUPABASE_URL is set
-//   2. HS256 symmetric key (tests + legacy local): when JWT_SECRET is set and SUPABASE_URL is not
-function buildVerifier() {
-  const supabaseUrl = process.env.SUPABASE_URL;
-  if (supabaseUrl) {
-    return createRemoteJWKSet(new URL(`${supabaseUrl}/auth/v1/.well-known/jwks.json`));
+// Lazy JWKS instance — initialized on first request to avoid module-load crash
+// when SUPABASE_URL is not yet set (e.g. vitest workers).
+let _jwks: ReturnType<typeof createRemoteJWKSet> | undefined;
+function getJWKS() {
+  if (!_jwks) {
+    _jwks = createRemoteJWKSet(new URL(`${process.env.SUPABASE_URL}/auth/v1/.well-known/jwks.json`));
   }
-  const secret = process.env.JWT_SECRET;
-  if (!secret) throw new Error('Either SUPABASE_URL or JWT_SECRET must be set');
-  return createSecretKey(Buffer.from(secret));
-}
-
-let _verifier: ReturnType<typeof buildVerifier> | undefined;
-function getVerifier() {
-  if (!_verifier) _verifier = buildVerifier();
-  return _verifier;
+  return _jwks;
 }
 
 export function authHook(fastify: FastifyInstance) {
@@ -36,9 +27,22 @@ export function authHook(fastify: FastifyInstance) {
 
     const token = header.slice(7);
     try {
-      const { payload } = await jwtVerify(token, getVerifier());
-      if (!payload.sub) throw new Error('missing sub');
-      request.owner_id = payload.sub;
+      let sub: string | undefined;
+
+      if (process.env.SUPABASE_URL) {
+        // Production / local Supabase with JWKS support
+        const { payload } = await jwtVerify(token, getJWKS());
+        sub = payload.sub;
+      } else {
+        // Test environments: HS256 symmetric key via JWT_SECRET
+        const secret = process.env.JWT_SECRET;
+        if (!secret) throw new Error('Either SUPABASE_URL or JWT_SECRET must be set');
+        const { payload } = await jwtVerify(token, createSecretKey(Buffer.from(secret)));
+        sub = payload.sub;
+      }
+
+      if (!sub) throw new Error('missing sub');
+      request.owner_id = sub;
     } catch {
       return reply.code(401).send({ error: 'Missing or invalid token', code: 'UNAUTHORIZED' });
     }
