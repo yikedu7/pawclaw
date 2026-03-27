@@ -68,10 +68,7 @@ export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRout
         );
         raw.write('data: [DONE]\n\n');
         raw.end();
-        deps.emitOwnerEvent(pet.owner_id, {
-          type: 'pet.speak',
-          data: { pet_id: id, message: fullText },
-        });
+        // SSE client already received the full stream — no WS echo needed
       } catch (err: unknown) {
         request.log.error({ err, petId: id }, 'Container chat stream failed');
         raw.write('data: [ERROR]\n\n');
@@ -101,6 +98,51 @@ export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRout
       }
     }
 
+    // ── Direct LLM path — SSE streaming when requested ──────────────────────
+    if (wantsStream) {
+      await reply.hijack();
+      const raw = reply.raw;
+      raw.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'X-Accel-Buffering': 'no',
+        Connection: 'keep-alive',
+        // reply.hijack() bypasses @fastify/cors onSend hooks — set CORS manually
+        'Access-Control-Allow-Origin': request.headers.origin ?? '*',
+      });
+
+      try {
+        if (process.env.MOCK_LLM === '1') {
+          raw.write(`data: I heard you! (mock chat)\n\n`);
+        } else {
+          const stream = anthropic.messages.stream({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 256,
+            system: pet.soul_md ?? undefined,
+            messages: [{ role: 'user', content: parsed.data.message }],
+          });
+          for await (const event of stream) {
+            if (
+              event.type === 'content_block_delta' &&
+              event.delta.type === 'text_delta' &&
+              event.delta.text
+            ) {
+              raw.write(`data: ${event.delta.text}\n\n`);
+            }
+          }
+        }
+        raw.write('data: [DONE]\n\n');
+        raw.end();
+        // SSE client already received the full stream — no WS echo needed
+      } catch (err: unknown) {
+        request.log.error({ err, petId: id }, 'Direct LLM stream failed');
+        raw.write('data: [ERROR]\n\n');
+        raw.end();
+      }
+      return;
+    }
+
+    // ── Direct LLM path — JSON ────────────────────────────────────────────────
     let reply_text: string;
 
     if (process.env.MOCK_LLM === '1') {
@@ -109,7 +151,7 @@ export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRout
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
         max_tokens: 256,
-        system: pet.soul_md,
+        system: pet.soul_md ?? undefined,
         messages: [{ role: 'user', content: parsed.data.message }],
       });
       const textBlock = response.content.find(
