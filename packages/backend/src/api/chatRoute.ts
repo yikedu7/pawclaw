@@ -107,14 +107,13 @@ export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRout
         'Cache-Control': 'no-cache',
         'X-Accel-Buffering': 'no',
         Connection: 'keep-alive',
+        // reply.hijack() bypasses @fastify/cors onSend hooks — set CORS manually
+        'Access-Control-Allow-Origin': request.headers.origin ?? '*',
       });
 
       try {
-        let fullText = '';
         if (process.env.MOCK_LLM === '1') {
-          const mock = 'I heard you! (mock chat)';
-          raw.write(`data: ${mock}\n\n`);
-          fullText = mock;
+          raw.write(`data: I heard you! (mock chat)\n\n`);
         } else {
           const stream = anthropic.messages.stream({
             model: 'claude-sonnet-4-6',
@@ -129,7 +128,6 @@ export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRout
               event.delta.text
             ) {
               raw.write(`data: ${event.delta.text}\n\n`);
-              fullText += event.delta.text;
             }
           }
         }
