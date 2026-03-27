@@ -1,3 +1,8 @@
+/** Returns true only for a real 42-char EVM address (no placeholders). */
+function isRealAddress(addr: string | null | undefined): addr is string {
+  return typeof addr === 'string' && addr.length === 42 && addr.startsWith('0x') && !addr.includes('...');
+}
+
 /** Pet nameplate — name, status indicator, truncated wallet address. */
 export class Nameplate {
   readonly el: HTMLDivElement;
@@ -7,7 +12,6 @@ export class Nameplate {
 
   constructor(
     name = 'My Pet',
-    wallet = '0x0000...0000',
     status: 'online' | 'starting' | 'offline' = 'online',
   ) {
     this.el = document.createElement('div');
@@ -23,11 +27,10 @@ export class Nameplate {
     this.nameEl.textContent = name;
 
     this.walletEl = document.createElement('span');
-    this.walletEl.className = 'pet-wallet';
-    this.walletEl.title = 'Click to copy';
-    this.walletEl.style.cursor = 'pointer';
-    this.walletEl.textContent = wallet;
+    this.walletEl.className = 'pet-wallet wallet-address-pending';
+    this.walletEl.textContent = 'Creating wallet\u2026';
     this.walletEl.addEventListener('click', () => {
+      if (this.walletEl.classList.contains('wallet-address-pending')) return;
       const full = this.walletEl.dataset.full ?? this.walletEl.textContent ?? '';
       navigator.clipboard.writeText(full).then(() => {
         const prev = this.walletEl.textContent;
@@ -87,11 +90,20 @@ export class Nameplate {
     this.nameEl.textContent = name;
   }
 
-  setWallet(address: string): void {
-    this.walletEl.dataset.full = address;
-    this.walletEl.textContent = address.length > 14
-      ? `${address.slice(0, 6)}...${address.slice(-4)}`
-      : address;
+  setWallet(address: string | null | undefined): void {
+    if (isRealAddress(address)) {
+      this.walletEl.dataset.full = address;
+      this.walletEl.textContent = `${address.slice(0, 6)}...${address.slice(-4)}`;
+      this.walletEl.classList.remove('wallet-address-pending');
+      this.walletEl.title = 'Click to copy';
+      this.walletEl.style.cursor = 'pointer';
+    } else {
+      delete this.walletEl.dataset.full;
+      this.walletEl.textContent = 'Creating wallet\u2026';
+      this.walletEl.classList.add('wallet-address-pending');
+      this.walletEl.title = '';
+      this.walletEl.style.cursor = 'default';
+    }
   }
 
   setStatus(status: 'online' | 'starting' | 'offline'): void {
