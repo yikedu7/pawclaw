@@ -2,8 +2,16 @@ import { Icons } from './icons';
 
 const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string | undefined) ?? 'http://localhost:3001';
 
-function truncateAddress(addr: string | null): string {
-  if (!addr) return '0x\u2014\u2014...\u2014\u2014';
+/** Returns true if the address is a real on-chain address (non-empty, non-placeholder). */
+function isRealAddress(addr: string | null | undefined): addr is string {
+  if (!addr) return false;
+  // Reject obvious placeholders like "0x1234...5678" that contain "..."
+  if (addr.includes('...')) return false;
+  // A real EVM address is 42 hex chars starting with 0x
+  return /^0x[0-9a-fA-F]{40}$/.test(addr);
+}
+
+function truncateAddress(addr: string): string {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
@@ -47,12 +55,13 @@ export class WalletPanel {
     addressBar.className = 'wallet-address-bar';
 
     const addressText = document.createElement('span');
-    addressText.className = 'wallet-address-text';
-    addressText.textContent = truncateAddress(null);
+    addressText.className = 'wallet-address-text wallet-address-pending';
+    addressText.textContent = 'Creating wallet\u2026';
 
     const copyBtn = document.createElement('button');
     copyBtn.className = 'wallet-copy-btn';
     copyBtn.textContent = 'Copy';
+    copyBtn.hidden = true;
     copyBtn.addEventListener('click', () => {
       if (this.fullAddress) {
         navigator.clipboard.writeText(this.fullAddress).catch(() => {});
@@ -195,6 +204,7 @@ export class WalletPanel {
 
     // Store refs for data updates
     this._addressText = addressText;
+    this._copyBtn = copyBtn;
     this._pawBalance = pawBalance;
 
     // Close on backdrop click
@@ -204,12 +214,32 @@ export class WalletPanel {
   }
 
   private _addressText: HTMLSpanElement;
+  private _copyBtn: HTMLButtonElement;
   private _pawBalance: HTMLSpanElement;
 
   open(): void {
     this.visible = true;
     this.el.hidden = false;
     this._fetchData();
+  }
+
+  /**
+   * Update the displayed wallet address.
+   * If addr is a real on-chain address, show the truncated form and enable copy.
+   * If addr is null/empty/placeholder, show the pending state and hide copy.
+   */
+  setAddress(addr: string | null | undefined): void {
+    if (isRealAddress(addr)) {
+      this.fullAddress = addr;
+      this._addressText.textContent = truncateAddress(addr);
+      this._addressText.classList.remove('wallet-address-pending');
+      this._copyBtn.hidden = false;
+    } else {
+      this.fullAddress = null;
+      this._addressText.textContent = 'Creating wallet\u2026';
+      this._addressText.classList.add('wallet-address-pending');
+      this._copyBtn.hidden = true;
+    }
   }
 
   private _fetchData(): void {
@@ -222,8 +252,7 @@ export class WalletPanel {
         return res.json() as Promise<{ wallet_address?: string | null; paw_balance?: string }>;
       })
       .then((data) => {
-        this.fullAddress = data.wallet_address ?? null;
-        this._addressText.textContent = truncateAddress(this.fullAddress);
+        this.setAddress(data.wallet_address);
         const bal = parseFloat(data.paw_balance ?? '0').toFixed(2);
         this._pawBalance.textContent = `${bal} PAW`;
       })

@@ -8,6 +8,7 @@ export const WsEventSchema = z.discriminatedUnion('type', [
       hunger: z.number(),
       mood: z.number(),
       affection: z.number(),
+      wallet_address: z.string().nullable().optional(),
     }),
   }),
   z.object({

@@ -7,6 +7,7 @@ export type WsEvent =
         hunger: number;
         mood: number;
         affection: number;
+        wallet_address?: string | null;
       };
     }
   | {
