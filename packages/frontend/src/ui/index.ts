@@ -30,7 +30,7 @@ export function initUI(mount: HTMLElement, petId?: string, token?: string): { ch
   const overlay = document.createElement('div');
   overlay.id = 'ui-overlay';
 
-  const nameplate = new Nameplate('My Pet', '0x1234...5678', 'online');
+  const nameplate = new Nameplate('My Pet', 'online');
   const chatLog = new ChatLog();
   const toasts = new Toasts();
   const hudBar = new HudBar(petId, token);
@@ -45,7 +45,7 @@ export function initUI(mount: HTMLElement, petId?: string, token?: string): { ch
       .then((r) => r.ok ? r.json() as Promise<{ name?: string; wallet_address?: string | null }> : null)
       .then((data) => {
         if (data?.name) nameplate.setName(data.name);
-        if (data?.wallet_address) nameplate.setWallet(data.wallet_address);
+        nameplate.setWallet(data?.wallet_address);
         hudBar.walletPanel.setAddress(data?.wallet_address);
       })
       .catch(() => {});
@@ -56,6 +56,7 @@ export function initUI(mount: HTMLElement, petId?: string, token?: string): { ch
     hudBar.updateStats(e.data.hunger, e.data.mood, e.data.affection);
     if (e.data.wallet_address !== undefined) {
       hudBar.walletPanel.setAddress(e.data.wallet_address);
+      nameplate.setWallet(e.data.wallet_address);
     }
   });
 
