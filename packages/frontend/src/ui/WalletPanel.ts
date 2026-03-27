@@ -1,6 +1,5 @@
 import { Icons } from './icons';
-
-const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string | undefined) ?? 'http://localhost:3001';
+import { apiFetch } from '../api';
 
 /** Returns true if the address is a real on-chain address (non-empty, non-placeholder). */
 function isRealAddress(addr: string | null | undefined): addr is string {
@@ -244,7 +243,7 @@ export class WalletPanel {
 
   private _fetchData(): void {
     if (!this.petId || !this.token) return;
-    fetch(`${BACKEND_URL}/api/pets/${this.petId}`, {
+    apiFetch(`/api/pets/${this.petId}`, {
       headers: { Authorization: `Bearer ${this.token}` },
     })
       .then((res) => {
