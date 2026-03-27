@@ -219,4 +219,38 @@ describe('POST /api/pets/:id/chat — SSE streaming', () => {
     expect(body).toContain('data:  world!\n\n');
     expect(body).toContain('data: [DONE]\n\n');
   });
+
+  it('deducts system_credits after SSE streaming chat succeeds', async () => {
+    // Use a dedicated pet to avoid races with other SSE tests running on streamPetId
+    const { rows: petRows } = await streamPool.query<{ id: string }>(`
+      INSERT INTO pets (owner_id, name, soul_md, skill_md, container_id, gateway_token, container_status, system_credits, initial_credits)
+      VALUES ($1, 'CreditPet', 'You are a cat.', '# tools', 'fake-container-credit', 'fake-token-credit', 'running', '1.000', '1.000')
+      RETURNING id
+    `, [OWNER_A]);
+    const creditPetId = petRows[0].id;
+
+    try {
+      const res = await streamApp.inject({
+        method: 'POST', url: `/api/pets/${creditPetId}/chat`,
+        headers: {
+          authorization: `Bearer ${makeToken(OWNER_A)}`,
+          accept: 'text/event-stream',
+        },
+        payload: { message: 'deduct test' },
+      });
+      expect(res.statusCode).toBe(200);
+
+      // deductChatCost runs after raw.end() — give it a moment to settle
+      await new Promise((r) => setTimeout(r, 100));
+
+      const { rows } = await streamPool.query<{ system_credits: string }>(
+        'SELECT system_credits FROM pets WHERE id = $1',
+        [creditPetId],
+      );
+      const after = parseFloat(rows[0].system_credits);
+      expect(after).toBeCloseTo(1.000 - 0.004, 5);
+    } finally {
+      await streamPool.query('DELETE FROM pets WHERE id = $1', [creditPetId]);
+    }
+  });
 });
