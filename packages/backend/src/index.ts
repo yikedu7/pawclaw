@@ -1,7 +1,7 @@
 import Fastify from 'fastify';
 import fastifyCors from '@fastify/cors';
 import fastifyWebsocket from '@fastify/websocket';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { registerWsRoute } from './ws/wsRoute.js';
 import './ws/wsEmitter.js'; // subscribes tickBus events → WebSocket clients
 import { registerTickRoute } from './runtime/tick-route.js';
@@ -77,3 +77,37 @@ if (process.env.PAYMENT_TOKEN_ADDRESS) {
 
 const port = Number(process.env.PORT ?? 3001);
 await fastify.listen({ port, host: '0.0.0.0' });
+
+// Startup recovery: re-launch any pets whose container launch was interrupted by a prior
+// deployment. container_status='created' + container_id=null means createPetContainer
+// never completed (process was killed mid-flight). Fire-and-forget — failures are logged.
+if (process.env.HETZNER_HOST) {
+  const orphaned = await db
+    .select({ id: pets.id, soul_md: pets.soul_md, skill_md: pets.skill_md })
+    .from(pets)
+    .where(and(eq(pets.container_status, 'created'), isNull(pets.container_id)));
+
+  if (orphaned.length > 0) {
+    fastify.log.warn({ count: orphaned.length }, '[startup] Relaunching orphaned pets');
+    for (const pet of orphaned) {
+      const petId = pet.id;
+      createPetContainer(petId, pet.soul_md, pet.skill_md)
+        .then(async ({ containerId }) => {
+          try {
+            await startContainer(containerId);
+          } catch (err: unknown) {
+            fastify.log.warn({ err, petId, containerId }, '[startup] startContainer failed — marking running and continuing');
+            await db.update(pets).set({ container_status: 'running' }).where(eq(pets.container_id, containerId));
+          }
+          const address = await fetchWalletAddress(containerId);
+          if (address) {
+            await db.update(pets).set({ wallet_address: address }).where(eq(pets.container_id, containerId));
+            fastify.log.info({ petId, containerId, address }, '[startup] Wallet address written back');
+          } else {
+            fastify.log.warn({ petId, containerId }, '[startup] Wallet address not found');
+          }
+        })
+        .catch((err: unknown) => fastify.log.error({ err, petId }, '[startup] container lifecycle failed'));
+    }
+  }
+}
