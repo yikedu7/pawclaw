@@ -656,6 +656,13 @@
   white-space: nowrap;
 }
 
+.wallet-address-text.wallet-address-pending {
+  font-family: inherit;
+  color: var(--ui-text-muted, rgba(100, 80, 50, 0.5));
+  font-style: italic;
+  user-select: none;
+}
+
 .wallet-copy-btn {
   background: var(--ui-brown-light);
   color: var(--ui-text);
