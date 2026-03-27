@@ -298,7 +298,11 @@ Feed the pet to restore its hunger stat. Requires auth.
 
 ### POST /api/pets/:id/chat
 
-Send a message to the pet and receive its LLM-generated reply. The reply is also emitted as a `pet.speak` WsEvent so all connected clients see it in real time. Requires auth.
+Send a message to the pet and receive its LLM-generated reply. Requires auth.
+
+**WsEvent behavior by mode:**
+- **JSON mode:** after sending the reply, the server also emits a `pet.speak` WsEvent so all connected clients see it in real time.
+- **SSE mode:** no `pet.speak` WsEvent is emitted — the SSE client already received the full stream token-by-token, and emitting the event would cause duplicate messages in the same session. Other connected clients (e.g. a second tab) will not receive the reply via WebSocket when SSE is used; a follow-up issue will address multi-client visibility for SSE paths.
 
 **Path params:** `id` — pet uuid
 
@@ -347,7 +351,7 @@ data: [DONE]\n\n      // success — full reply has been streamed
 data: [ERROR]\n\n     // failure — stream aborted due to upstream error
 ```
 
-After `[DONE]`, the server also emits a `pet.speak` WsEvent so all connected clients see the full reply in real time.
+After `[DONE]`, no `pet.speak` WsEvent is emitted — the SSE client already has the full reply. See the endpoint description above for the WsEvent behavior per mode.
 
 ---
 
