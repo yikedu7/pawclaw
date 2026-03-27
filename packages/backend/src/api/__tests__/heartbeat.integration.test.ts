@@ -101,6 +101,7 @@ beforeAll(async () => {
 
   process.env.PAYMENT_TOKEN_ADDRESS = TOKEN_ADDRESS;
   process.env.PAYMENT_TOKEN_NAME = TOKEN_NAME;
+  process.env.PAYMENT_TOKEN_VERSION = '1';
   process.env.PLATFORM_WALLET_ADDRESS = PLATFORM_WALLET;
   process.env.PAYMENT_TOKEN_DECIMALS = '6';
 
@@ -120,6 +121,7 @@ afterAll(async () => {
   await app.close();
   delete process.env.PAYMENT_TOKEN_ADDRESS;
   delete process.env.PAYMENT_TOKEN_NAME;
+  delete process.env.PAYMENT_TOKEN_VERSION;
   delete process.env.PLATFORM_WALLET_ADDRESS;
   delete process.env.PAYMENT_TOKEN_DECIMALS;
 });
