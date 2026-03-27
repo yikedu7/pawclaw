@@ -8,10 +8,21 @@
  *   supabase db reset
  */
 import { vi, describe, it, expect, beforeAll, afterAll } from 'vitest';
-import jwt from 'jsonwebtoken';
+import type { FastifyRequest, FastifyReply } from 'fastify';
 import pg from 'pg';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { registerPetRoutes } from '../petRoutes.js';
+
+// Mock authHook — tint tests cover DB side-effects, not authentication.
+vi.mock('../authHook.js', () => ({
+  authHook: () => async (request: FastifyRequest, reply: FastifyReply) => {
+    const header = request.headers.authorization ?? '';
+    if (!header.startsWith('Bearer fake:')) {
+      return reply.code(401).send({ error: 'Missing or invalid token', code: 'UNAUTHORIZED' });
+    }
+    request.owner_id = header.slice('Bearer fake:'.length);
+  },
+}));
 
 // Mock credits — not under test here
 vi.mock('../../onchain/credits.js', () => ({
@@ -20,12 +31,10 @@ vi.mock('../../onchain/credits.js', () => ({
 
 const { Pool } = pg;
 
-// Use the local Supabase JWT secret — same key the JWKS endpoint exposes.
-const JWT_SECRET = process.env.JWT_SECRET ?? 'super-secret-jwt-token-with-at-least-32-characters-long';
 const OWNER = '00000000-cccc-4000-a000-000000000011';
 
 function makeToken(sub: string): string {
-  return jwt.sign({ sub }, JWT_SECRET);
+  return `fake:${sub}`;
 }
 
 let pool: InstanceType<typeof Pool>;

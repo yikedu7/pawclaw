@@ -10,16 +10,14 @@ export const OWNER_ID = '00000000-0000-4000-a000-000000000001';
 export const OTHER_OWNER = '00000000-0000-4000-a000-000000000002';
 
 // Mock authHook — unit tests using helpers.ts test business logic, not auth.
-// The hook always passes with a fixed owner_id; tests that need different owners
-// pass the owner via makeToken (which is no longer used for real JWT verification).
+// Tokens of the form "fake:<uuid>" pass; anything else returns 401.
 vi.mock('../authHook.js', () => ({
-  authHook: () => async (request: FastifyRequest, _reply: FastifyReply) => {
-    // Extract the "sub" embedded in a fake token of the form "fake:<uuid>"
-    // so tests can still control which owner they're acting as.
+  authHook: () => async (request: FastifyRequest, reply: FastifyReply) => {
     const header = request.headers.authorization ?? '';
-    const token = header.replace('Bearer ', '');
-    const sub = token.startsWith('fake:') ? token.slice(5) : OWNER_ID;
-    request.owner_id = sub;
+    if (!header.startsWith('Bearer fake:')) {
+      return reply.code(401).send({ error: 'Missing or invalid token', code: 'UNAUTHORIZED' });
+    }
+    request.owner_id = header.slice('Bearer fake:'.length);
   },
 }));
 

@@ -1,8 +1,20 @@
 import { vi, describe, it, expect, beforeAll, afterAll } from 'vitest';
-import jwt from 'jsonwebtoken';
+import type { FastifyRequest, FastifyReply } from 'fastify';
 import pg from 'pg';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { registerPetRoutes } from '../petRoutes.js';
+
+// Mock authHook — topup tests cover DB side-effects and on-chain balance polling,
+// not authentication.
+vi.mock('../authHook.js', () => ({
+  authHook: () => async (request: FastifyRequest, reply: FastifyReply) => {
+    const header = request.headers.authorization ?? '';
+    if (!header.startsWith('Bearer fake:')) {
+      return reply.code(401).send({ error: 'Missing or invalid token', code: 'UNAUTHORIZED' });
+    }
+    request.owner_id = header.slice('Bearer fake:'.length);
+  },
+}));
 
 // vi.hoisted ensures this fn is initialised before vi.mock hoisting
 const mockGetPawBalance = vi.hoisted(() => vi.fn<() => Promise<string>>());
@@ -19,13 +31,11 @@ vi.mock('../../onchain/credits.js', () => ({
 
 const { Pool } = pg;
 
-// Use the local Supabase JWT secret — same key the JWKS endpoint exposes.
-const JWT_SECRET = process.env.JWT_SECRET ?? 'super-secret-jwt-token-with-at-least-32-characters-long';
 const OWNER_A = '00000000-aaaa-4001-a000-000000000001';
 const OWNER_B = '00000000-aaaa-4001-a000-000000000002';
 
 function makeToken(sub: string): string {
-  return jwt.sign({ sub }, JWT_SECRET);
+  return `fake:${sub}`;
 }
 
 let pool: InstanceType<typeof Pool>;

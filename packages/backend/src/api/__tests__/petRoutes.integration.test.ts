@@ -1,8 +1,20 @@
 import { vi, describe, it, expect, beforeAll, afterAll } from 'vitest';
-import jwt from 'jsonwebtoken';
+import type { FastifyRequest, FastifyReply } from 'fastify';
 import pg from 'pg';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { registerPetRoutes } from '../petRoutes.js';
+
+// Mock authHook — integration tests cover business logic and DB side-effects,
+// not authentication. Tokens of the form "fake:<uuid>" pass; anything else → 401.
+vi.mock('../authHook.js', () => ({
+  authHook: () => async (request: FastifyRequest, reply: FastifyReply) => {
+    const header = request.headers.authorization ?? '';
+    if (!header.startsWith('Bearer fake:')) {
+      return reply.code(401).send({ error: 'Missing or invalid token', code: 'UNAUTHORIZED' });
+    }
+    request.owner_id = header.slice('Bearer fake:'.length);
+  },
+}));
 
 // Mock the credits module — DB credit grant is not under test here.
 const mockGrantCredits = vi.hoisted(() => vi.fn<(petId: string) => Promise<void>>());
@@ -12,14 +24,11 @@ vi.mock('../../onchain/credits.js', () => ({
 
 const { Pool } = pg;
 
-// Use the local Supabase JWT secret — same key the JWKS endpoint exposes.
-// Tokens signed with this secret are verifiable by authHook via JWKS.
-const JWT_SECRET = process.env.JWT_SECRET ?? 'super-secret-jwt-token-with-at-least-32-characters-long';
 const OWNER_A = '00000000-aaaa-4000-a000-000000000001';
 const OWNER_B = '00000000-aaaa-4000-a000-000000000002';
 
 function makeToken(sub: string): string {
-  return jwt.sign({ sub }, JWT_SECRET);
+  return `fake:${sub}`;
 }
 
 let pool: InstanceType<typeof Pool>;
