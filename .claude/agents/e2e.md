@@ -59,7 +59,11 @@ lsof -i :54322 | grep LISTEN  # Supabase postgres
 If 3001 or 54322 are not listening, **stop** and report:
 > Backend or DB not running. Start with: `pnpm --filter @pawclaw/backend dev`
 
-Port 2375 (Docker) is only needed for Chain 2. If missing, skip Chain 2.
+Docker is only needed for Chain 2. Check availability via Unix socket (OrbStack exposes Docker at `/var/run/docker.sock`, not TCP 2375):
+```bash
+curl -s --unix-socket /var/run/docker.sock http://localhost/version > /dev/null 2>&1 && echo "docker=ok" || echo "docker=unavailable"
+```
+If unavailable, skip Chain 2.
 
 ## Step 1 — Session + variable init
 
@@ -130,11 +134,34 @@ agent-browser --session $SESSION eval "document.getElementById('pet-section')?.s
 
 **Pass:** result is `"block"`
 
+After Chain 1 passes, replace the Supabase HS256 token with one signed by `JWT_SECRET`
+so all subsequent REST and WS calls work in local dev (where JWKS returns empty keys):
+
+```bash
+OWNER_ID=$(psql postgresql://postgres:postgres@localhost:54322/postgres -t -c \
+  "SELECT id FROM auth.users WHERE email='$EMAIL';" | tr -d ' \n')
+JWT_SECRET="super-secret-jwt-token-with-at-least-32-characters-long"
+TOKEN=$(node -e "const jwt=require('jsonwebtoken');console.log(jwt.sign({sub:'$OWNER_ID'},'$JWT_SECRET'))")
+echo "TOKEN(resigned)=$TOKEN"
+```
+
 ---
 
 ### Chain 2 — Pet Creation + Container Startup
 
-*Skip if `pet_id` provided. Skip if Docker (port 2375) not available.*
+*Skip if `pet_id` provided. Skip if Docker Unix socket (`/var/run/docker.sock`) not available.*
+
+Before running, pre-block any ports in `19000–19999` that are already occupied by non-Docker
+processes (e.g. OrbStack) so that `allocatePort` skips them naturally:
+
+```bash
+BLOCKED_PORTS=$(lsof -i -P -n 2>/dev/null | awk '/LISTEN/ && /:19[0-9]{3} /' | grep -v 'com.docker\|dockerd' | grep -oE ':19[0-9]{3}' | tr -d ':')
+for port in $BLOCKED_PORTS; do
+  echo "pre-blocking port $port"
+  psql postgresql://postgres:postgres@localhost:54322/postgres -c \
+    "INSERT INTO port_allocations (pet_id, port) VALUES ('00000000-0000-0000-0000-000000000000'::uuid, $port) ON CONFLICT DO NOTHING;"
+done
+```
 
 ```bash
 agent-browser --session $SESSION fill "#pet-name" "TestPet"
@@ -387,7 +414,7 @@ echo "topup: $RESULT"
 
 ### Chain 14 — Unique wallet per pet
 
-*Skip if Docker (port 2375) not available. Requires `pet_id` + `token` from a pet whose container is already running.*
+*Skip if Docker Unix socket (`/var/run/docker.sock`) not available. Requires `pet_id` + `token` from a pet whose container is already running.*
 
 Create a second pet and wait for its container to start:
 
