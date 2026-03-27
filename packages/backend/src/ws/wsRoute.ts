@@ -6,12 +6,6 @@ import { registerOwner, unregisterOwner } from './wsRegistry.js';
 const supabaseUrl = process.env.SUPABASE_URL!;
 const JWKS = createRemoteJWKSet(new URL(`${supabaseUrl}/auth/v1/.well-known/jwks.json`));
 
-async function verifyToken(token: string): Promise<string> {
-  const { payload } = await jwtVerify(token, JWKS);
-  if (!payload.sub) throw new Error('missing sub');
-  return payload.sub;
-}
-
 export async function registerWsRoute(fastify: FastifyInstance): Promise<void> {
   fastify.get('/ws', { websocket: true }, (socket, req) => {
     const query = WsQuerySchema.safeParse(req.query);
@@ -20,8 +14,11 @@ export async function registerWsRoute(fastify: FastifyInstance): Promise<void> {
       return;
     }
 
-    verifyToken(query.data.token)
-      .then((ownerId) => {
+    jwtVerify(query.data.token, JWKS)
+      .then(({ payload }) => {
+        if (!payload.sub) throw new Error('missing sub');
+        const ownerId = payload.sub;
+
         registerOwner(ownerId, socket);
         fastify.log.info({ ownerId }, 'ws client connected');
 

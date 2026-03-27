@@ -12,6 +12,10 @@ import { eq, isNull, sql } from 'drizzle-orm';
 
 const OKX_SKILLS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'okx-skills');
 
+const OpenClawDeltaSchema = z.object({
+  choices: z.array(z.object({ delta: z.object({ content: z.string().optional() }).optional() })).optional(),
+});
+
 /**
  * Load all OKX skill SKILL.md files from the bundled static directory.
  * Skills are checked in under src/runtime/okx-skills/ — no GitHub API, no rate limits.
@@ -639,10 +643,6 @@ export async function containerChatStream(
   let frameBuffer = Buffer.alloc(0);
   let lineBuffer = '';
   let isMultiplexed: boolean | null = null;
-
-  const OpenClawDeltaSchema = z.object({
-    choices: z.array(z.object({ delta: z.object({ content: z.string().optional() }).optional() })).optional(),
-  });
 
   const processLine = (line: string): void => {
     if (!line.startsWith('data: ')) return;
