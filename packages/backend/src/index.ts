@@ -15,7 +15,6 @@ import { createPetContainer, startContainer, containerChat, fetchWalletAddress }
 import { tickBus } from './runtime/tick-bus.js';
 import { db } from './db/client.js';
 import { pets } from './db/schema.js';
-import { grantDbCredits } from './onchain/credits.js';
 import { startBalancePoller } from './runtime/balance-poller.js';
 
 const fastify = Fastify({ logger: true });
@@ -48,9 +47,6 @@ await registerPetRoutes(fastify, {
             const address = await fetchWalletAddress(containerId);
             if (address) {
               await db.update(pets).set({ wallet_address: address }).where(eq(pets.container_id, containerId));
-              grantDbCredits(petId).catch((err: unknown) =>
-                fastify.log.error({ err, petId }, '[credits] Failed to grant DB credits'),
-              );
               fastify.log.info({ petId, containerId, address }, '[wallet] Address written back');
             } else {
               fastify.log.warn({ petId, containerId }, '[wallet] Address not found within 30s');

@@ -1,8 +1,20 @@
 import { vi, describe, it, expect, beforeAll, afterAll } from 'vitest';
+import type { FastifyRequest, FastifyReply } from 'fastify';
 import pg from 'pg';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { registerPetRoutes } from '../petRoutes.js';
-import { getTestToken, deleteTestUser } from './supabase-auth.js';
+
+// Mock authHook — integration tests cover business logic and DB side-effects,
+// not authentication. Tokens of the form "fake:<uuid>" pass; anything else → 401.
+vi.mock('../authHook.js', () => ({
+  authHook: () => async (request: FastifyRequest, reply: FastifyReply) => {
+    const header = request.headers.authorization ?? '';
+    if (!header.startsWith('Bearer fake:')) {
+      return reply.code(401).send({ error: 'Missing or invalid token', code: 'UNAUTHORIZED' });
+    }
+    request.owner_id = header.slice('Bearer fake:'.length);
+  },
+}));
 
 // Mock the credits module — DB credit grant is not under test here.
 const mockGrantCredits = vi.hoisted(() => vi.fn<(petId: string) => Promise<void>>());
@@ -15,10 +27,12 @@ const { Pool } = pg;
 const OWNER_A = '00000000-aaaa-4000-a000-000000000001';
 const OWNER_B = '00000000-aaaa-4000-a000-000000000002';
 
+function makeToken(sub: string): string {
+  return `fake:${sub}`;
+}
+
 let pool: InstanceType<typeof Pool>;
 let app: FastifyInstance;
-let tokenA: string;
-let tokenB: string;
 
 beforeAll(async () => {
   const url = process.env.DATABASE_URL;
@@ -27,9 +41,14 @@ beforeAll(async () => {
   pool = new Pool({ connectionString: url });
   await pool.query('SELECT 1');
 
-  // Get real Supabase JWT tokens (ES256) via admin API (sequential to avoid DB contention)
-  tokenA = await getTestToken(OWNER_A, 'owner-a@test.local');
-  tokenB = await getTestToken(OWNER_B, 'owner-b@test.local');
+  // Seed auth.users rows for FK constraints
+  await pool.query(`
+    INSERT INTO auth.users (id, email, encrypted_password, aud, role, instance_id, created_at, updated_at, confirmation_token, recovery_token, email_change_token_new)
+    VALUES
+      ($1, 'owner-a@test.local', '$2a$10$fake', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now(), now(), '', '', ''),
+      ($2, 'owner-b@test.local', '$2a$10$fake', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now(), now(), '', '', '')
+    ON CONFLICT (id) DO NOTHING
+  `, [OWNER_A, OWNER_B]);
 
   // Clean pets from previous runs
   await pool.query('DELETE FROM pets WHERE owner_id IN ($1, $2)', [OWNER_A, OWNER_B]);
@@ -47,7 +66,6 @@ afterAll(async () => {
   await pool.query('DELETE FROM pets WHERE owner_id IN ($1, $2)', [OWNER_A, OWNER_B]);
   await pool.end();
   await app.close();
-  await Promise.all([deleteTestUser(OWNER_A), deleteTestUser(OWNER_B)]);
 });
 
 describe('pet CRUD integration', () => {
@@ -72,7 +90,7 @@ describe('pet CRUD integration', () => {
   it('POST /api/pets returns 400 when name is missing', async () => {
     const res = await app.inject({
       method: 'POST', url: '/api/pets',
-      headers: { authorization: `Bearer ${tokenA}` },
+      headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
       payload: { soul_prompt: 'a curious cat' },
     });
     expect(res.statusCode).toBe(400);
@@ -82,7 +100,7 @@ describe('pet CRUD integration', () => {
   it('POST /api/pets returns 400 when soul_prompt is missing', async () => {
     const res = await app.inject({
       method: 'POST', url: '/api/pets',
-      headers: { authorization: `Bearer ${tokenA}` },
+      headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
       payload: { name: 'Mochi' },
     });
     expect(res.statusCode).toBe(400);
@@ -94,7 +112,7 @@ describe('pet CRUD integration', () => {
   it('POST /api/pets returns 201 with correct response shape', async () => {
     const res = await app.inject({
       method: 'POST', url: '/api/pets',
-      headers: { authorization: `Bearer ${tokenA}` },
+      headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
       payload: { name: 'SmokePet', soul_prompt: 'a friendly dog' },
     });
     expect(res.statusCode).toBe(201);
@@ -131,7 +149,7 @@ describe('pet CRUD integration', () => {
     mockGrantCredits.mockClear();
     const res = await app.inject({
       method: 'POST', url: '/api/pets',
-      headers: { authorization: `Bearer ${tokenA}` },
+      headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
       payload: { name: 'CreditsPet', soul_prompt: 'a rich cat' },
     });
     expect(res.statusCode).toBe(201);
@@ -142,7 +160,7 @@ describe('pet CRUD integration', () => {
   it('GET /api/pets/:id returns 200 with owner_id for owner', async () => {
     const res = await app.inject({
       method: 'GET', url: `/api/pets/${createdPetId}`,
-      headers: { authorization: `Bearer ${tokenA}` },
+      headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json();
@@ -154,7 +172,7 @@ describe('pet CRUD integration', () => {
   it('GET /api/pets/:id returns 404 for non-existent pet', async () => {
     const res = await app.inject({
       method: 'GET', url: '/api/pets/00000000-0000-4000-b000-999999999999',
-      headers: { authorization: `Bearer ${tokenA}` },
+      headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
     });
     expect(res.statusCode).toBe(404);
     expect(res.json().code).toBe('NOT_FOUND');
@@ -163,7 +181,7 @@ describe('pet CRUD integration', () => {
   it('GET /api/pets/:id returns 200 with only name for wrong owner', async () => {
     const res = await app.inject({
       method: 'GET', url: `/api/pets/${createdPetId}`,
-      headers: { authorization: `Bearer ${tokenB}` },
+      headers: { authorization: `Bearer ${makeToken(OWNER_B)}` },
     });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ name: 'SmokePet' });
@@ -172,7 +190,7 @@ describe('pet CRUD integration', () => {
   it('GET /api/pets returns only pets for the authenticated owner', async () => {
     const res = await app.inject({
       method: 'GET', url: '/api/pets',
-      headers: { authorization: `Bearer ${tokenA}` },
+      headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json();

@@ -1,19 +1,32 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { vi, describe, it, expect, beforeAll, afterAll } from 'vitest';
+import type { FastifyRequest, FastifyReply } from 'fastify';
 import pg from 'pg';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { registerDiaryRoute } from '../diary.js';
-import { getTestToken, deleteTestUser } from '../../api/__tests__/supabase-auth.js';
+
+// Mock authHook — diary tests cover business logic, not authentication.
+vi.mock('../../api/authHook.js', () => ({
+  authHook: () => async (request: FastifyRequest, reply: FastifyReply) => {
+    const header = request.headers.authorization ?? '';
+    if (!header.startsWith('Bearer fake:')) {
+      return reply.code(401).send({ error: 'Missing or invalid token', code: 'UNAUTHORIZED' });
+    }
+    request.owner_id = header.slice('Bearer fake:'.length);
+  },
+}));
 
 const { Pool } = pg;
 
 const OWNER_A = '00000000-dddd-4000-a000-000000000001';
 const OWNER_B = '00000000-dddd-4000-a000-000000000002';
 
+function makeToken(sub: string): string {
+  return `fake:${sub}`;
+}
+
 let pool: InstanceType<typeof Pool>;
 let app: FastifyInstance;
 let petId: string;
-let tokenA: string;
-let tokenB: string;
 
 beforeAll(async () => {
   const url = process.env.DATABASE_URL;
@@ -22,9 +35,14 @@ beforeAll(async () => {
   pool = new Pool({ connectionString: url });
   await pool.query('SELECT 1');
 
-  // Get real Supabase JWT tokens (ES256) via admin API
-  tokenA = await getTestToken(OWNER_A, 'diary-a@test.local');
-  tokenB = await getTestToken(OWNER_B, 'diary-b@test.local');
+  // Seed auth.users rows
+  await pool.query(`
+    INSERT INTO auth.users (id, email, encrypted_password, aud, role, instance_id, created_at, updated_at, confirmation_token, recovery_token, email_change_token_new)
+    VALUES
+      ($1, 'diary-a@test.local', '$2a$10$fake', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now(), now(), '', '', ''),
+      ($2, 'diary-b@test.local', '$2a$10$fake', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now(), now(), '', '', '')
+    ON CONFLICT (id) DO NOTHING
+  `, [OWNER_A, OWNER_B]);
 
   // Seed a pet for OWNER_A
   const { rows } = await pool.query<{ id: string }>(`
@@ -44,7 +62,6 @@ afterAll(async () => {
   await pool.query('DELETE FROM pets WHERE owner_id IN ($1, $2)', [OWNER_A, OWNER_B]);
   await pool.end();
   await app.close();
-  await Promise.all([deleteTestUser(OWNER_A), deleteTestUser(OWNER_B)]);
 });
 
 describe('GET /api/pets/:id/diary', () => {
@@ -58,7 +75,7 @@ describe('GET /api/pets/:id/diary', () => {
     const res = await app.inject({
       method: 'GET',
       url: '/api/pets/not-a-uuid/diary',
-      headers: { authorization: `Bearer ${tokenA}` },
+      headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
     });
     expect(res.statusCode).toBe(400);
     expect(res.json().code).toBe('VALIDATION_ERROR');
@@ -68,7 +85,7 @@ describe('GET /api/pets/:id/diary', () => {
     const res = await app.inject({
       method: 'GET',
       url: '/api/pets/00000000-dead-4000-beef-000000000000/diary',
-      headers: { authorization: `Bearer ${tokenA}` },
+      headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
     });
     expect(res.statusCode).toBe(404);
     expect(res.json().code).toBe('NOT_FOUND');
@@ -78,7 +95,7 @@ describe('GET /api/pets/:id/diary', () => {
     const res = await app.inject({
       method: 'GET',
       url: `/api/pets/${petId}/diary`,
-      headers: { authorization: `Bearer ${tokenB}` },
+      headers: { authorization: `Bearer ${makeToken(OWNER_B)}` },
     });
     expect(res.statusCode).toBe(403);
     expect(res.json().code).toBe('FORBIDDEN');
@@ -88,7 +105,7 @@ describe('GET /api/pets/:id/diary', () => {
     const res = await app.inject({
       method: 'GET',
       url: `/api/pets/${petId}/diary`,
-      headers: { authorization: `Bearer ${tokenA}` },
+      headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json();
@@ -104,7 +121,7 @@ describe('GET /api/pets/:id/diary', () => {
     const res = await app.inject({
       method: 'GET',
       url: `/api/pets/${petId}/diary`,
-      headers: { authorization: `Bearer ${tokenA}` },
+      headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json();
@@ -121,7 +138,7 @@ describe('GET /api/pets/:id/diary', () => {
     const res = await app.inject({
       method: 'GET',
       url: `/api/pets/${petId}/diary`,
-      headers: { authorization: `Bearer ${tokenA}` },
+      headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
     });
     expect(res.statusCode).toBe(200);
     expect(res.json().diary).toBe('Today I visited my friend.');
