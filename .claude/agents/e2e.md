@@ -50,6 +50,8 @@ use e2e agent with args "chains=5,9 pet_id=abc-123 token=eyJ..."
 
 ## Step 0 — Prerequisites check
 
+If running from a worktree, follow the worktree setup in `CLAUDE.md` first (`pnpm install`, `pnpm --filter @pawclaw/shared build`, symlink `.env` files).
+
 ```bash
 lsof -i :3001 | grep LISTEN   # backend
 lsof -i :5173 | grep LISTEN   # vite dev server

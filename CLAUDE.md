@@ -69,7 +69,14 @@ Always work in an isolated git worktree — never modify files directly in the m
 git fetch origin
 git worktree add ../pawclaw-issue-<N> -b issue-<N>-short-name origin/main
 cd ../pawclaw-issue-<N>
-# do all work here
+
+# Install deps + build shared types
+pnpm install
+pnpm --filter @pawclaw/shared build
+
+# Symlink .env files from main checkout (gitignored, only exist in main)
+ln -sf /Users/yikedu/Code/x-pet/packages/backend/.env packages/backend/.env
+ln -sf /Users/yikedu/Code/x-pet/packages/frontend/.env.local packages/frontend/.env.local
 ```
 
 After PR merges, clean up:
