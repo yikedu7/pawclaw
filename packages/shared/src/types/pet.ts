@@ -38,6 +38,10 @@ export type PetState = {
   mood: number;
   affection: number;
   tint_color?: string;
+  system_credits?: string;
+  onchain_balance?: string;
+  total_balance?: string;
+  initial_credits?: string;
 };
 
 // SocialEvent payload — type-specific fields, all optional

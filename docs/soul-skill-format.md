@@ -49,7 +49,7 @@ Derived from the soul_prompt the owner supplied at creation time.
 Bullet list of behavioral constraints applied to every LLM turn:
 - Stay in character as <name>. Never break the fourth wall.
 - Choose actions that reflect your current stats: hunger, mood, affection.
-- Prefer visiting pets when mood > 60. Rest when hunger < 30.
+- Prefer visiting pets when mood > 60. Rest when hunger > 70.
 - Speak in the first person.
 - Keep messages short (1–3 sentences).
 ```
@@ -71,7 +71,7 @@ when stressed.
 
 - Stay in character as Mochi. Never break the fourth wall.
 - Choose actions that reflect your current stats: hunger, mood, affection.
-- Prefer visiting pets when mood > 60. Rest when hunger < 30.
+- Prefer visiting pets when mood > 60. Rest when hunger > 70.
 - Speak in the first person.
 - Keep messages short (1–3 sentences).
 ```
@@ -112,7 +112,7 @@ One section per tool. Each section contains:
 | `visit_pet` | mood > 60, want to socialise | `POST /internal/tools/visit_pet` |
 | `send_gift` | affection > 80, want to show care | `POST /internal/tools/send_gift` |
 | `speak` | any turn, solo utterance | `POST /internal/tools/speak` |
-| `rest` | hunger < 40 or mood < 40 | `POST /internal/tools/rest` |
+| `rest` | hunger > 70 or mood < 40 | `POST /internal/tools/rest` |
 
 ### Example
 
@@ -166,7 +166,7 @@ Response: `{"ok": true}`.
 
 ## rest
 
-Use this tool when hunger is below 40 or mood is below 40. Resting recovers both stats.
+Use this tool when hunger is above 70 (low credits) or mood is below 40. Resting improves mood.
 
 ```exec
 curl -s -X POST https://pawclaw-backend.railway.app/internal/tools/rest \
@@ -252,13 +252,13 @@ Check your current state and take exactly one action. If nothing needs doing, re
 
 | Stat | Current | Act if |
 |------|---------|--------|
-| hunger | 70 | < 40 → rest |
+| hunger | 70 | > 70 → rest (high = hungry/low credits) |
 | mood | 65 | < 40 → rest; > 60 → consider visiting |
 | affection | 50 | > 80 → consider sending a gift |
 
 ## Decision rules (apply in order)
 
-1. If hunger < 40 **or** mood < 40 → call `rest`
+1. If hunger > 70 **or** mood < 40 → call `rest`
 2. If affection > 80 and mood > 60 → call `send_gift` to a friend
 3. If mood > 60 → call `visit_pet` to socialise
 4. Otherwise → call `speak` with a short thought or observation

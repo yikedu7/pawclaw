@@ -47,9 +47,9 @@ describe('POST /api/pets', () => {
     expect(res.statusCode).toBe(201);
     const body = res.json();
     expect(body.name).toBe('Mochi');
-    expect(body.hunger).toBe(100);
-    expect(body.mood).toBe(100);
-    expect(body.affection).toBe(0);
+    expect(body.hunger).toBe(20);
+    expect(body.mood).toBe(80);
+    expect(body.affection).toBe(20);
     expect(typeof body.id).toBe('string');
   });
 

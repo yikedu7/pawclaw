@@ -37,7 +37,9 @@ export type PetRow = {
   hunger: number;
   mood: number;
   affection: number;
-  initial_credits: number;
+  initial_credits: string;
+  system_credits: string;
+  onchain_balance: string;
   llm_history: unknown;
   last_tick_at: Date | null;
   created_at: Date;
@@ -48,6 +50,7 @@ export type PetRow = {
   container_status: string;
   gateway_token: string | null;
   port_index: number | null;
+  tint_color: string;
 };
 
 export let petRows: PetRow[] = [];
@@ -69,10 +72,12 @@ export function seedPet(overrides: Partial<PetRow> & { id: string; owner_id: str
     soul_md: '#',
     skill_md: '#',
     wallet_address: null,
-    initial_credits: 200,
-    hunger: 100,
-    mood: 100,
-    affection: 0,
+    initial_credits: '0.3',
+    system_credits: '0.24',
+    onchain_balance: '0',
+    hunger: 20,
+    mood: 80,
+    affection: 20,
     llm_history: [],
     last_tick_at: null,
     created_at: new Date(),
@@ -83,6 +88,7 @@ export function seedPet(overrides: Partial<PetRow> & { id: string; owner_id: str
     container_status: 'created',
     gateway_token: null,
     port_index: null,
+    tint_color: '#ffffff',
     ...overrides,
   };
   petRows.push(row);
@@ -121,10 +127,13 @@ vi.mock('../../db/client.js', () => {
               soul_md: vals.soul_md ?? '',
               skill_md: vals.skill_md ?? '',
               wallet_address: vals.wallet_address ?? null,
-              initial_credits: vals.initial_credits ?? 200,
-              hunger: vals.hunger ?? 100,
-              mood: vals.mood ?? 100,
-              affection: vals.affection ?? 0,
+              initial_credits: vals.initial_credits ?? '0.3',
+              system_credits: vals.system_credits ?? '0.24',
+              onchain_balance: vals.onchain_balance ?? '0',
+              hunger: vals.hunger ?? 20,
+              mood: vals.mood ?? 80,
+              affection: vals.affection ?? 20,
+              tint_color: vals.tint_color ?? '#ffffff',
               llm_history: [],
               last_tick_at: null,
               created_at: new Date(),

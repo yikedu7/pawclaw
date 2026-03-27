@@ -93,8 +93,8 @@ beforeAll(async () => {
   await pool.query('DELETE FROM pets WHERE owner_id = $1', [OWNER]);
 
   const { rows } = await pool.query<{ id: string }>(`
-    INSERT INTO pets (owner_id, name, soul_md, skill_md, wallet_address, gateway_token, paw_balance)
-    VALUES ($1, 'HeartbeatPet', '# soul', '# skill', $2, $3, '10.0')
+    INSERT INTO pets (owner_id, name, soul_md, skill_md, wallet_address, gateway_token, onchain_balance)
+    VALUES ($1, 'HeartbeatPet', '# soul', '# skill', $2, $3, '0.1')
     RETURNING id
   `, [OWNER, petWallet.address, GATEWAY_TOKEN]);
   petId = rows[0].id;
@@ -145,7 +145,7 @@ describe('POST /internal/heartbeat/:petId', () => {
       accepts: expect.arrayContaining([
         expect.objectContaining({
           network: 'eip155:196',
-          amount: '0.000001',
+          amount: '0.0125',
           payTo: PLATFORM_WALLET,
           asset: TOKEN_ADDRESS,
         }),
@@ -153,10 +153,8 @@ describe('POST /internal/heartbeat/:petId', () => {
     });
   });
 
-  it('returns 200, inserts transaction, and deducts paw_balance on valid payment', async () => {
-    // Reset paw_balance to a known value before this test
-    await pool.query('UPDATE pets SET paw_balance = $1 WHERE id = $2', ['10.0', petId]);
-    // Clean up any previously inserted tx rows
+  it('returns 200, inserts transaction, and deducts onchain_balance on valid payment', async () => {
+    await pool.query('UPDATE pets SET onchain_balance = $1 WHERE id = $2', ['0.1', petId]);
     await pool.query('DELETE FROM transactions WHERE tx_hash = $1', [FAKE_TX_HASH]);
 
     const authorization = makeAuthorization();
@@ -175,7 +173,6 @@ describe('POST /internal/heartbeat/:petId', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({ ok: true, tx_hash: FAKE_TX_HASH });
 
-    // DB side effect: transaction row inserted
     const { rows: txRows } = await pool.query<{
       from_wallet: string;
       to_wallet: string;
@@ -191,12 +188,12 @@ describe('POST /internal/heartbeat/:petId', () => {
     expect(txRows[0].amount).toBe('1');
     expect(txRows[0].tx_hash).toBe(FAKE_TX_HASH);
 
-    // DB side effect: paw_balance deducted (10.0 - 0.000001 = 9.999999)
-    const { rows: petRows } = await pool.query<{ paw_balance: string }>(
-      'SELECT paw_balance FROM pets WHERE id = $1',
+    // onchain_balance deducted: 0.1 - 1/10^6 = 0.1 - 0.000001 ≈ 0.099999
+    const { rows: petRows } = await pool.query<{ onchain_balance: string }>(
+      'SELECT onchain_balance FROM pets WHERE id = $1',
       [petId],
     );
-    expect(parseFloat(petRows[0].paw_balance)).toBeCloseTo(10.0 - 0.000001, 6);
+    expect(parseFloat(petRows[0].onchain_balance)).toBeCloseTo(0.1 - 0.000001, 6);
   });
 
   it('returns 401 when EIP-3009 signature is malformed', async () => {

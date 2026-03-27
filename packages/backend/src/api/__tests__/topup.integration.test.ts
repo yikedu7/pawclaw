@@ -82,8 +82,8 @@ describe('POST /api/pets/:id/topup', () => {
   // Seed a pet with wallet_address + container_status so topup can work
   beforeAll(async () => {
     const { rows } = await pool.query<{ id: string }>(`
-      INSERT INTO pets (owner_id, name, soul_md, skill_md, wallet_address, container_status, container_id, paw_balance, initial_credits)
-      VALUES ($1, 'TopupPet', '# soul', '# skill', '0xDeadBeef0000000000000000000000000000cafe', 'running', 'fake-container-id', '150', 200)
+      INSERT INTO pets (owner_id, name, soul_md, skill_md, wallet_address, container_status, container_id, onchain_balance)
+      VALUES ($1, 'TopupPet', '# soul', '# skill', '0xDeadBeef0000000000000000000000000000cafe', 'running', 'fake-container-id', '0.05')
       RETURNING id
     `, [OWNER_A]);
     petId = rows[0].id;
@@ -132,8 +132,8 @@ describe('POST /api/pets/:id/topup', () => {
     await pool.query('DELETE FROM pets WHERE id = $1', [noWalletPetId]);
   });
 
-  it('updates paw_balance for running pet (no revival)', async () => {
-    mockGetPawBalance.mockResolvedValue('175.5');
+  it('updates onchain_balance for running pet (no revival)', async () => {
+    mockGetPawBalance.mockResolvedValue('0.08');
     reviveContainerCalled = null;
     emitOwnerEventCalls = [];
 
@@ -142,24 +142,21 @@ describe('POST /api/pets/:id/topup', () => {
       headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json() as { ok: boolean; paw_balance: string };
+    const body = res.json() as { ok: boolean; onchain_balance: string };
     expect(body.ok).toBe(true);
-    expect(body.paw_balance).toBe('175.5');
+    expect(body.onchain_balance).toBe('0.08');
 
-    // DB side effect: paw_balance updated
-    const { rows } = await pool.query('SELECT paw_balance FROM pets WHERE id = $1', [petId]);
-    expect(parseFloat(rows[0].paw_balance)).toBeCloseTo(175.5);
+    const { rows } = await pool.query('SELECT onchain_balance FROM pets WHERE id = $1', [petId]);
+    expect(parseFloat(rows[0].onchain_balance)).toBeCloseTo(0.08);
 
-    // No revival for running pet
     expect(reviveContainerCalled).toBeNull();
     expect(emitOwnerEventCalls.find(e => e.type === 'pet.revived')).toBeUndefined();
   });
 
-  it('revives stopped pet when balance > 0', async () => {
-    // Set pet to stopped
-    await pool.query("UPDATE pets SET container_status = 'stopped', paw_balance = '0' WHERE id = $1", [petId]);
+  it('revives stopped pet when onchain_balance > 0', async () => {
+    await pool.query("UPDATE pets SET container_status = 'stopped', onchain_balance = '0' WHERE id = $1", [petId]);
 
-    mockGetPawBalance.mockResolvedValue('50.0');
+    mockGetPawBalance.mockResolvedValue('0.05');
     reviveContainerCalled = null;
     emitOwnerEventCalls = [];
 
@@ -168,57 +165,59 @@ describe('POST /api/pets/:id/topup', () => {
       headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json() as { ok: boolean; paw_balance: string };
+    const body = res.json() as { ok: boolean; onchain_balance: string };
     expect(body.ok).toBe(true);
-    expect(body.paw_balance).toBe('50.0');
+    expect(body.onchain_balance).toBe('0.05');
 
-    // DB side effect: paw_balance updated
-    const { rows } = await pool.query('SELECT paw_balance FROM pets WHERE id = $1', [petId]);
-    expect(parseFloat(rows[0].paw_balance)).toBeCloseTo(50.0);
+    const { rows } = await pool.query('SELECT onchain_balance FROM pets WHERE id = $1', [petId]);
+    expect(parseFloat(rows[0].onchain_balance)).toBeCloseTo(0.05);
 
-    // Revival triggered
     expect(reviveContainerCalled).toBe('fake-container-id');
     expect(emitOwnerEventCalls.find(e => e.type === 'pet.revived')).toBeDefined();
   });
 });
 
-describe('GET /api/pets/:id — paw_balance + initial_credits', () => {
+describe('GET /api/pets/:id — system_credits + onchain_balance + total_balance', () => {
   let petId: string;
 
   beforeAll(async () => {
     const { rows } = await pool.query<{ id: string }>(`
-      INSERT INTO pets (owner_id, name, soul_md, skill_md, paw_balance, initial_credits)
-      VALUES ($1, 'BalancePet', '# soul', '# skill', '120.5', 300)
+      INSERT INTO pets (owner_id, name, soul_md, skill_md, system_credits, onchain_balance, initial_credits)
+      VALUES ($1, 'BalancePet', '# soul', '# skill', '0.12', '0.05', 0.3)
       RETURNING id
     `, [OWNER_A]);
     petId = rows[0].id;
   });
 
-  it('includes paw_balance and initial_credits in response', async () => {
+  it('includes system_credits, onchain_balance, total_balance, initial_credits in response', async () => {
     const res = await app.inject({
       method: 'GET', url: `/api/pets/${petId}`,
       headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json() as { paw_balance: string; initial_credits: number };
-    expect(parseFloat(body.paw_balance)).toBeCloseTo(120.5);
-    expect(body.initial_credits).toBe(300);
+    const body = res.json() as { system_credits: string; onchain_balance: string; total_balance: string; initial_credits: string };
+    expect(parseFloat(body.system_credits)).toBeCloseTo(0.12);
+    expect(parseFloat(body.onchain_balance)).toBeCloseTo(0.05);
+    expect(parseFloat(body.total_balance)).toBeCloseTo(0.17);
+    expect(parseFloat(body.initial_credits)).toBeCloseTo(0.3);
   });
 
-  it('returns paw_balance as "0" when null in DB', async () => {
+  it('returns "0" for system_credits and onchain_balance defaults', async () => {
     const { rows } = await pool.query<{ id: string }>(`
       INSERT INTO pets (owner_id, name, soul_md, skill_md)
-      VALUES ($1, 'NullBalancePet', '# soul', '# skill')
+      VALUES ($1, 'DefaultBalancePet', '# soul', '# skill')
       RETURNING id
     `, [OWNER_A]);
-    const nullPetId = rows[0].id;
+    const defaultPetId = rows[0].id;
 
     const res = await app.inject({
-      method: 'GET', url: `/api/pets/${nullPetId}`,
+      method: 'GET', url: `/api/pets/${defaultPetId}`,
       headers: { authorization: `Bearer ${makeToken(OWNER_A)}` },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json() as { paw_balance: string };
-    expect(body.paw_balance).toBe('0');
+    const body = res.json() as { system_credits: string; onchain_balance: string; total_balance: string };
+    expect(body.system_credits).toBe('0');
+    expect(body.onchain_balance).toBe('0');
+    expect(body.total_balance).toBe('0');
   });
 });
