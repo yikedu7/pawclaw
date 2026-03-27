@@ -11,6 +11,7 @@ RUN pnpm install --frozen-lockfile --filter @pawclaw/frontend...
 
 # Build
 FROM deps AS builder
+ARG CACHE_BUST=1
 ARG VITE_BACKEND_URL
 ARG VITE_WS_HOST
 ARG VITE_WS_TOKEN
