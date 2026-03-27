@@ -166,8 +166,8 @@ export class ChatLog {
 
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
-          const data = line.slice(6).trim();
-          if (data === '[DONE]' || data === '[ERROR]') continue;
+          const data = line.slice(6);
+          if (data.trimEnd() === '[DONE]' || data.trimEnd() === '[ERROR]') continue;
 
           // On first token: replace thinking row with streaming row
           if (streamingRow === null) {
