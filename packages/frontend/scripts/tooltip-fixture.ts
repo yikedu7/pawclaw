@@ -12,7 +12,7 @@ const __dir = dirname(fileURLToPath(import.meta.url));
 const cssPath = resolve(__dir, '../src/ui/styles.css');
 const css = readFileSync(cssPath, 'utf8')
   // strip @import (Google Fonts) so it renders offline
-  .replace(/@import[^;]+;/g, '');
+  .replace(/^@import .+$/gm, '');
 
 const output = process.env.SCREENSHOT_OUTPUT ?? '/tmp/tooltip-test.png';
 
@@ -22,7 +22,7 @@ const html = `<!DOCTYPE html>
 <meta charset="UTF-8"/>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: #3a7a3a; width: 900px; height: 400px; position: relative; overflow: hidden;
+body { background: #2a2a2a; width: 900px; height: 400px; position: relative; overflow: hidden;
        font-family: Inter, system-ui, sans-serif; }
 ${css}
 </style>

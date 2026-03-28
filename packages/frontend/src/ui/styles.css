@@ -485,15 +485,16 @@
   margin-bottom: 6px;
   left: 0;
   z-index: 100;
-  background: rgba(30, 20, 10, 0.95);
-  border: 1px solid var(--ui-brown-light);
+  background: var(--ui-panel-bg);
+  border: 1px solid var(--ui-panel-border);
   border-radius: 6px;
   padding: 8px 10px;
   min-width: 220px;
   max-width: 280px;
   font-size: 11px;
-  color: var(--ui-text-muted);
+  color: var(--ui-text);
   line-height: 1.5;
+  box-shadow: 0 2px 8px var(--ui-shadow);
   pointer-events: none;
 }
 
