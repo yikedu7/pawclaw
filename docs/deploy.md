@@ -53,6 +53,7 @@ For the **backend** service, add all variables from `.env.example`:
 | `DATABASE_URL` | Supabase Pooler URL (port 6543, `?pgbouncer=true`) — used by the app for all queries |
 | `DATABASE_MIGRATION_URL` | Supabase direct connection URL (port 5432) — used only by the migration runner at startup; DDL statements require a direct connection and will fail silently over the Pooler |
 | `ANTHROPIC_API_KEY` | Claude API key for LLM-driven pet personalities |
+| `LLM_MODEL` | (Optional) LLM model for pet chat and social visits; defaults to `minimax-m2.7` |
 | `JWT_SECRET` | Secret for signing JWT tokens |
 | `BACKEND_URL` | Public URL of this backend service (used in generated SKILL.md files) |
 | `OKX_API_KEY` | OKX Onchain OS API key — forwarded to per-pet OpenClaw containers |

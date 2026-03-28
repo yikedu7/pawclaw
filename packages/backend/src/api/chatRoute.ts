@@ -121,7 +121,7 @@ export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRout
           raw.write(`data: I heard you! (mock chat)\n\n`);
         } else {
           const stream = anthropic.messages.stream({
-            model: 'claude-sonnet-4-6',
+            model: process.env.LLM_MODEL ?? 'minimax-m2.7',
             max_tokens: 256,
             system: pet.soul_md ?? undefined,
             messages: [{ role: 'user', content: parsed.data.message }],
@@ -154,7 +154,7 @@ export async function registerChatRoute(fastify: FastifyInstance, deps: ChatRout
       reply_text = 'I heard you! (mock chat)';
     } else {
       const response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-6',
+        model: process.env.LLM_MODEL ?? 'minimax-m2.7',
         max_tokens: 256,
         system: pet.soul_md ?? undefined,
         messages: [{ role: 'user', content: parsed.data.message }],

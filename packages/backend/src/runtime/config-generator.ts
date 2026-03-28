@@ -28,6 +28,8 @@ export function generateConfigJson({ gatewayToken, anthropicBaseUrl }: ConfigInp
     ? (anthropicBaseUrl.endsWith('/v1') ? anthropicBaseUrl : `${anthropicBaseUrl}/v1`)
     : 'https://aihubmix.com/v1';
 
+  const model = process.env.LLM_MODEL ?? 'minimax-m2.7';
+
   const config = {
     gateway: {
       mode: 'local',
@@ -36,7 +38,7 @@ export function generateConfigJson({ gatewayToken, anthropicBaseUrl }: ConfigInp
     },
     agents: {
       defaults: {
-        model: 'aihub/DeepSeek-V3.1',
+        model: `aihub/${model}`,
         heartbeat: { every: '3h' },
       },
     },
@@ -47,7 +49,7 @@ export function generateConfigJson({ gatewayToken, anthropicBaseUrl }: ConfigInp
           baseUrl,
           apiKey: '${ANTHROPIC_API_KEY}',
           api: 'openai-completions',
-          models: [{ id: 'DeepSeek-V3.1', name: 'DeepSeek V3.1' }],
+          models: [{ id: model, name: model }],
         },
       },
     },
