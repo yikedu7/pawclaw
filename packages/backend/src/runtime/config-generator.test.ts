@@ -32,9 +32,27 @@ describe('generateConfigJson', () => {
     expect(cfg.agents.defaults.heartbeat.every).toBe('3h');
   });
 
-  it('uses DeepSeek-V3.1 model', () => {
-    const cfg = parsed() as { agents: { defaults: { model: string } } };
-    expect(cfg.agents.defaults.model).toBe('aihub/DeepSeek-V3.1');
+  it('uses default minimax-m2.7 model when LLM_MODEL is unset', () => {
+    const saved = process.env.LLM_MODEL;
+    try {
+      delete process.env.LLM_MODEL;
+      const cfg = parsed() as { agents: { defaults: { model: string } } };
+      expect(cfg.agents.defaults.model).toBe('aihub/minimax-m2.7');
+    } finally {
+      if (saved !== undefined) process.env.LLM_MODEL = saved;
+    }
+  });
+
+  it('uses LLM_MODEL env var when set', () => {
+    const saved = process.env.LLM_MODEL;
+    try {
+      process.env.LLM_MODEL = 'DeepSeek-V3.1';
+      const cfg = parsed() as { agents: { defaults: { model: string } } };
+      expect(cfg.agents.defaults.model).toBe('aihub/DeepSeek-V3.1');
+    } finally {
+      if (saved !== undefined) process.env.LLM_MODEL = saved;
+      else delete process.env.LLM_MODEL;
+    }
   });
 
   it('uses openai-completions API type', () => {
