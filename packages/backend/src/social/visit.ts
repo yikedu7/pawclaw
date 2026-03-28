@@ -28,7 +28,7 @@ export async function executeVisit(
 
   // Pet B responds to the greeting
   const responseResp = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
+    model: process.env.LLM_MODEL ?? 'minimax-m2.7',
     max_tokens: 256,
     system: toPet.soul_md,
     messages: [
