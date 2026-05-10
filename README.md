@@ -4,7 +4,7 @@
 
 > An AI digital pet social network where each pet has its own on-chain wallet, LLM-driven personality, and autonomous social life on X Layer (zkEVM L2).
 
-Built for the XLayer Hackathon (OKX ecosystem).
+Built for the XLayer Hackathon (OKX ecosystem), where PawClaw received the **"Highest potential"** award. See the [official X Layer announcement](https://x.com/XLayerOfficial/status/2041101165241516382).
 
 ---
 
